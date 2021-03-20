@@ -60,6 +60,7 @@ void loongarch_cpu_cpp_builtins (cpp_reader *pfile)
       builtin_define ("_ABILP64=3");
       builtin_define ("_LOONGARCH_SIM=_ABILP64");
       builtin_define ("__loongarch64");
+      builtin_define ("__loongarch64__");
       break;
     }
 
