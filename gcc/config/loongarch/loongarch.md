@@ -3017,7 +3017,7 @@
   [(set (pc) (match_operand:P 0 "register_operand" "r"))]
   ""
   {
-    return "jr\t%0";
+    return "jirl\t$zero,%0,0";
   }
   [(set_attr "type" "jump")
    (set_attr "mode" "none")])
@@ -3042,7 +3042,7 @@
    (use (label_ref (match_operand 1 "" "")))]
   ""
   {
-    return "jr\t%0";
+    return "jirl\t$zero,%0,0";
   }
   [(set_attr "type" "jump")
    (set_attr "mode" "none")])
@@ -3121,7 +3121,7 @@
   ""
   {
     operands[0] = gen_rtx_REG (Pmode, RETURN_ADDR_REGNUM);
-    return "jr\t%0";
+    return "jirl\t$zero,%0,0";
   }
   [(set_attr "type"	"jump")
    (set_attr "mode"	"none")])
@@ -3133,7 +3133,7 @@
    (use (match_operand 0 "pmode_register_operand" ""))]
   ""
   {
-    return "jr\t%0";
+    return "jirl\t$zero,%0,0";
   }
   [(set_attr "type"	"jump")
    (set_attr "mode"	"none")])
@@ -3218,26 +3218,26 @@
   switch (which_alternative)
     {
     case 0:
-      return "jr\t%0";
+      return "jirl\t$zero,%0,0";
     case 1:
       if (loongarch_cmodel_var == LARCH_CMODEL_LARGE)
         return "pcaddu18i\t$r12,(%%pcrel(%0+0x20000))>>18\n\tjirl\t$r0,$r12,%%pcrel(%0+4)-(%%pcrel(%0+4+0x20000)>>18<<18)";
       else if (loongarch_cmodel_var == LARCH_CMODEL_EXTREME)
-        return "la.local\t$r12,$r13,%0\n\tjr\t$r12";
+        return "la.local\t$r12,$r13,%0\n\tjirl\t$zero,$r12,0";
       else
         return "b\t%0";
     case 2:
       if (loongarch_cmodel_var == LARCH_CMODEL_TINY_STATIC)
         return "b\t%0";
       else if (loongarch_cmodel_var == LARCH_CMODEL_EXTREME)
-        return "la.global\t$r12,$r13,%0\n\tjr\t$r12";
+        return "la.global\t$r12,$r13,%0\n\tjirl\t$zero,$r12,0";
       else
-        return "la.global\t$r12,%0\n\tjr\t$r12";
+        return "la.global\t$r12,%0\n\tjirl\t$zero,$r12,0";
     case 3:
       if (loongarch_cmodel_var == LARCH_CMODEL_EXTREME)
-        return "la.global\t$r12,$r13,%0\n\tjr\t$r12";
+        return "la.global\t$r12,$r13,%0\n\tjirl\t$zero,$r12,0";
       else
-        return "la.global\t$r12,%0\n\tjr\t$r12";
+        return "la.global\t$r12,%0\n\tjirl\t$zero,$r12,0";
     case 4:
       if (loongarch_cmodel_var == LARCH_CMODEL_NORMAL || loongarch_cmodel_var == LARCH_CMODEL_TINY)
         return "b\t%%plt(%0)";
@@ -3286,26 +3286,26 @@
   switch (which_alternative)
   {
     case 0:
-      return "jr\t%1";
+      return "jirl\t%zero,%1,0";
     case 1:
       if (loongarch_cmodel_var == LARCH_CMODEL_LARGE)
         return "pcaddu18i\t$r12,%%pcrel(%1+0x20000)>>18\n\tjirl\t$r0,$r12,%%pcrel(%1+4)-((%%pcrel(%1+4+0x20000))>>18<<18)";
       else if (loongarch_cmodel_var == LARCH_CMODEL_EXTREME)
-        return "la.local\t$r12,$r13,%1\n\tjr\t$r12";
+        return "la.local\t$r12,$r13,%1\n\tjirl\t$zero,$r12,0";
       else
         return "b\t%1";
     case 2:
       if (loongarch_cmodel_var == LARCH_CMODEL_TINY_STATIC)
         return "b\t%1";
       else if (loongarch_cmodel_var == LARCH_CMODEL_EXTREME)
-        return "la.global\t$r12,$r13,%1\n\tjr\t$r12";
+        return "la.global\t$r12,$r13,%1\n\tjirl\t$zero,$r12,0";
       else
-        return "la.global\t$r12,%1\n\tjr\t$r12";
+        return "la.global\t$r12,%1\n\tjirl\t$zero,$r12,0";
     case 3:
       if (loongarch_cmodel_var == LARCH_CMODEL_EXTREME)
-        return "la.global\t$r12,$r13,%1\n\tjr\t$r12";
+        return "la.global\t$r12,$r13,%1\n\tjirl\t$zero,$r12,0";
       else
-        return "la.global\t$r12,%1\n\tjr\t$r12";
+        return "la.global\t$r12,%1\n\tjirl\t$zero,$r12,0";
     case 4:
       if (loongarch_cmodel_var == LARCH_CMODEL_NORMAL || loongarch_cmodel_var == LARCH_CMODEL_TINY)
         return " b\t%%plt(%1)";
@@ -3331,26 +3331,26 @@
   switch (which_alternative)
   {
     case 0:
-      return "jr\t%1";
+      return "jirl\t$zero,%1,0";
     case 1:
       if (loongarch_cmodel_var == LARCH_CMODEL_LARGE)
         return "pcaddu18i\t$r12,%%pcrel(%1+0x20000)>>18\n\tjirl\t$r0,$r12,%%pcrel(%1+4)-(%%pcrel(%1+4+0x20000)>>18<<18)";
       else if (loongarch_cmodel_var == LARCH_CMODEL_EXTREME)
-        return "la.local\t$r12,$r13,%1\n\tjr\t$r12";
+        return "la.local\t$r12,$r13,%1\n\tjirl\t$zero,$r12,0";
       else
         return "b\t%1";
     case 2:
       if (loongarch_cmodel_var == LARCH_CMODEL_TINY_STATIC)
         return "b\t%1";
       else if (loongarch_cmodel_var == LARCH_CMODEL_EXTREME)
-        return "la.global\t$r12,$r13,%1\n\tjr\t$r12";
+        return "la.global\t$r12,$r13,%1\n\tjirl\t$zero,$r12,0";
       else
-        return "la.global\t$r12,%1\n\tjr\t$r12";
+        return "la.global\t$r12,%1\n\tjirl\t$zero,$r12,0";
     case 3:
       if (loongarch_cmodel_var == LARCH_CMODEL_EXTREME)
-        return "la.global\t$r12,$r13,%1\n\tjr\t$r12";
+        return "la.global\t$r12,$r13,%1\n\tjirl\t$zero,$r12,0";
       else
-        return "la.global\t$r12,%1\n\tjr\t$r12";
+        return "la.global\t$r12,%1\n\tjirl\t$zero,$r12,0";
     case 4:
       if (loongarch_cmodel_var == LARCH_CMODEL_NORMAL || loongarch_cmodel_var == LARCH_CMODEL_TINY)
         return "b\t%%plt(%1)";
