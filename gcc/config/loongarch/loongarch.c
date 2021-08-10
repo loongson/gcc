@@ -5938,6 +5938,7 @@ loongarch_issue_rate (void)
   switch (loongarch_tune)
     {
     case PROCESSOR_LOONGARCH64:
+    case PROCESSOR_LOONGARCH32:
     case PROCESSOR_GS464V:
       return 4;
 
