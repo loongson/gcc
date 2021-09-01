@@ -18,6 +18,7 @@
    <http://www.gnu.org/licenses/>.  */
 
 #define IN_TARGET_CODE 1
+#define IN_LARCH_CPP_BUILTINS 1
 
 #include "config.h"
 #include "system.h"
@@ -29,6 +30,26 @@
 #define preprocessing_asm_p() (cpp_get_options (pfile)->lang == CLK_ASM)
 #define builtin_define(TXT) cpp_define (pfile, TXT)
 #define builtin_assert(TXT) cpp_assert (pfile, TXT)
+
+/* Define preprocessor macros for the -march and -mtune options.
+   PREFIX is either _LOONGARCH_ARCH or _LOONGARCH_TUNE, INFO is
+   the selected processor.  If INFO's canonical name is "foo",
+   define PREFIX to be "foo", and define an additional macro
+   PREFIX_FOO.  */
+#define LARCH_CPP_SET_PROCESSOR(PREFIX, CPU_TYPE) \
+  do \
+    { \
+      char *macro, *p; \
+\
+      macro = concat ((PREFIX), "_", loongarch_cpu_strings[(CPU_TYPE)], NULL); \
+      for (p = macro; *p != 0; p++) \
+	*p = TOUPPER (*p); \
+\
+      builtin_define (macro); \
+      builtin_define_with_value ((PREFIX), loongarch_cpu_strings[(CPU_TYPE)], 1); \
+      free (macro); \
+    } \
+  while (0)
 
 /* TODO: what is the pfile technique ??? !!! */
 
@@ -44,12 +65,12 @@ loongarch_cpu_cpp_builtins (cpp_reader *pfile)
   else
     builtin_define ("__loongarch_fpr=32");
 
-  LARCH_CPP_SET_PROCESSOR ("_LOONGARCH_ARCH", loongarch_arch_info);
-  LARCH_CPP_SET_PROCESSOR ("_LOONGARCH_TUNE", loongarch_tune_info);
+  LARCH_CPP_SET_PROCESSOR ("_LOONGARCH_ARCH", loongarch_cpu_arch);
+  LARCH_CPP_SET_PROCESSOR ("_LOONGARCH_TUNE", loongarch_cpu_tune);
 
-  switch (loongarch_abi)
+  switch (loongarch_abi_int)
     {
-    case ABILP64:
+    case ABI_LP64:
       builtin_define ("_ABILP64=3");
       builtin_define ("_LOONGARCH_SIM=_ABILP64");
       builtin_define ("__loongarch64");

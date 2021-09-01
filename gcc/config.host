@@ -144,8 +144,8 @@ case ${host} in
   loongarch*-*-linux*)
     case ${target} in
       loongarch*-*-linux*)
-	host_extra_gcc_objs="driver-native.o"
-	host_xmake_file="${host_xmake_file} loongarch/x-native"
+	#host_extra_gcc_objs="loongarch-driver.o"
+	#host_xmake_file="${host_xmake_file} loongarch/x-native"
       ;;
     esac
     ;;

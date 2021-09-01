@@ -449,8 +449,9 @@ mips*-*-*)
 loongarch*-*-*)
 	cpu_type=loongarch
 	extra_headers="larchintrin.h"
-	extra_objs="loongarch-c.o loongarch-builtins.o"
-	extra_options="${extra_options} g.opt fused-madd.opt loongarch/loongarch-tables.opt"
+	extra_objs="loongarch-c.o loongarch-builtins.o loongarch-cpu.o loongarch-opts.o"
+        extra_gcc_objs="loongarch-driver.o loongarch-cpu.o loongarch-opts.o"
+	extra_options="${extra_options} g.opt fused-madd.opt"
 	;;
 nds32*)
 	cpu_type=nds32
@@ -2497,51 +2498,32 @@ riscv*-*-freebsd*)
 	# automatically detect that GAS supports it, yet we require it.
 	gcc_cv_initfini_array=yes
 	;;
-loongarch*-*-linux*)
+
+loongarch64-*-linux*)
 	case ${with_abi} in
-	"")
-		echo "not specify ABI, default is lp64 for loongarch64"
-		with_abi=lp64 # for default
-		;;
-	lp32|lp64)
+	"" | lp64)
 		# OK
 		;;
 	*)
-		echo "Unknown ABI used in --with-abi=$with_abi, valid choices are: lp64 (default), lp32"
+		echo "Unknown ABI used in --with-abi=$with_abi, valid choices are: lp64 (default)"
 		exit 1
 	esac
 
-	enable_multilib="yes"
-	loongarch_multilibs="${with_multilib_list}"
-	if test "$loongarch_multilibs" = "default"; then
-		loongarch_multilibs="${with_abi}"
-	fi
-	loongarch_multilibs=`echo $loongarch_multilibs | sed -e 's/,/ /g'`
-	for loongarch_multilib in ${loongarch_multilibs}; do
-		case ${loongarch_multilib} in
-		lp64)
-			TM_MULTILIB_CONFIG="${TM_MULTILIB_CONFIG},${loongarch_multilib}"
-			;;
-		*)
-			echo "--with-multilib-list=${loongarch_multilib} not supported."
-			exit 1
-		esac
-	done
-	TM_MULTILIB_CONFIG=`echo $TM_MULTILIB_CONFIG | sed 's/^,//'`
+	if test x$enable_multilib != xyes; then
+	    tm_defines="$tm_defines __DISABLE_MULTILIB"
+        fi
 
-	if test `for one_abi in ${loongarch_multilibs}; do if [ x\$one_abi = x$with_abi ]; then echo 1; exit 0; fi; done; echo 0;` = "0"; then
-		echo "--with-abi=${with_abi} must be one of --with-multilib-list=${with_multilib_list}"
-		exit 1
-	fi
-
-	tm_file="dbxelf.h elfos.h gnu-user.h linux.h linux-android.h glibc-stdint.h ${tm_file} loongarch/gnu-user.h loongarch/linux.h"
+	tm_file="dbxelf.h elfos.h gnu-user.h linux.h linux-android.h glibc-stdint.h ${tm_file}"
+        tm_file="${tm_file} loongarch/gnu-user.h loongarch/linux.h"
 	extra_options="${extra_options} linux-android.opt"
 	tmake_file="${tmake_file} loongarch/t-linux"
 	gnu_ld=yes
 	gas=yes
+
 	# Force .init_array support.  The configure script cannot always
 	# automatically detect that GAS supports it, yet we require it.
 	gcc_cv_initfini_array=yes
+
 	;;
 mips*-*-netbsd*)			# NetBSD/mips, either endian.
 	target_cpu_default="MASK_ABICALLS"
@@ -4932,52 +4914,50 @@ case "${target}" in
 		;;
 
 	loongarch*-*-*)
-		supported_defaults="abi arch float fpu tune fix-loongson3-llsc"
+		supported_defaults="abi arch float fix-loongson3-llsc"
 
 		case ${with_arch} in
 		loongarch64 | gs464v)
 			# OK
-			default_loongarch_arch=$with_arch
 			;;
+                native)
+                        case ${cross_compiling} in
+                            no) ;; # OK
+                            yes) 
+			        echo "--with-arch=native is illegal for a cross-compiler." 1>&2
+			        exit 1
+                            ;;
+                        esac
+                        ;;
 		"")
 			# fallback
-			default_loongarch_arch=loongarch64
+                        case ${cross_compiling} in
+                            no) with_arch=native ;;
+
+                            # FIXME: should change with target triplet
+                            yes) with_arch=loongarch64 ;; 
+                        esac
 			;;
 		*)
-			echo "Unknown arch given in --with-arch=$with_arch, available choices are: loongarch64" 1>&2
+			echo "Unknown arch given in --with-arch=$with_arch" 1>&2
 			exit 1
 			;;
 		esac
 
 		case ${with_abi} in
-		lp64)
+		"" | lp64)
 			# OK
-			default_loongarch_abi=$with_abi
-			;;
-		"")
-			# fallback
-			default_loongarch_abi=lp64
 			;;
 		*)
-			echo "Unknown ABI given in --with-abi=$with_abi, available choices are: lp32 lp64" 1>&2
+			echo "Unknown ABI given in --with-abi=$with_abi" 1>&2
 			exit 1
 			;;
 		esac
 
 		case ${with_float} in
-		"" | soft | hard)
-			# OK
-			;;
-		*)
-			echo "Unknown floating point type used in --with-float=$with_float" 1>&2
-			exit 1
-			;;
-		esac
-
-		case ${with_fpu} in
-		"" | single | double)
-			# OK
-			;;
+		"" | none | single | double)  ;;   # OK
+                soft)  with_float=none   ;;   
+                hard)  with_float=double ;;   # Ambiguous, default to double.
 		*)
 			echo "Unknown fpu type used in --with-fpu=$with_fpu" 1>&2
 			exit 1
@@ -5448,13 +5428,36 @@ case ${target} in
 		;;
 
 	loongarch*-*-*)
-		case ${default_loongarch_arch} in
-		    loongarch64) tm_defines="$tm_defines LARCH_ISA_DEFAULT=0" ;;
-		    gs464v) tm_defines="$tm_defines LARCH_ISA_DEFAULT=1" ;;
+                # Let --with- flags initialize the enum variables from loongarch.opt.
+                
+                # Processor default config goes first, its settings
+                # may be overriden by more detailed --with- options below.
+                case ${with_arch} in
+		    native)
+                        tm_defines="$tm_defines DEFAULT_CPU_ARCH=CPU_NATIVE" 
+                        tm_defines="$tm_defines DEFAULT_CPU_TUNE=CPU_NATIVE"
+                    ;;
+		    gs464v)
+                        tm_defines="$tm_defines DEFAULT_CPU_ARCH=CPU_GS464V" 
+                        tm_defines="$tm_defines DEFAULT_CPU_TUNE=CPU_GS464V"
+                    ;;
+		    loongarch64)
+                        tm_defines="$tm_defines DEFAULT_CPU_ARCH=CPU_LOONGARCH64"
+                        tm_defines="$tm_defines DEFAULT_CPU_TUNE=CPU_LOONGARCH64"
+                    ;;
+                esac
+
+                # See macro definitions from loongarch/loongarch-opts.h
+		case ${with_abi} in
+		    lp64)   tm_defines="$tm_defines DEFAULT_ABI_INT=ABI_LP64" ;;
 		esac
-		case ${default_loongarch_abi} in
-		    lp64)   tm_defines="$tm_defines LARCH_ABI_DEFAULT=ABILP64" ;;
+
+		case ${with_float} in
+		    none)     tm_defines="$tm_defines DEFAULT_ABI_FLOAT=ABI_SOFT_FLOAT   DEFAULT_ISA_FLOAT=ISA_SOFT_FLOAT" ;;
+		    single)   tm_defines="$tm_defines DEFAULT_ABI_FLOAT=ABI_SINGLE_FLOAT DEFAULT_ISA_FLOAT=ISA_SINGLE_FLOAT" ;;
+		    double)   tm_defines="$tm_defines DEFAULT_ABI_FLOAT=ABI_DOUBLE_FLOAT DEFAULT_ISA_FLOAT=ISA_DOUBLE_FLOAT" ;;
 		esac
+
 		tmake_file="loongarch/t-loongarch $tmake_file"
 		;;
 

@@ -17,224 +17,17 @@
   along with GCC; see the file COPYING3.  If not see
   <http://www.gnu.org/licenses/>.  */
 
-/* LoongArch external variables defined in loongarch.c.  */
-
-/* Which ABI to use.  ABILP64 is defined by Loongson.  */
-
-#define ABILP64 3
-
-/* Information about one recognized processor.  Defined here for the
-   benefit of TARGET_CPU_CPP_BUILTINS.  */
-struct loongarch_cpu_info
-{
-  /* The 'canonical' name of the processor as far as GCC is concerned.
-     It's typically a manufacturer's prefix followed by a numerical
-     designation.  It should be lowercase.  */
-  const char *name;
-
-  /* The internal processor number that most closely matches this
-     entry.  Several processors can have the same value, if there's no
-     difference between them from GCC's point of view.  */
-  enum processor cpu;
-
-  /* The ISA level that the processor implements.  */
-  int isa;
-
-  /* A mask of PTF_* values.  */
-  unsigned int tune_flags;
-};
-
 #include "config/loongarch/loongarch-opts.h"
 
-/* Macros to silence warnings about numbers being signed in traditional
-   C and unsigned in ISO C when compiled on 32-bit hosts.  */
-
-#define BITMASK_HIGH (((unsigned long) 1) << 31) /* 0x80000000  */
-
-
-/* Run-time compilation parameters selecting different hardware subsets.  */
-
-/* True if we can use the JIRL instructions.  */
-#define TARGET_ABSOLUTE_JUMPS (!flag_pic)
-
-/* True if the output must have a writable .eh_frame.
-   See ASM_PREFERRED_EH_DATA_FORMAT for details.  */
-#define TARGET_WRITABLE_EH_FRAME (flag_pic && TARGET_SHARED)
-
-/* Architecture target defines.  */
-#define TARGET_LOONGARCH64 (loongarch_arch == PROCESSOR_LOONGARCH64)
-#define TUNE_LOONGARCH64 (loongarch_tune == PROCESSOR_LOONGARCH64)
-#define TARGET_GS464V (loongarch_arch == PROCESSOR_GS464V)
-#define TUNE_GS464V (loongarch_tune == PROCESSOR_GS464V)
-
-#define TARGET_LP64ABI (loongarch_abi == ABILP64)
-
-/* TARGET_HARD_FLOAT and TARGET_SOFT_FLOAT reflect whether the FPU is
-   directly accessible, while the command-line options select
-   TARGET_HARD_FLOAT_ABI and TARGET_SOFT_FLOAT_ABI to reflect the ABI
-   in use.  */
-#define TARGET_HARD_FLOAT (TARGET_HARD_FLOAT_ABI)
-#define TARGET_SOFT_FLOAT (TARGET_SOFT_FLOAT_ABI)
-
-#define TARGET_FLOAT32 (!TARGET_FLOAT64)
-
-/* Define preprocessor macros for the -march and -mtune options.
-   PREFIX is either _LOONGARCH_ARCH or _LOONGARCH_TUNE, INFO is
-   the selected processor.  If INFO's canonical name is "foo",
-   define PREFIX to be "foo", and define an additional macro
-   PREFIX_FOO.  */
-#define LARCH_CPP_SET_PROCESSOR(PREFIX, INFO) \
-  do \
-    { \
-      char *macro, *p; \
-\
-      macro = concat ((PREFIX), "_", (INFO)->name, NULL); \
-      for (p = macro; *p != 0; p++) \
-	*p = TOUPPER (*p); \
-\
-      builtin_define (macro); \
-      builtin_define_with_value ((PREFIX), (INFO)->name, 1); \
-      free (macro); \
-    } \
-  while (0)
-
-/* Target CPU builtins.  */
-#define TARGET_CPU_CPP_BUILTINS() loongarch_cpu_cpp_builtins (pfile)
-
-/* Default target_flags if no switches are specified.  */
-
-#ifndef TARGET_DEFAULT
-#define TARGET_DEFAULT 0
-#endif
-
-#ifndef TARGET_CPU_DEFAULT
-#define TARGET_CPU_DEFAULT 0
-#endif
-
-#ifdef IN_LIBGCC2
-#undef TARGET_64BIT
-/* Make this compile time constant for libgcc2.  */
-#ifdef __loongarch64
-#define TARGET_64BIT 1
-#else
-#define TARGET_64BIT 0
-#endif
-#endif /* IN_LIBGCC2  */
-
-#define TARGET_LIBGCC_SDATA_SECTION ".sdata"
-
-#ifndef MULTILIB_ISA_DEFAULT
-#if LARCH_ISA_DEFAULT == 0
-#define MULTILIB_ISA_DEFAULT "loongarch64"
-#elif LARCH_ISA_DEFAULT == 2
-#define MULTILIB_ISA_DEFAULT "gs464v"
-#endif
-#endif
-
-#ifndef LARCH_ABI_DEFAULT
-#define LARCH_ABI_DEFAULT ABILP64
-#endif
-
-/* Use the most portable ABI flag for the ASM specs.  */
-#if LARCH_ABI_DEFAULT == ABILP64
-#define MULTILIB_ABI_DEFAULT "mabi=lp64"
-#endif
-
-#ifndef MULTILIB_DEFAULTS
-#define MULTILIB_DEFAULTS \
-    { MULTILIB_ISA_DEFAULT, MULTILIB_ABI_DEFAULT }
-#endif
-
-/* Support for a compile-time default CPU, et cetera.  The rules are:
-   --with-arch is ignored if -march is specified
-   --with-tune is ignored if -mtune is specified
-   --with-abi is ignored if -mabi is specified.
-   --with-float is ignored if -mhard-float or -msoft-float are
-     specified.
-   --with-fpu is ignored if -msoft-float, -msingle-float or -mdouble-float are
-     specified.
-   --with-divide is ignored if -mdivide-traps or -mdivide-breaks are
-     specified.
-   --with-fix-loongson3-llsc is ignored if -mfix-loongson3-llsc is specified.  */
+/* =============== SPECS: command-line rewriting rules ================== */
+/* Adding default configure options to gcc command line via self-spec. */
 #define OPTION_DEFAULT_SPECS \
-  {"arch", "%{!match=*:-march=%(VALUE)}"}, \
-  {"tune", "%{!mtune=*:-mtune=%(VALUE)}"}, \
-  {"abi", "%{!mabi=*:-mabi=%(VALUE)}"}, \
-  {"float", "%{!msoft-float:%{!mhard-float:-m%(VALUE)-float}}"}, \
-  {"fpu", \
-    "%{!msoft-float:%{!msingle-float:%{!mdouble-float:-m%(VALUE)-float}}}"}, \
   {"divide", "%{!mdivide-traps:%{!mdivide-breaks:-mdivide-%(VALUE)}}"}, \
   {"fix-loongson3-llsc", "%{!mfix-loongson3-llsc: \
     %{!mno-fix-loongson3-llsc:-m%(VALUE)}}" }
 
-#define ABI_SPEC \
-  "%{mabi=lp64:64}"
-
-/* Default system library search paths.  */
-#if LARCH_ABI_DEFAULT == ABILP64
-#define STANDARD_STARTFILE_PREFIX_1 "/lib64/"
-#define STANDARD_STARTFILE_PREFIX_2 "/usr/lib64/"
-#endif
-
-/* This definition replaces the formerly used 'm' constraint with a
-   different constraint letter in order to avoid changing semantics of
-   the 'm' constraint when accepting new address formats in
-   TARGET_LEGITIMATE_ADDRESS_P.  The constraint letter defined here
-   must not be used in insn definitions or inline assemblies.  */
-#define TARGET_MEM_CONSTRAINT 'w'
-
-/* Tell collect what flags to pass to nm.  */
-#ifndef NM_FLAGS
-#define NM_FLAGS "-Bn"
-#endif
-
-
-/* SUBTARGET_ASM_DEBUGGING_SPEC handles passing debugging options to
-   the assembler.  It may be overridden by subtargets.  */
-
-#ifndef SUBTARGET_ASM_DEBUGGING_SPEC
-#define SUBTARGET_ASM_DEBUGGING_SPEC "\
-%{g} %{g0} %{g1} %{g2} %{g3} \
-%{ggdb:-g} %{ggdb0:-g0} %{ggdb1:-g1} %{ggdb2:-g2} %{ggdb3:-g3} \
-%{gstabs:-g} %{gstabs0:-g0} %{gstabs1:-g1} %{gstabs2:-g2} %{gstabs3:-g3} \
-%{gstabs+:-g} %{gstabs+0:-g0} %{gstabs+1:-g1} %{gstabs+2:-g2} %{gstabs+3:-g3}"
-#endif
-
-/* SUBTARGET_ASM_SPEC is always passed to the assembler.  It may be
-   overridden by subtargets.  */
-
-#ifndef SUBTARGET_ASM_SPEC
-#define SUBTARGET_ASM_SPEC ""
-#endif
-
-#undef ASM_SPEC
-#define ASM_SPEC "\
-%{mabi=*} %{!mabi=*: %(asm_abi_default_spec)} \
-"
-/* Extra switches sometimes passed to the linker.  */
-
-#ifndef LINK_SPEC
-#define LINK_SPEC ""
-#endif /* LINK_SPEC defined  */
-
-/* Specs for the compiler proper.  */
-
-/* CC1_SPEC is the set of arguments to pass to the compiler proper.  */
-
-#undef CC1_SPEC
-#define CC1_SPEC "\
-%{G*} \
-%(subtarget_cc1_spec)"
-
-/* Preprocessor specs.  */
-
-/* SUBTARGET_CPP_SPEC is passed to the preprocessor.  It may be
-   overridden by subtargets.  */
-#ifndef SUBTARGET_CPP_SPEC
-#define SUBTARGET_CPP_SPEC ""
-#endif
-
-#define CPP_SPEC "%(subtarget_cpp_spec)"
+/* Driver native functions for SPEC processing in the GCC driver. */
+#include "loongarch-driver.h"
 
 /* This macro defines names of additional specifications to put in the specs
    that can be used in various specifications like CC1_SPEC.  Its definition
@@ -245,48 +38,52 @@ struct loongarch_cpu_info
    program.
 
    Do not define this macro if it does not need to do anything.  */
-
 #define EXTRA_SPECS \
   {"subtarget_cc1_spec", SUBTARGET_CC1_SPEC}, \
   {"subtarget_cpp_spec", SUBTARGET_CPP_SPEC}, \
   {"subtarget_asm_debugging_spec", SUBTARGET_ASM_DEBUGGING_SPEC}, \
-  {"subtarget_asm_spec", SUBTARGET_ASM_SPEC}, \
-  {"asm_abi_default_spec", "-" MULTILIB_ABI_DEFAULT}, \
-  SUBTARGET_EXTRA_SPECS
 
-#ifndef SUBTARGET_EXTRA_SPECS
-#define SUBTARGET_EXTRA_SPECS
+#undef ASM_SPEC
+#define ASM_SPEC "%{mabi=*} %{subtarget_asm_spec}"
+
+#undef CC1_SPEC
+#define CC1_SPEC "%{G*} %(subtarget_cc1_spec)"
+
+#undef CPP_SPEC
+#define CPP_SPEC "%{subtarget_cpp_spec}"
+#define TARGET_CPU_CPP_BUILTINS() loongarch_cpu_cpp_builtins (pfile)
+
+#ifndef SUBTARGET_ASM_DEBUGGING_SPEC
+#define SUBTARGET_ASM_DEBUGGING_SPEC "\
+%{g} %{g0} %{g1} %{g2} %{g3} \
+%{ggdb:-g} %{ggdb0:-g0} %{ggdb1:-g1} %{ggdb2:-g2} %{ggdb3:-g3} \
+%{gstabs:-g} %{gstabs0:-g0} %{gstabs1:-g1} %{gstabs2:-g2} %{gstabs3:-g3} \
+%{gstabs+:-g} %{gstabs+0:-g0} %{gstabs+1:-g1} %{gstabs+2:-g2} %{gstabs+3:-g3}"
 #endif
 
-/* Registers may have a prefix which can be ignored when matching
-   user asm and register definitions.  */
-#ifndef REGISTER_PREFIX
-#define REGISTER_PREFIX "$"
-#endif
 
-/* Local compiler-generated symbols must have a prefix that the assembler
-   understands.  */
 
-#define LOCAL_LABEL_PREFIX "."
+/* ======================= MACHINE DESCRIPTION ========================== */
+/* This definition replaces the formerly used 'm' constraint with a
+   different constraint letter in order to avoid changing semantics of
+   the 'm' constraint when accepting new address formats in
+   TARGET_LEGITIMATE_ADDRESS_P.  The constraint letter defined here
+   must not be used in insn definitions or inline assemblies.  */
+#define TARGET_MEM_CONSTRAINT 'w'
 
-/* By default on the loongarch, external symbols do not have an underscore
-   prepended.  */
+/* Macros to silence warnings about numbers being signed in traditional
+   C and unsigned in ISO C when compiled on 32-bit hosts.  */
+#define BITMASK_HIGH (((unsigned long) 1) << 31) /* 0x80000000  */
 
-#define USER_LABEL_PREFIX ""
-
-#ifndef PREFERRED_DEBUGGING_TYPE
+
+
+/* ========================= DEBUG INFO OUTPUT ========================== */
 #define PREFERRED_DEBUGGING_TYPE DWARF2_DEBUG
-#endif
-
-/* The size of DWARF addresses should be the same as the size of symbols
-   in the target file format.
-*/
-#define DWARF2_ADDR_SIZE (TARGET_64BIT ? 8 : 4)
-
-/* By default, turn on GDB extensions.  */
+#define DWARF2_DEBUGGING_INFO 1 
 #define DEFAULT_GDB_EXTENSIONS 1
-
-#define DWARF2_DEBUGGING_INFO 1 /* dwarf2 debugging info  */
+/* The size of DWARF addresses should be the same as the size of symbols
+   in the target file format. */
+#define DWARF2_ADDR_SIZE (TARGET_64BIT ? 8 : 4)
 
 /* The mapping from gcc register number to DWARF 2 CFA column number.  */
 #define DWARF_FRAME_REGNUM(REGNO) loongarch_dwarf_regno[REGNO]
@@ -310,9 +107,9 @@ struct loongarch_cpu_info
    SFmode register saves.  */
 #define DWARF_CIE_DATA_ALIGNMENT -4
 
-
-/* Target machine storage layout.  */
 
+
+/* ======================= TARGET STORAGE LAYOUT ======================== */
 #define BITS_BIG_ENDIAN 0
 #define BYTES_BIG_ENDIAN 0
 #define WORDS_BIG_ENDIAN 0
@@ -336,6 +133,14 @@ struct loongarch_cpu_info
    smallest format supported by the FPU.  */
 #define MIN_FPRS_PER_FMT 1
 
+/* The `Q' extension is not yet supported.  */
+/* TODO: according to march.  */
+#define UNITS_PER_FP_REG (TARGET_DOUBLE_FLOAT ? 8 : 4)
+
+/* The largest type that can be passed in floating-point registers.  */
+/* TODO: according to mabi.  */
+#define UNITS_PER_FP_ARG (TARGET_HARD_FLOAT ? (TARGET_64BIT ? 8 : 4) : 0)
+
 /* The largest size of value that can be held in floating-point
    registers and moved with a single instruction.  */
 #define UNITS_PER_HWFPVALUE \
@@ -351,7 +156,8 @@ struct loongarch_cpu_info
 /* The number of bytes in a double.  */
 #define UNITS_PER_DOUBLE (TYPE_PRECISION (double_type_node) / BITS_PER_UNIT)
 
-/* Set the sizes of the core types.  */
+
+/* Define the sizes of the core types.  */
 #define SHORT_TYPE_SIZE 16
 #define INT_TYPE_SIZE 32
 #define LONG_TYPE_SIZE (TARGET_64BIT ? 64 : 32)
@@ -373,6 +179,13 @@ struct loongarch_cpu_info
 /* FIXME.  LONG_LONG_ACCUM_TYPE_SIZE should be 128 bits, but GCC
    doesn't support 128-bit integers for loongarch32 currently.  */
 #define LONG_LONG_ACCUM_TYPE_SIZE (TARGET_64BIT ? 128 : 64)
+
+/* Define the sizes of the wide character types.  */
+#undef WCHAR_TYPE
+#define WCHAR_TYPE "int"
+
+#undef WCHAR_TYPE_SIZE
+#define WCHAR_TYPE_SIZE 32
 
 /* long double is not a fixed mode, but the idea is that, if we
    support long double, we also want a 128-bit integer type.  */
@@ -599,7 +412,7 @@ struct loongarch_cpu_info
 
 #define THREAD_POINTER_REGNUM (GP_REG_FIRST + 2)
 
-
+/* Register/Operand classification */
 /* Define the classes of registers for register constraints in the
    machine description.  Also define ranges of constants.
 
@@ -784,20 +597,16 @@ enum reg_class
 
 /* Return the maximum number of consecutive registers
    needed to represent mode MODE in a register of class CLASS.  */
-
 #define CLASS_MAX_NREGS(CLASS, MODE) loongarch_class_max_nregs (CLASS, MODE)
-
+
+
 /* Stack layout; function entry, exit and calling.  */
-
 #define STACK_GROWS_DOWNWARD 1
-
 #define FRAME_GROWS_DOWNWARD 1
-
 #define RETURN_ADDR_RTX loongarch_return_addr
 
 /* Similarly, don't use the least-significant bit to tell pointers to
    code from vtable index.  */
-
 #define TARGET_PTRMEMFUNC_VBIT_LOCATION ptrmemfunc_vbit_in_delta
 
 #define ELIMINABLE_REGS \
@@ -826,13 +635,15 @@ enum reg_class
    `crtl->outgoing_args_size'.  */
 #define OUTGOING_REG_PARM_STACK_SPACE(FNTYPE) 1
 
-#define STACK_BOUNDARY (TARGET_LP64ABI ? 128 : 64)
-
+#define STACK_BOUNDARY (TARGET_ABI_LP64 ? 128 : 64)
+
 /* Symbolic macros for the registers used to return integer and floating
    point values.  */
 
 #define GP_RETURN (GP_REG_FIRST + 4)
 #define FP_RETURN ((TARGET_SOFT_FLOAT) ? GP_RETURN : (FP_REG_FIRST + 0))
+
+#define FUNCTION_VALUE_REGNO_P(N) ((N) == GP_RETURN || (N) == FP_RETURN)
 
 #define MAX_ARGS_IN_REGISTERS 8
 
@@ -851,7 +662,7 @@ enum reg_class
   (IN_RANGE ((N), GP_ARG_FIRST, GP_ARG_LAST) \
    || (UNITS_PER_FP_ARG && IN_RANGE ((N), FP_ARG_FIRST, FP_ARG_LAST)))
 
-
+
 /* This structure has to cope with two different argument allocation
    schemes.  Most LoongArch ABIs view the arguments as a structure, of which
    the first N words go in registers and the rest go on the stack.  If I
@@ -887,32 +698,8 @@ typedef struct loongarch_args
 /* Treat LOC as a byte offset from the stack pointer and round it up
    to the next fully-aligned offset.  */
 #define LARCH_STACK_ALIGN(LOC) \
-  (TARGET_LP64ABI ? ROUND_UP ((LOC), 16) : ROUND_UP ((LOC), 8))
+  (TARGET_ABI_LP64 ? ROUND_UP ((LOC), 16) : ROUND_UP ((LOC), 8))
 
-
-/* Output assembler code to FILE to increment profiler label # LABELNO
-   for profiling a function entry.  */
-
-#define MCOUNT_NAME "_mcount"
-
-/* Emit rtl for profiling.  Output assembler code to FILE
-   to call "_mcount" for profiling a function entry.  */
-#define PROFILE_HOOK(LABEL) \
-  { \
-    rtx fun, ra; \
-    ra = get_hard_reg_initial_val (Pmode, RETURN_ADDR_REGNUM); \
-    fun = gen_rtx_SYMBOL_REF (Pmode, MCOUNT_NAME); \
-    emit_library_call (fun, LCT_NORMAL, VOIDmode, ra, Pmode); \
-  }
-
-/* All the work done in PROFILE_HOOK, but still required.  */
-#define FUNCTION_PROFILER(STREAM, LABELNO) \
-  do \
-    { \
-    } \
-  while (0)
-
-#define NO_PROFILE_COUNTERS 1
 
 /* EXIT_IGNORE_STACK should be nonzero if, when returning from a function,
    the stack pointer does not matter.  The value is tested only in
@@ -921,7 +708,7 @@ typedef struct loongarch_args
 
 #define EXIT_IGNORE_STACK 1
 
-
+
 /* Trampolines are a block of code followed by two pointers.  */
 
 #define TRAMPOLINE_CODE_SIZE 16
@@ -937,13 +724,14 @@ typedef struct loongarch_args
 #define CACHE_FLUSH_FUNC "_flush_cache"
 #endif
 
-
+
 /* Addressing modes, and classification of registers for them.  */
 
 #define REGNO_OK_FOR_INDEX_P(REGNO) 0
 #define REGNO_MODE_OK_FOR_BASE_P(REGNO, MODE) \
   loongarch_regno_mode_ok_for_base_p (REGNO, MODE, 1)
-
+
+
 /* Maximum number of registers that can appear in a valid memory address.  */
 
 #define MAX_REGS_PER_ADDRESS 1
@@ -953,19 +741,6 @@ typedef struct loongarch_args
 
 #define CONSTANT_ADDRESS_P(X) (CONSTANT_P (X) && memory_address_p (SImode, X))
 
-/* This handles the magic '..CURRENT_FUNCTION' symbol, which means
-   'the start of the function that this code is output in'.  */
-
-#define ASM_OUTPUT_LABELREF(FILE, NAME) \
-  do \
-    { \
-      if (strcmp (NAME, "..CURRENT_FUNCTION") == 0) \
-	asm_fprintf ((FILE), "%U%s", \
-		     XSTR (XEXP (DECL_RTL (current_function_decl), 0), 0)); \
-      else \
-	asm_fprintf ((FILE), "%U%s", (NAME)); \
-    } \
-  while (0)
 
 #define CASE_VECTOR_MODE Pmode
 
@@ -1008,7 +783,7 @@ typedef struct loongarch_args
 
 #define FUNCTION_MODE SImode
 
-
+
 /* We allocate $fcc registers by hand and can't cope with moves of
    CCmode registers to and from pseudos (or memory).  */
 #define AVOID_CCMODE_COPIES
@@ -1026,13 +801,152 @@ typedef struct loongarch_args
 #define ADJUST_INSN_LENGTH(INSN, LENGTH) \
   ((LENGTH) = loongarch_adjust_insn_length ((INSN), (LENGTH)))
 
+#undef SIZE_TYPE
+#define SIZE_TYPE (POINTER_SIZE == 64 ? "long unsigned int" : "unsigned int")
+
+#undef PTRDIFF_TYPE
+#define PTRDIFF_TYPE (POINTER_SIZE == 64 ? "long int" : "int")
+
+/* The maximum number of bytes that can be copied by one iteration of
+   a cpymemsi loop; see loongarch_block_move_loop.  */
+#define LARCH_MAX_MOVE_BYTES_PER_LOOP_ITER (UNITS_PER_WORD * 4)
+
+/* The maximum number of bytes that can be copied by a straight-line
+   implementation of cpymemsi; see loongarch_block_move_straight.  We want
+   to make sure that any loop-based implementation will iterate at
+   least twice.  */
+#define LARCH_MAX_MOVE_BYTES_STRAIGHT (LARCH_MAX_MOVE_BYTES_PER_LOOP_ITER * 2)
+
+/* The base cost of a memcpy call, for MOVE_RATIO and friends.  These
+   values were determined experimentally by benchmarking with CSiBE.
+*/
+#define LARCH_CALL_RATIO 8
+
+/* Any loop-based implementation of cpymemsi will have at least
+   LARCH_MAX_MOVE_BYTES_STRAIGHT / UNITS_PER_WORD memory-to-memory
+   moves, so allow individual copies of fewer elements.
+
+   When cpymemsi is not available, use a value approximating
+   the length of a memcpy call sequence, so that move_by_pieces
+   will generate inline code if it is shorter than a function call.
+   Since move_by_pieces_ninsns counts memory-to-memory moves, but
+   we'll have to generate a load/store pair for each, halve the
+   value of LARCH_CALL_RATIO to take that into account.  */
+
+#define MOVE_RATIO(speed) \
+  (HAVE_cpymemsi ? LARCH_MAX_MOVE_BYTES_STRAIGHT / MOVE_MAX \
+		 : LARCH_CALL_RATIO / 2)
+
+/* For CLEAR_RATIO, when optimizing for size, give a better estimate
+   of the length of a memset call, but use the default otherwise.  */
+
+#define CLEAR_RATIO(speed) ((speed) ? 15 : LARCH_CALL_RATIO)
+
+/* This is similar to CLEAR_RATIO, but for a non-zero constant, so when
+   optimizing for size adjust the ratio to account for the overhead of
+   loading the constant and replicating it across the word.  */
+
+#define SET_RATIO(speed) ((speed) ? 15 : LARCH_CALL_RATIO - 2)
+
+#ifndef USED_FOR_TARGET
+extern const enum reg_class loongarch_regno_to_class[];
+extern int loongarch_dwarf_regno[];
+
+/* Information about a function's frame layout.  */
+struct GTY (()) loongarch_frame_info
+{
+  /* The size of the frame in bytes.  */
+  HOST_WIDE_INT total_size;
+
+  /* Bit X is set if the function saves or restores GPR X.  */
+  unsigned int mask;
+
+  /* Likewise FPR X.  */
+  unsigned int fmask;
+
+  /* How much the GPR save/restore routines adjust sp (or 0 if unused).  */
+  unsigned save_libcall_adjustment;
+
+  /* Offsets of fixed-point and floating-point save areas from frame bottom.  */
+  HOST_WIDE_INT gp_sp_offset;
+  HOST_WIDE_INT fp_sp_offset;
+
+  /* Offset of virtual frame pointer from stack pointer/frame bottom.  */
+  HOST_WIDE_INT frame_pointer_offset;
+
+  /* Offset of hard frame pointer from stack pointer/frame bottom.  */
+  HOST_WIDE_INT hard_frame_pointer_offset;
+
+  /* The offset of arg_pointer_rtx from the bottom of the frame.  */
+  HOST_WIDE_INT arg_pointer_offset;
+};
+
+struct GTY (()) machine_function
+{
+  /* The next floating-point condition-code register to allocate
+     for 8CC targets, relative to ST_REG_FIRST.  */
+  unsigned int next_fcc;
+
+  /* The number of extra stack bytes taken up by register varargs.
+     This area is allocated by the callee at the very top of the frame.  */
+  int varargs_size;
+
+  /* The current frame information, calculated by loongarch_compute_frame_info.
+   */
+  struct loongarch_frame_info frame;
+
+  /* True if loongarch_adjust_insn_length should ignore an instruction's
+     hazard attribute.  */
+  bool ignore_hazard_length_p;
+
+  /* True if at least one of the formal parameters to a function must be
+     written to the frame header (probably so its address can be taken).  */
+  bool does_not_use_frame_header;
+
+  /* True if none of the functions that are called by this function need
+     stack space allocated for their arguments.  */
+  bool optimize_call_stack;
+
+  /* True if one of the functions calling this function may not allocate
+     a frame header.  */
+  bool callers_may_not_allocate_frame;
+};
+#endif
+
+
+/* ======================== ASSEMBLER OUTPUT ============================ */
+
+/* Registers may have a prefix which can be ignored when matching
+   user asm and register definitions.  */
+#ifndef REGISTER_PREFIX
+#define REGISTER_PREFIX "$"
+#endif
+
+/* Local compiler-generated symbols must have a prefix that the assembler
+   understands.  */
+#define LOCAL_LABEL_PREFIX "."
+
+/* By default on the loongarch, external symbols do not have an underscore
+   prepended.  */
+#define USER_LABEL_PREFIX ""
+
+/* This handles the magic '..CURRENT_FUNCTION' symbol, which means
+   'the start of the function that this code is output in'.  */
+#define ASM_OUTPUT_LABELREF(FILE, NAME) \
+  do \
+    { \
+      if (strcmp (NAME, "..CURRENT_FUNCTION") == 0) \
+	asm_fprintf ((FILE), "%U%s", \
+		     XSTR (XEXP (DECL_RTL (current_function_decl), 0), 0)); \
+      else \
+	asm_fprintf ((FILE), "%U%s", (NAME)); \
+    } \
+  while (0)
+
 /* Return the asm template for a conditional branch instruction.
    OPCODE is the opcode's mnemonic and OPERANDS is the asm template for
    its operands.  */
 #define LARCH_BRANCH(OPCODE, OPERANDS) OPCODE "\t" OPERANDS
-
-
-/* Control the assembler format that we output.  */
 
 /* Output to assembler file text saying following lines
    may contain character constants, extra white space, comments, etc.  */
@@ -1232,12 +1146,6 @@ typedef struct loongarch_args
 #undef ASM_OUTPUT_ASCII
 #define ASM_OUTPUT_ASCII loongarch_output_ascii
 
-/* FIXME: delete ???
-   Default to -G 8.  */
-#ifndef LARCH_DEFAULT_GVALUE
-#define LARCH_DEFAULT_GVALUE 8
-#endif
-
 /* Define the strings to put out for each section in the object file.  */
 #define TEXT_SECTION_ASM_OP "\t.text" /* instructions  */
 #define DATA_SECTION_ASM_OP "\t.data" /* large data  */
@@ -1245,7 +1153,6 @@ typedef struct loongarch_args
 #undef READONLY_DATA_SECTION_ASM_OP
 #define READONLY_DATA_SECTION_ASM_OP "\t.section\t.rodata" /* read-only data \
 							    */
-
 #define ASM_OUTPUT_REG_PUSH(STREAM, REGNO) \
   do \
     { \
@@ -1276,122 +1183,6 @@ typedef struct loongarch_args
 #ifndef ASM_COMMENT_START
 #define ASM_COMMENT_START " #"
 #endif
-
-#undef SIZE_TYPE
-#define SIZE_TYPE (POINTER_SIZE == 64 ? "long unsigned int" : "unsigned int")
-
-#undef PTRDIFF_TYPE
-#define PTRDIFF_TYPE (POINTER_SIZE == 64 ? "long int" : "int")
-
-/* The maximum number of bytes that can be copied by one iteration of
-   a cpymemsi loop; see loongarch_block_move_loop.  */
-#define LARCH_MAX_MOVE_BYTES_PER_LOOP_ITER (UNITS_PER_WORD * 4)
-
-/* The maximum number of bytes that can be copied by a straight-line
-   implementation of cpymemsi; see loongarch_block_move_straight.  We want
-   to make sure that any loop-based implementation will iterate at
-   least twice.  */
-#define LARCH_MAX_MOVE_BYTES_STRAIGHT (LARCH_MAX_MOVE_BYTES_PER_LOOP_ITER * 2)
-
-/* The base cost of a memcpy call, for MOVE_RATIO and friends.  These
-   values were determined experimentally by benchmarking with CSiBE.
-*/
-#define LARCH_CALL_RATIO 8
-
-/* Any loop-based implementation of cpymemsi will have at least
-   LARCH_MAX_MOVE_BYTES_STRAIGHT / UNITS_PER_WORD memory-to-memory
-   moves, so allow individual copies of fewer elements.
-
-   When cpymemsi is not available, use a value approximating
-   the length of a memcpy call sequence, so that move_by_pieces
-   will generate inline code if it is shorter than a function call.
-   Since move_by_pieces_ninsns counts memory-to-memory moves, but
-   we'll have to generate a load/store pair for each, halve the
-   value of LARCH_CALL_RATIO to take that into account.  */
-
-#define MOVE_RATIO(speed) \
-  (HAVE_cpymemsi ? LARCH_MAX_MOVE_BYTES_STRAIGHT / MOVE_MAX \
-		 : LARCH_CALL_RATIO / 2)
-
-/* For CLEAR_RATIO, when optimizing for size, give a better estimate
-   of the length of a memset call, but use the default otherwise.  */
-
-#define CLEAR_RATIO(speed) ((speed) ? 15 : LARCH_CALL_RATIO)
-
-/* This is similar to CLEAR_RATIO, but for a non-zero constant, so when
-   optimizing for size adjust the ratio to account for the overhead of
-   loading the constant and replicating it across the word.  */
-
-#define SET_RATIO(speed) ((speed) ? 15 : LARCH_CALL_RATIO - 2)
-
-#ifndef USED_FOR_TARGET
-extern const enum reg_class loongarch_regno_to_class[];
-extern int loongarch_dwarf_regno[];
-extern enum processor loongarch_arch; /* Which cpu to codegen for.  */
-extern enum processor loongarch_tune; /* Which cpu to schedule for.  */
-extern const struct loongarch_cpu_info *loongarch_arch_info;
-extern const struct loongarch_cpu_info *loongarch_tune_info;
-
-/* Information about a function's frame layout.  */
-struct GTY (()) loongarch_frame_info
-{
-  /* The size of the frame in bytes.  */
-  HOST_WIDE_INT total_size;
-
-  /* Bit X is set if the function saves or restores GPR X.  */
-  unsigned int mask;
-
-  /* Likewise FPR X.  */
-  unsigned int fmask;
-
-  /* How much the GPR save/restore routines adjust sp (or 0 if unused).  */
-  unsigned save_libcall_adjustment;
-
-  /* Offsets of fixed-point and floating-point save areas from frame bottom.  */
-  HOST_WIDE_INT gp_sp_offset;
-  HOST_WIDE_INT fp_sp_offset;
-
-  /* Offset of virtual frame pointer from stack pointer/frame bottom.  */
-  HOST_WIDE_INT frame_pointer_offset;
-
-  /* Offset of hard frame pointer from stack pointer/frame bottom.  */
-  HOST_WIDE_INT hard_frame_pointer_offset;
-
-  /* The offset of arg_pointer_rtx from the bottom of the frame.  */
-  HOST_WIDE_INT arg_pointer_offset;
-};
-
-struct GTY (()) machine_function
-{
-  /* The next floating-point condition-code register to allocate
-     for 8CC targets, relative to ST_REG_FIRST.  */
-  unsigned int next_fcc;
-
-  /* The number of extra stack bytes taken up by register varargs.
-     This area is allocated by the callee at the very top of the frame.  */
-  int varargs_size;
-
-  /* The current frame information, calculated by loongarch_compute_frame_info.
-   */
-  struct loongarch_frame_info frame;
-
-  /* True if loongarch_adjust_insn_length should ignore an instruction's
-     hazard attribute.  */
-  bool ignore_hazard_length_p;
-
-  /* True if at least one of the formal parameters to a function must be
-     written to the frame header (probably so its address can be taken).  */
-  bool does_not_use_frame_header;
-
-  /* True if none of the functions that are called by this function need
-     stack space allocated for their arguments.  */
-  bool optimize_call_stack;
-
-  /* True if one of the functions calling this function may not allocate
-     a frame header.  */
-  bool callers_may_not_allocate_frame;
-};
-#endif
 
 /* As on most targets, we want the .eh_frame section to be read-only where
    possible.  And as on most targets, this means two things:
@@ -1420,6 +1211,70 @@ struct GTY (()) machine_function
 #define ASM_PREFERRED_EH_DATA_FORMAT(CODE, GLOBAL) \
   (((GLOBAL) ? DW_EH_PE_indirect : 0) | DW_EH_PE_absptr)
 
+/* Do emit .note.GNU-stack by default.  */
+#ifndef NEED_INDICATE_EXEC_STACK
+#define NEED_INDICATE_EXEC_STACK 1
+#endif
+
+
+/* ======================== PROFILING SUPPORT =========================== */
+
+/* Output assembler code to FILE to increment profiler label # LABELNO
+   for profiling a function entry.  */
+#define MCOUNT_NAME "_mcount"
+
+/* Emit rtl for profiling.  Output assembler code to FILE
+   to call "_mcount" for profiling a function entry.  */
+#define PROFILE_HOOK(LABEL) \
+  { \
+    rtx fun, ra; \
+    ra = get_hard_reg_initial_val (Pmode, RETURN_ADDR_REGNUM); \
+    fun = gen_rtx_SYMBOL_REF (Pmode, MCOUNT_NAME); \
+    emit_library_call (fun, LCT_NORMAL, VOIDmode, ra, Pmode); \
+  }
+
+/* All the work done in PROFILE_HOOK, but still required.  */
+#define FUNCTION_PROFILER(STREAM, LABELNO) \
+  do \
+    { \
+    } \
+  while (0)
+
+#define NO_PROFILE_COUNTERS 1
+
+
+/* ============================ LIBGCC ================================== */
+#ifdef IN_LIBGCC2
+#undef TARGET_64BIT
+/* Make this compile time constant for libgcc2.  */
+#ifdef __loongarch64
+#define TARGET_64BIT 1
+#else
+#define TARGET_64BIT 0
+#endif
+#endif /* IN_LIBGCC2  */
+
+#define TARGET_LIBGCC_SDATA_SECTION ".sdata"
+
+
+/* ============================= OTHER STUFF ============================ */
+
+/* Default target_flags if no switches are specified.  */
+#ifndef TARGET_DEFAULT
+#define TARGET_DEFAULT 0
+#endif
+
+#ifndef TARGET_CPU_DEFAULT
+#define TARGET_CPU_DEFAULT 0
+#endif
+
+
+/* FIXME: delete ???
+   Default to -G 8.  */
+#ifndef LARCH_DEFAULT_GVALUE
+#define LARCH_DEFAULT_GVALUE 8
+#endif
+
 /* Several named LoongArch patterns depend on Pmode.  These patterns have the
    form <NAME>_si for Pmode == SImode and <NAME>_di for Pmode == DImode.
    Add the appropriate suffix to generator function NAME and invoke it
@@ -1427,17 +1282,9 @@ struct GTY (()) machine_function
 #define PMODE_INSN(NAME, ARGS) \
   (Pmode == SImode ? NAME##_si ARGS : NAME##_di ARGS)
 
-/* Do emit .note.GNU-stack by default.  */
-#ifndef NEED_INDICATE_EXEC_STACK
-#define NEED_INDICATE_EXEC_STACK 1
+/* Tell collect2 what flags to pass to nm (lto-related)  */
+#ifndef NM_FLAGS
+#define NM_FLAGS "-Bn"
 #endif
 
-/* The `Q' extension is not yet supported.  */
-/* TODO: according to march.  */
-#define UNITS_PER_FP_REG (TARGET_DOUBLE_FLOAT ? 8 : 4)
 
-/* The largest type that can be passed in floating-point registers.  */
-/* TODO: according to mabi.  */
-#define UNITS_PER_FP_ARG (TARGET_HARD_FLOAT ? (TARGET_64BIT ? 8 : 4) : 0)
-
-#define FUNCTION_VALUE_REGNO_P(N) ((N) == GP_RETURN || (N) == FP_RETURN)

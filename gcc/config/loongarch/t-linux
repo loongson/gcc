@@ -16,8 +16,10 @@
 # along with GCC; see the file COPYING3.  If not see
 # <http://www.gnu.org/licenses/>.
 
-MULTILIB_OSDIRNAMES := ../lib64$(call if_multiarch,:loongarch64-linux-gnu)
-MULTIARCH_DIRNAME := $(call if_multiarch,loongarch64-linux-gnu)
-
-# haven't supported lp32 yet
-MULTILIB_EXCEPTIONS = mabi=lp32
+MULTILIB_OPTIONS = mabi=lp64 mfloat-abi=soft/mfloat-abi=single
+MULTILIB_EXCLUSIONS = mabi=lp64/mfloat-abi=single
+MULTILIB_DIRNAMES = lp64 soft-fp single-fp
+MULTILIB_REQUIRED = mabi=* mabi=*/mfloat-abi=*
+MULTILIB_OSDIRNAMES = ../lib64$(call if_multiarch,:loongarch64-linux-gnu)
+MULTILIB_OSDIRNAMES += soft-fp$(call if_multiarch,:loongarch64-linux-gnu)
+MULTILIB_OSDIRNAMES += single-fp$(call if_multiarch,:loongarch64-linux-gnu)
