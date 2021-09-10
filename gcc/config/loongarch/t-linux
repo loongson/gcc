@@ -17,7 +17,7 @@
 # <http://www.gnu.org/licenses/>.
 
 MULTILIB_OPTIONS = mabi=lp64 mfloat-abi=soft/mfloat-abi=single
-MULTILIB_EXCLUSIONS = mabi=lp64/mfloat-abi=single
+MULTILIB_EXCLUSIONS = mabi=lp64/mfloat-abi=single mabi=lp64/mfloat-abi=soft
 MULTILIB_DIRNAMES = lp64 soft-fp single-fp
 MULTILIB_REQUIRED = mabi=* mabi=*/mfloat-abi=*
 MULTILIB_OSDIRNAMES = ../lib64$(call if_multiarch,:loongarch64-linux-gnu)
