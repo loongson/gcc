@@ -107,8 +107,11 @@ const char*
 driver_get_normalized_m_opts (int argc, const char **argv)
 {
   if (argc != 0)
-    return "%eget_normalized_m_opts requires no argument.";
-
+    {
+      (void) argv;  // to make compiler shut up
+      return "%eget_normalized_m_opts requires no argument.";
+    }
+   
   const char* retval = loongarch_handle_m_option_combinations (
     & loongarch_arch_driver,
     & loongarch_tune_driver,
