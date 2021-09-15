@@ -21,6 +21,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "diagnostic-core.h"
 
 #include "loongarch-opts.h"
 
@@ -47,7 +48,7 @@ const char* loongarch_abi_float_strings[] = {
 /* Handle combinations of -m machine option values. 
    (see loongarch.opt and loongarch-opts.h) */
 
-const char*
+void
 loongarch_handle_m_option_combinations (
   int* cpu_arch, int* cpu_tune, int* isa_int, int* isa_float,
   int* isa_ext_flags, int* abi_int, int* abi_float)
@@ -88,13 +89,24 @@ loongarch_handle_m_option_combinations (
      cache_cpucfg();
 
      int cpu_detected = fill_native_cpu_config();
-     if (cpu_detected == -1)
-       /* FIXME: we shouldn't complain about this, see comment in loongarch-cpu.c */
-       return "%eUnknown CPU detected, do not use -march=native.";
-
-     else if (*cpu_arch == CPU_NATIVE ||
-             (cpu_arch_was_absent && DEFAULT_CPU_ARCH == CPU_NATIVE))
-       *cpu_arch = cpu_detected;
+     if (*cpu_arch == CPU_NATIVE ||
+        (cpu_arch_was_absent && DEFAULT_CPU_ARCH == CPU_NATIVE))
+       {
+         if (cpu_detected == -1)
+           /* FIXME: We still rely on known processor entries in static tables 
+            * defined in loongarch-cpu.c to cover some of the information we need 
+            * to keep the compiler going. An unknown PRID from "cpucfg" does
+            * not correspond to any entry in those tables, causing our gathered machine 
+            * info to be incomplete.
+            *
+            * This should be removed in the future, when we can infer ALL needed
+            * properties about the machine from the words returned by "cpucfg".
+            * See comment in loongarch-cpu.c */
+           error ("unknown processor ID %<0x%x%> detected, do not use %qs",
+                  get_native_prid(), "-march=native");
+         else
+           *cpu_arch = cpu_detected;
+       }
     #endif
 
   if (LARCH_OPT_ABSENT(*cpu_tune)
@@ -119,7 +131,7 @@ loongarch_handle_m_option_combinations (
   /* Prevent the use of "-march=native" on a cross compiler. */
   #ifndef __loongarch__
   if (*cpu_arch == CPU_NATIVE)
-    return "%e-march=native does not work on a cross compiler.";
+    error ("%qs does not work on a cross compiler.", "-march=native");
   #endif
 
   /* 2. Compute ISA Extensions */
@@ -141,7 +153,7 @@ loongarch_handle_m_option_combinations (
               break;
 
             default:
-              return 0;
+              gcc_unreachable();
           }
 
       // Try inferring int abi from "-march" option.
@@ -190,7 +202,7 @@ loongarch_handle_m_option_combinations (
               break;
 
             default:
-              return 0;
+              gcc_unreachable();
           }
     }
 
@@ -198,12 +210,15 @@ loongarch_handle_m_option_combinations (
   switch(*isa_int)
     {
        case ISA_LA64:
-         if (*abi_int == ABI_LP64); // OK
-         else return "%eLA64 only supports LP64 ABI";
+         if (*abi_int != ABI_LP64) goto error_int_abi;
          break;
 
        default:
-         return 0;
+         error_int_abi:
+        error ("%qs ABI is incompatible with %qs ISA",
+           loongarch_abi_int_strings[*abi_int],
+           loongarch_isa_int_strings[*isa_int]
+         );
     }
 
   /* 6. Compute floating-point ISA */
@@ -229,7 +244,7 @@ loongarch_handle_m_option_combinations (
               break;
 
             default:
-              return 0;
+              gcc_unreachable();
           }
 
       // Try inferring fp abi from "-march" option.
@@ -286,7 +301,7 @@ loongarch_handle_m_option_combinations (
               break;
 
             default:
-              return 0;
+              gcc_unreachable();
           }
     }
   /* 8. Check floating-point ABI-ISA for conflicts */
@@ -295,26 +310,23 @@ loongarch_handle_m_option_combinations (
       switch(*isa_float)
       {
          case ISA_SOFT_FLOAT:
-           if (*abi_float == ABI_SOFT_FLOAT); // OK
-           else goto error;
+           if (*abi_float != ABI_SOFT_FLOAT) goto error_float_abi;
            break;
 
          case ISA_SINGLE_FLOAT:
-           if (*abi_float == ABI_SINGLE_FLOAT); // OK
-           else goto error;
+           if (*abi_float != ABI_SINGLE_FLOAT) goto error_float_abi;
            break;
 
          case ISA_DOUBLE_FLOAT:
-           if (*abi_float == ABI_DOUBLE_FLOAT); // OK
-           else goto error;
+           if (*abi_float != ABI_DOUBLE_FLOAT) goto error_float_abi;
            break;
 
          default:
-           return 0;
-
-           error:
-             return "%eIllegal floating-point ABI for given fpu configuration.";
+           error_float_abi:
+           error ("%<%s-float%> ABI is incompatible with %qs fpu",
+             loongarch_abi_float_strings[*abi_float],
+             loongarch_isa_float_strings[*isa_float]
+           );
       }
     }
-  return "";
 }

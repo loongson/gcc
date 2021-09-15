@@ -54,6 +54,8 @@ extern struct loongarch_rtx_cost_data loongarch_cpu_rtx_cost_data[];
 /* Native CPU property detection */
 void cache_cpucfg ();
 int fill_native_cpu_config();
+
+uint32_t get_native_prid();
 #endif
 
 #endif /* LOONGARCH_CPU_H */

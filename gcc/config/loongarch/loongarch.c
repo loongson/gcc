@@ -6016,7 +6016,7 @@ loongarch_option_override_internal (struct gcc_options *opts,
 				    : LARCH_DEFAULT_GVALUE);
   
   /* Handle machine option combinations: compute defaults/conflicts etc. */
-  const char* retval = loongarch_handle_m_option_combinations(
+  loongarch_handle_m_option_combinations(
     & loongarch_cpu_arch,
     & loongarch_cpu_tune,
     & loongarch_isa_int,
@@ -6025,12 +6025,6 @@ loongarch_option_override_internal (struct gcc_options *opts,
     & loongarch_abi_int,
     & loongarch_abi_float
   );
-   
-   if (retval == 0)
-     gcc_unreachable();
-
-   else if (retval[0] == '%')
-     error (retval + 2); // to skip the "%e" prefix
 
   /* End of code shared with GAS.  */
   if (TARGET_ABI_LP64)

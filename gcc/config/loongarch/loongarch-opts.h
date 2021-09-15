@@ -87,7 +87,7 @@ extern const char* loongarch_abi_float_strings[];
 /* Handler for "-m" option combinations, 
    shared by the driver and the compiler proper.
 */
-const char*
+void
 loongarch_handle_m_option_combinations (
   int* cpu_arch, int* cpu_tune, int* isa_int, int* isa_ext_flags,
   int* isa_float, int* abi_int, int* abi_float);

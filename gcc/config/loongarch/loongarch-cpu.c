@@ -93,6 +93,11 @@ void cache_cpucfg ()
    see "Loongson Architecture Reference Manual" 
    (Volume 1, Section 2.2.10.5) */
 
+uint32_t get_native_prid()
+{
+  return cpucfg_cache[0];
+}
+
 int fill_native_cpu_config()
 {
    int int_isa = -1, int_abi = -1;

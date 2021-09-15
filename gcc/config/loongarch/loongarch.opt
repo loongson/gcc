@@ -20,20 +20,17 @@
 HeaderInclude
 config/loongarch/loongarch-opts.h
 
-; We collect machine related options with the following variables:
-;  enum loongarch_isa_int    loongarch_isa_int             -> init (DEFAULT_ISA_INT)
-;  enum loongarch_isa_float  loongarch_isa_float           -> init (DEFAULT_ISA_FLOAT)
+; We collect machine related options with the following global variables:
+;  enum loongarch_isa_int    loongarch_isa_int             -> DEFAULT_ISA_INT
+;  enum loongarch_isa_float  loongarch_isa_float           -> DEFAULT_ISA_FLOAT
 ;  HOST_WIDE_INT             loongarch_isa_ext_flags       -> init (0)
 ;
-;  enum loongarch_cpu_type   loongarch_cpu_arch            -> init (DEFAULT_CPU_ARCH)
-;                            loongarch_cpu_tune            -> init (DEFAULT_CPU_TUNE)
+;  enum loongarch_cpu_type   loongarch_cpu_arch            -> DEFAULT_CPU_ARCH
+;                            loongarch_cpu_tune            -> DEFAULT_CPU_TUNE
 ;
-;  enum loongarch_abi_int    loongarch_abi_int             -> init (DEFAULT_ABI_INT)
-;  enum loongarch_abi_float  loongarch_abi_float           -> init (DEFAULT_ABI_FLOAT)
-;
-; The combination of these variables (and their associated macros) shall 
-; be filtered and corrected by the implementation of TARGET_OPTION_OVERRIDE.
-;
+;  enum loongarch_abi_int    loongarch_abi_int             -> DEFAULT_ABI_INT
+;  enum loongarch_abi_float  loongarch_abi_float           -> DEFAULT_ABI_FLOAT
+
 
 ;;;; ISA related options
 
@@ -83,9 +80,6 @@ Allow hardware floating-point instructions to cover both 32-bit and 64-bit opera
 ;; ISA Extensions
 Variable
 int loongarch_isa_ext_flags = 0
-
-;mlsx
-;Target Mask(ISA_LSX) Var(loongarch_isa_ext_flags) ;Enable LoongArch SIMD Extensions.
 
 
 ;; CPU types (implies ISA & tune parameters)

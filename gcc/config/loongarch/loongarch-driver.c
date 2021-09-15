@@ -109,10 +109,10 @@ driver_get_normalized_m_opts (int argc, const char **argv)
   if (argc != 0)
     {
       (void) argv;  // to make compiler shut up
-      return "%eget_normalized_m_opts requires no argument.";
+      return " %eget_normalized_m_opts requires no argument.\n";
     }
    
-  const char* retval = loongarch_handle_m_option_combinations (
+  loongarch_handle_m_option_combinations (
     & loongarch_arch_driver,
     & loongarch_tune_driver,
     & loongarch_isa_int_driver,
@@ -121,12 +121,6 @@ driver_get_normalized_m_opts (int argc, const char **argv)
     & loongarch_abi_int_driver,
     & loongarch_abi_float_driver
   );
-
-  if (retval == 0)
-     return "%einternal error";
-
-  else if (retval[0] == '%')
-     return retval;
 
   /* Output normalized option string */
   obstack_blank (&opts_obstack, 0);
@@ -143,7 +137,8 @@ driver_get_normalized_m_opts (int argc, const char **argv)
           && loongarch_abi_int_driver != DEFAULT_ABI_INT)
       || (DEFAULT_ABI_FLOAT != M_OPTION_NOT_SEEN
           && loongarch_abi_float_driver != DEFAULT_ABI_FLOAT))
-        APPEND_LTR (" %nABI change detected, you may end up linking to incompatible libraries.\n");
+        APPEND_LTR (" %nABI change detected while multilib is disabled,"
+                    " you may end up linking to incompatible libraries.\n");
   #endif
 
   APPEND_LTR (" -mabi=");
