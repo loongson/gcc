@@ -2510,6 +2510,7 @@ loongarch64-*-linux*)
 	esac
 
 	if test x$enable_multilib != xyes; then
+            enable_multilib=no
 	    tm_defines="$tm_defines __DISABLE_MULTILIB"
         fi
 
