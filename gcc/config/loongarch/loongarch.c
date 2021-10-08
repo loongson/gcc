@@ -1089,7 +1089,7 @@ loongarch_emit_probe_stack_range (HOST_WIDE_INT first, HOST_WIDE_INT size)
 {
   /* See if we have a constant small number of probes to generate.  If so,
      that's the easy case.  */
-  if (first + size <= 2048)
+  if (first + size <= 8 * PROBE_INTERVAL)
     {
       HOST_WIDE_INT i;
 
@@ -1172,7 +1172,7 @@ loongarch_emit_probe_stack_range (HOST_WIDE_INT first, HOST_WIDE_INT size)
 
 /* Probe a range of stack addresses from REG1 to REG2 inclusive.  These are
    absolute addresses.  */
-
+
 const char *
 loongarch_output_probe_stack_range (rtx reg1, rtx reg2)
 {
