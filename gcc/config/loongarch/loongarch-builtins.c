@@ -1,21 +1,22 @@
 /* Subroutines used for expanding LoongArch builtins.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2021 Free Software Foundation, Inc.
+   Contributed by Loongson Ltd.
 
-   This file is part of GCC.
+This file is part of GCC.
 
-   GCC is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3, or (at your option)
-   any later version.
+GCC is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
 
-   GCC is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+GCC is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING3.  If not see
-   <http://www.gnu.org/licenses/>.  */
+You should have received a copy of the GNU General Public License
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 #define IN_TARGET_CODE 1
 
@@ -340,6 +341,7 @@ loongarch_init_builtins (void)
 {
   const struct loongarch_builtin_description *d;
   unsigned int i;
+  tree type;
 
   /* Iterate through all of the bdesc arrays, initializing all of the
      builtin functions.  */
@@ -348,10 +350,10 @@ loongarch_init_builtins (void)
       d = &loongarch_builtins[i];
       if (d->avail ())
 	{
+	  type = loongarch_build_function_type (d->function_type);
 	  loongarch_builtin_decls[i]
-	    = add_builtin_function (d->name,
-				    loongarch_build_function_type (d->function_type),
-				    i, BUILT_IN_MD, NULL, NULL);
+	    = add_builtin_function (d->name, type, i, BUILT_IN_MD, NULL,
+				    NULL);
 	  loongarch_get_builtin_decl_index[d->icode] = i;
 	}
     }

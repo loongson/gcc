@@ -1,5 +1,6 @@
 /* Subroutine headers for the gcc driver.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2021 Free Software Foundation, Inc.
+   Contributed by Loongson Ltd.
 
 This file is part of GCC.
 

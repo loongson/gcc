@@ -1,5 +1,6 @@
 /* Definitions for loongarch-specific option handling.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2021 Free Software Foundation, Inc.
+   Contributed by Loongson Ltd.
 
 This file is part of GCC.
 
@@ -26,6 +27,7 @@ along with GCC; see the file COPYING3.  If not see
 /* enum loongarch_isa_int */
 #define ISA_LA64          0
 #define N_INT_ISA_TYPES   1
+
 
 /* enum loongarch_isa_float */
 #define ISA_SOFT_FLOAT    0
@@ -77,6 +79,7 @@ extern const char* loongarch_abi_float_strings[];
 
 #ifndef DEFAULT_ABI_FLOAT
 #define DEFAULT_ABI_FLOAT M_OPTION_NOT_SEEN
+
 #endif
 
 /* Default-default values for ISA extensions */

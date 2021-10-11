@@ -1,5 +1,7 @@
 /* Prototypes of target machine for GNU compiler.  LoongArch version.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2021 Free Software Foundation, Inc.
+   Contributed by Loongson Ltd.
+   Based on MIPS target for GNU compiler.
 
 This file is part of GCC.
 
@@ -102,7 +104,7 @@ extern void loongarch_expand_epilogue (bool);
 extern bool loongarch_can_use_return_insn (void);
 
 extern bool loongarch_symbolic_constant_p (rtx, enum loongarch_symbol_context,
-				      enum loongarch_symbol_type *);
+					   enum loongarch_symbol_type *);
 extern int loongarch_regno_mode_ok_for_base_p (int, machine_mode, bool);
 extern bool loongarch_stack_address_p (rtx, machine_mode);
 extern int loongarch_address_insns (rtx, machine_mode, bool);
@@ -140,45 +142,49 @@ extern bool loongarch_store_by_pieces_p (unsigned HOST_WIDE_INT, unsigned int);
 extern bool loongarch_expand_block_move (rtx, rtx, rtx);
 
 extern bool loongarch_expand_ext_as_unaligned_load (rtx, rtx, HOST_WIDE_INT,
-					       HOST_WIDE_INT, bool);
+						    HOST_WIDE_INT, bool);
 extern bool loongarch_expand_ins_as_unaligned_store (rtx, rtx, HOST_WIDE_INT,
-						HOST_WIDE_INT);
+						     HOST_WIDE_INT);
 extern HOST_WIDE_INT loongarch_debugger_offset (rtx, HOST_WIDE_INT);
 
 extern void loongarch_output_external (FILE *, tree, const char *);
 extern void loongarch_output_ascii (FILE *, const char *, size_t);
 extern void loongarch_output_aligned_decl_common (FILE *, tree, const char *,
-					     unsigned HOST_WIDE_INT,
-					     unsigned int);
+						  unsigned HOST_WIDE_INT,
+						  unsigned int);
 extern void loongarch_declare_common_object (FILE *, const char *,
-					const char *, unsigned HOST_WIDE_INT,
-					unsigned int, bool);
+					     const char *,
+					     unsigned HOST_WIDE_INT,
+					     unsigned int, bool);
 extern void loongarch_declare_object (FILE *, const char *, const char *,
-				 const char *, ...) ATTRIBUTE_PRINTF_4;
+				      const char *, ...) ATTRIBUTE_PRINTF_4;
 extern void loongarch_declare_object_name (FILE *, const char *, tree);
 extern void loongarch_finish_declare_object (FILE *, tree, int, int);
 extern void loongarch_set_text_contents_type (FILE *, const char *,
-					 unsigned long, bool);
+					      unsigned long, bool);
 
 extern bool loongarch_small_data_pattern_p (rtx);
 extern rtx loongarch_rewrite_small_data (rtx);
 extern rtx loongarch_return_addr (int, rtx);
 
 extern enum reg_class loongarch_secondary_reload_class (enum reg_class,
-						   machine_mode,
-						   rtx, bool);
+							machine_mode,
+							rtx, bool);
 extern int loongarch_class_max_nregs (enum reg_class, machine_mode);
 
 extern machine_mode loongarch_hard_regno_caller_save_mode (unsigned int,
-						      unsigned int,
-						      machine_mode);
+							   unsigned int,
+							   machine_mode);
 extern int loongarch_adjust_insn_length (rtx_insn *, int);
 extern const char *loongarch_output_conditional_branch (rtx_insn *, rtx *,
-						   const char *, const char *);
-extern const char *loongarch_output_order_conditional_branch (rtx_insn *, rtx *,
-							 bool);
-extern const char *loongarch_output_equal_conditional_branch (rtx_insn *, rtx *,
-							 bool);
+							const char *,
+							const char *);
+extern const char *loongarch_output_order_conditional_branch (rtx_insn *,
+							      rtx *,
+							      bool);
+extern const char *loongarch_output_equal_conditional_branch (rtx_insn *,
+							      rtx *,
+							      bool);
 extern const char *loongarch_output_division (const char *, rtx *);
 extern const char *loongarch_output_probe_stack_range (rtx, rtx, rtx);
 extern bool loongarch_hard_regno_rename_ok (unsigned int, unsigned int);
@@ -204,7 +210,7 @@ union loongarch_gen_fn_ptrs
 };
 
 extern void loongarch_expand_atomic_qihi (union loongarch_gen_fn_ptrs,
-				     rtx, rtx, rtx, rtx, rtx);
+					  rtx, rtx, rtx, rtx, rtx);
 
 extern bool loongarch_signed_immediate_p (unsigned HOST_WIDE_INT, int, int);
 extern bool loongarch_unsigned_immediate_p (unsigned HOST_WIDE_INT, int, int);

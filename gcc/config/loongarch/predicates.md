@@ -1,5 +1,7 @@
-;; Predicate definitions for LoongArch.
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
+;; Predicate definitions for LoongArch target.
+;; Copyright (C) 2021 Free Software Foundation, Inc.
+;; Contributed by Loongson Ltd.
+;; Based on MIPS target for GNU compiler.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -242,7 +244,7 @@
 (define_predicate "shift_mask_operand"
   (and (match_code "const_int")
        (ior (match_test "UINTVAL (op) == 0x3fffffffc")
-            (match_test "UINTVAL (op) == 0x1fffffffe")
+	    (match_test "UINTVAL (op) == 0x1fffffffe")
 	    (match_test "UINTVAL (op) == 0x7fffffff8")
 	    (match_test "UINTVAL (op) == 0xffffffff0"))))
 
@@ -440,7 +442,7 @@
   /* Otherwise check whether the constant can be loaded in a single
      instruction.  */
   return !LU12I_INT (op) && !SMALL_INT (op) && !SMALL_INT_UNSIGNED (op)
-         && !LU52I_INT (op);
+	 && !LU52I_INT (op);
 })
 
 (define_predicate "move_operand"

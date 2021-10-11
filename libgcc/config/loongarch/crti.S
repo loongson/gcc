@@ -1,4 +1,4 @@
-/* Copyright (C) 2001-2018 Free Software Foundation, Inc.
+/* Copyright (C) 2021 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -22,7 +22,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
 /* 4 slots for argument spill area.  1 for cpreturn, 1 for stack.
-   Return spill offset of 40 and 20.  Aligned to 16 bytes for n32.  */
+   Return spill offset of 8.  Aligned to 16 bytes for lp64.  */
 
 	.section .init,"ax",@progbits
 	.globl	_init

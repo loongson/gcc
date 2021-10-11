@@ -1,5 +1,5 @@
 /* Definitions for LoongArch running Linux-based GNU systems with ELF format.
-   Copyright (C) 1998-2018 Free Software Foundation, Inc.
+   Copyright (C) 2021 Free Software Foundation, Inc.
 
 This file is part of GCC.
 

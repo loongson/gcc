@@ -1,21 +1,23 @@
 /* Subroutines used for LoongArch code generation.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2021 Free Software Foundation, Inc.
+   Contributed by Loongson Ltd.
+   Based on MIPS and RISC-V target for GNU compiler.
 
-   This file is part of GCC.
+This file is part of GCC.
 
-   GCC is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3, or (at your option)
-   any later version.
+GCC is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
 
-   GCC is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+GCC is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING3.  If not see
-   <http://www.gnu.org/licenses/>.  */
+You should have received a copy of the GNU General Public License
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 #define IN_TARGET_CODE 1
 
@@ -673,7 +675,7 @@ loongarch_function_value_1 (const_tree type, const_tree func, machine_mode mode)
       mode = promote_function_mode (type, mode, &unsigned_p, func, 1);
     }
 
-  memset (&args, 0, sizeof args);
+  memset (&args, 0, sizeof (args));
   return loongarch_get_arg_info (&info, &args, mode, type, true, true);
 }
 
@@ -733,7 +735,7 @@ loongarch_return_in_memory (const_tree type,
 
   /* The rules for returning in memory are the same as for passing the
      first named argument by reference.  */
-  memset (&args, 0, sizeof args);
+  memset (&args, 0, sizeof (args));
   function_arg_info arg (const_cast<tree> (type), /*named=*/true);
   return loongarch_pass_by_reference (cum, arg);
 }
@@ -833,39 +835,39 @@ loongarch_save_libcall_count (unsigned mask)
 
    LoongArch stack frames grown downward.  High addresses are at the top.
 
-   +-------------------------------+
-   |                               |
-   |  incoming stack arguments     |
-   |                               |
-   +-------------------------------+ <-- incoming stack pointer
-   |                               |
-   |  callee-allocated save area   |
-   |  for arguments that are       |
-   |  split between registers and  |
-   |  the stack                    |
-   |                               |
-   +-------------------------------+ <-- arg_pointer_rtx
-   |                               |
-   |  callee-allocated save area   |
-   |  for register varargs         |
-   |                               |
-   +-------------------------------+ <-- hard_frame_pointer_rtx;
-   |                               |     stack_pointer_rtx + gp_sp_offset
-   |  GPR save area                |       + UNITS_PER_WORD
-   |                               |
-   +-------------------------------+ <-- stack_pointer_rtx + fp_sp_offset
-   |                               |       + UNITS_PER_HWVALUE
-   |  FPR save area                |
-   |                               |
-   +-------------------------------+ <-- frame_pointer_rtx (virtual)
-   |                               |
-   |  local variables              |
-   |                               |
+     +-------------------------------+
+     |                               |
+     |  incoming stack arguments     |
+     |                               |
+     +-------------------------------+ <-- incoming stack pointer
+     |                               |
+     |  callee-allocated save area   |
+     |  for arguments that are       |
+     |  split between registers and  |
+     |  the stack                    |
+     |                               |
+     +-------------------------------+ <-- arg_pointer_rtx
+     |                               |
+     |  callee-allocated save area   |
+     |  for register varargs         |
+     |                               |
+     +-------------------------------+ <-- hard_frame_pointer_rtx;
+     |                               |     stack_pointer_rtx + gp_sp_offset
+     |  GPR save area                |       + UNITS_PER_WORD
+     |                               |
+     +-------------------------------+ <-- stack_pointer_rtx + fp_sp_offset
+     |                               |       + UNITS_PER_HWVALUE
+     |  FPR save area                |
+     |                               |
+     +-------------------------------+ <-- frame_pointer_rtx (virtual)
+     |                               |
+     |  local variables              |
+     |                               |
    P +-------------------------------+
-   |                               |
-   |  outgoing stack arguments     |
-   |                               |
-   +-------------------------------+ <-- stack_pointer_rtx
+     |                               |
+     |  outgoing stack arguments     |
+     |                               |
+     +-------------------------------+ <-- stack_pointer_rtx
 
    Dynamic stack allocations such as alloca insert data at point P.
    They decrease stack_pointer_rtx but leave frame_pointer_rtx and
@@ -1434,7 +1436,6 @@ loongarch_expand_epilogue (bool sibcall_p)
 }
 
 
-
 /* Implement TARGET_MERGE_DECL_ATTRIBUTES.  */
 
 static tree

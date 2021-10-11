@@ -1,6 +1,8 @@
 ;; Generic DFA-based pipeline description for LoongArch targets
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
-;;
+;; Copyright (C) 2021 Free Software Foundation, Inc.
+;; Contributed by Loongson Ltd.
+;; Based on MIPS target for GNU compiler.
+
 ;; This file is part of GCC.
 
 ;; GCC is free software; you can redistribute it and/or modify it

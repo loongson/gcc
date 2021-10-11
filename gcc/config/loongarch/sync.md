@@ -1,6 +1,7 @@
 ;; Machine description for LoongArch atomic operations.
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
-;; Based on LoongArch target for GNU compiler.
+;; Copyright (C) 2021 Free Software Foundation, Inc.
+;; Contributed by Loongson Ltd.
+;; Based on MIPS and RISC-V target for GNU compiler.
 
 ;; This file is part of GCC.
 

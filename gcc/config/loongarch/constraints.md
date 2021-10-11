@@ -1,5 +1,6 @@
 ;; Constraint definitions for LoongArch.
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2021 Free Software Foundation, Inc.
+;; Contributed by Loongson Ltd.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -70,13 +71,12 @@
 ;; "U" <-----unused
 ;; "V" "Matches a non-offsettable memory reference." (Global non-architectural)
 ;; "W" "A memory address based on a member of @code{BASE_REG_CLASS}.  This is
-;;     true for all references (although it can sometimes be implicit
-;;     if @samp{!TARGET_EXPLICIT_RELOCS})."
+;;     true for all references."
 ;; "X" "Matches anything." (Global non-architectural)
 ;; "Y" -
 ;;    "Yd"
-;;       "A constant @code{move_operand} that can be safely loaded into @code{$25}
-;;       using @code{la}."
+;;       "A constant @code{move_operand} that can be safely loaded using
+;;        @code{la}."
 ;;    "Yx"
 ;; "Z" -
 ;;    "ZC"
@@ -182,8 +182,7 @@
 (define_memory_constraint "W"
   "@internal
    A memory address based on a member of @code{BASE_REG_CLASS}.  This is
-   true for allreferences (although it can sometimes be implicit
-   if @samp{!TARGET_EXPLICIT_RELOCS})."
+   true for allreferences."
   (and (match_code "mem")
        (match_operand 0 "memory_operand")
 	    (and (not (match_operand 0 "stack_operand"))
@@ -191,8 +190,8 @@
 
 (define_constraint "Yd"
   "@internal
-   A constant @code{move_operand} that can be safely loaded into @code{$25}
-   using @code{la}."
+   A constant @code{move_operand} that can be safely loaded using
+   @code{la}."
   (and (match_operand 0 "move_operand")
        (match_test "CONSTANT_P (op)")))
 

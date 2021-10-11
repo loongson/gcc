@@ -1,21 +1,23 @@
 /* Definitions of target machine for GNU compiler.  LoongArch version.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2021 Free Software Foundation, Inc.
+   Contributed by Loongson Ltd.
+   Based on MIPS and RISC-V target for GNU compiler.
 
-  This file is part of GCC.
+This file is part of GCC.
 
-  GCC is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; either version 3, or (at your option)
-  any later version.
+GCC is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
 
-  GCC is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+GCC is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-  You should have received a copy of the GNU General Public License
-  along with GCC; see the file COPYING3.  If not see
-  <http://www.gnu.org/licenses/>.  */
+You should have received a copy of the GNU General Public License
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 /* LoongArch external variables defined in loongarch.c.  */
 
@@ -159,14 +161,15 @@
 #endif
 
 /* The size of DWARF addresses should be the same as the size of symbols
-   in the target file format.
-*/
+   in the target file format.  */
 #define DWARF2_ADDR_SIZE (TARGET_64BIT ? 8 : 4)
 
 /* By default, turn on GDB extensions.  */
 #define DEFAULT_GDB_EXTENSIONS 1
 
-#define DWARF2_DEBUGGING_INFO 1 /* dwarf2 debugging info  */
+/* By default, produce dwarf version 2 format debugging output in response
+   to the ‘-g’ option.  */
+#define DWARF2_DEBUGGING_INFO 1
 
 /* The mapping from gcc register number to DWARF 2 CFA column number.  */
 #define DWARF_FRAME_REGNUM(REGNO) loongarch_dwarf_regno[REGNO]
