@@ -101,10 +101,6 @@ loongarch_cpu_cpp_builtins (cpp_reader *pfile)
   else
     builtin_define ("__loongarch_soft_float");
 
-  /* ISA Extensions / Features */
-  if (TARGET_FIX_LOONGSON3_LLSC)
-    builtin_define ("__fix_loongson3_llsc");
-
   /* Native Data Sizes */
   builtin_define_with_int_value ("_LOONGARCH_SZINT", INT_TYPE_SIZE);
   builtin_define_with_int_value ("_LOONGARCH_SZLONG", LONG_TYPE_SIZE);

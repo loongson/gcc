@@ -6041,11 +6041,10 @@ loongarch_option_override_internal (struct gcc_options *opts,
     & loongarch_abi_int,
     & loongarch_abi_float,
 #ifdef __loongarch__
-    & loongarch_native_cpu_type,
+    & loongarch_native_cpu_type
 #else
-    NULL,
+    NULL
 #endif
-    & loongarch_ext_fix_lns3_llsc
   );
 
   /* End of code shared with GAS.  */

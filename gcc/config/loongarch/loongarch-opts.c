@@ -55,8 +55,7 @@ const char* loongarch_abi_float_strings[] = {
 void
 loongarch_handle_m_option_combinations (
   int* cpu_arch, int* cpu_tune, int* isa_int, int* isa_float,
-  int* abi_int, int* abi_float, int* native_cpu_type,
-  int* ext_fix_lns3_llsc)
+  int* abi_int, int* abi_float, int* native_cpu_type)
 {
   /* Rules for handling machine-specific options:
 
@@ -148,7 +147,6 @@ loongarch_handle_m_option_combinations (
 	  = loongarch_cpu_default_config[*cpu_arch].ext.name ; \
     }
 
-  SET_EXT_FLAG(fix_lns3_llsc)
 
   /* 3. Compute integer ISA */
   int int_isa_was_absent = 0;

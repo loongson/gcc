@@ -4961,7 +4961,7 @@ case "${target}" in
 		;;
 
 	loongarch*-*-*)
-		supported_defaults="abi arch float fix-loongson3-llsc"
+		supported_defaults="abi arch float"
 
 		# Perform final sanity checks.
 		case ${with_arch} in
@@ -4996,14 +4996,6 @@ case "${target}" in
 		none)  with_float=soft   ;;
 		*)
 			echo "Unknown fpu type used in --with-fpu=$with_fpu" 1>&2
-			exit 1
-			;;
-		esac
-
-		case ${with_fix_loongson3_llsc} in
-		"" | yes | no) ;; # OK
-		*)
-			echo "Unknown fix-loongson3-llsc type used in --with-fix-loongson3-llsc" 1>&2
 			exit 1
 			;;
 		esac
@@ -5585,11 +5577,6 @@ case ${target} in
 		double)
 			tm_defines="$tm_defines DEFAULT_ABI_FLOAT=ABI_DOUBLE_FLOAT DEFAULT_ISA_FLOAT=ISA_DOUBLE_FLOAT"
 			;;
-		esac
-
-		case ${with_fix_loongson3_llsc} in
-		yes)      tm_defines="$tm_defines DEFAULT_EXT_fix_lns3_llsc=1" ;;
-		no)       tm_defines="$tm_defines DEFAULT_EXT_fix_lns3_llsc=0" ;;
 		esac
 
 		tmake_file="loongarch/t-loongarch $tmake_file"

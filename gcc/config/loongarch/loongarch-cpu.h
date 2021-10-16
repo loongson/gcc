@@ -32,7 +32,7 @@ enum loongarch_cpu_type {
 };
 
 struct loongarch_isa_ext {
-    int fix_lns3_llsc;
+    int ext_dummy;
 };
 
 struct loongarch_cpu_config {
