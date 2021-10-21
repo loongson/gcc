@@ -281,7 +281,7 @@
 #define BIGGEST_ALIGNMENT (LONG_DOUBLE_TYPE_SIZE)
 
 /* All accesses must be aligned.  */
-#define STRICT_ALIGNMENT 1
+#define STRICT_ALIGNMENT (TARGET_STRICT_ALIGN)
 
 /* Define this if you wish to imitate the way many other C compilers
    handle alignment of bitfields and the structures that contain
