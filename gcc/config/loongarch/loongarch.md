@@ -3147,22 +3147,22 @@
   if (GET_MODE (operands[0]) != word_mode)
     operands[0] = convert_to_mode (word_mode, operands[0], 0);
   if (TARGET_64BIT)
-    emit_insn (gen_eh_set_lr_di (operands[0]));
+    emit_insn (gen_eh_set_ra_di (operands[0]));
   else
-    emit_insn (gen_eh_set_lr_si (operands[0]));
+    emit_insn (gen_eh_set_ra_si (operands[0]));
   DONE;
 })
 
 ;; Clobber the return address on the stack.  We can't expand this
 ;; until we know where it will be put in the stack frame.
 
-(define_insn "eh_set_lr_si"
+(define_insn "eh_set_ra_si"
   [(unspec [(match_operand:SI 0 "register_operand" "r")] UNSPEC_EH_RETURN)
    (clobber (match_scratch:SI 1 "=&r"))]
   "! TARGET_64BIT"
   "#")
 
-(define_insn "eh_set_lr_di"
+(define_insn "eh_set_ra_di"
   [(unspec [(match_operand:DI 0 "register_operand" "r")] UNSPEC_EH_RETURN)
    (clobber (match_scratch:DI 1 "=&r"))]
   "TARGET_64BIT"

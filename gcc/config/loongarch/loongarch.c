@@ -5025,8 +5025,14 @@ loongarch_set_return_address (rtx address, rtx scratch)
   rtx slot_address;
 
   gcc_assert (BITSET_P (cfun->machine->frame.mask, RETURN_ADDR_REGNUM));
-  slot_address = loongarch_add_offset (scratch, stack_pointer_rtx,
-				       cfun->machine->frame.gp_sp_offset);
+
+  if (frame_pointer_needed)
+    slot_address = loongarch_add_offset (scratch, hard_frame_pointer_rtx,
+					 -UNITS_PER_WORD);
+  else
+    slot_address = loongarch_add_offset (scratch, stack_pointer_rtx,
+					 cfun->machine->frame.gp_sp_offset);
+
   loongarch_emit_move (gen_frame_mem (GET_MODE (address), slot_address),
 		       address);
 }
