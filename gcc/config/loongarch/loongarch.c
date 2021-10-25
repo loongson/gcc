@@ -196,13 +196,13 @@ static int cached_can_issue_more;
 /* Index R is the smallest register class that contains register R.  */
 const enum reg_class loongarch_regno_to_class[FIRST_PSEUDO_REGISTER] = {
     GR_REGS,	     GR_REGS,	      GR_REGS,	       GR_REGS,
-    JALR_REGS,       JALR_REGS,       JALR_REGS,       JALR_REGS,
-    JALR_REGS,       JALR_REGS,       JALR_REGS,       JALR_REGS,
+    JIRL_REGS,       JIRL_REGS,       JIRL_REGS,       JIRL_REGS,
+    JIRL_REGS,       JIRL_REGS,       JIRL_REGS,       JIRL_REGS,
     SIBCALL_REGS,    SIBCALL_REGS,    SIBCALL_REGS,    SIBCALL_REGS,
     SIBCALL_REGS,    SIBCALL_REGS,    SIBCALL_REGS,    SIBCALL_REGS,
-    SIBCALL_REGS,    GR_REGS,	      GR_REGS,	       JALR_REGS,
-    JALR_REGS,       JALR_REGS,       JALR_REGS,       JALR_REGS,
-    JALR_REGS,       JALR_REGS,       JALR_REGS,       JALR_REGS,
+    SIBCALL_REGS,    GR_REGS,	      GR_REGS,	       JIRL_REGS,
+    JIRL_REGS,       JIRL_REGS,       JIRL_REGS,       JIRL_REGS,
+    JIRL_REGS,       JIRL_REGS,       JIRL_REGS,       JIRL_REGS,
 
     FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
     FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
