@@ -32,27 +32,27 @@ along with GCC; see the file COPYING3.  If not see
 const char* loongarch_cpu_strings[] = {
   /* CPU_NATIVE */      "native",
   /* CPU_LOONGARCH64 */ "loongarch64",
-  /* CPU_GS464V */      "gs464v",
+  /* CPU_LA464 */      "la464",
 };
 
 #define N M_OPTION_NOT_SEEN
 struct loongarch_cpu_config loongarch_cpu_default_config[] = {
   /* CPU_NATIVE */      { N, N, { N } },
   /* CPU_LOONGARCH64 */ { ISA_LA64, ISA_DOUBLE_FLOAT, { 1 } },
-  /* CPU_GS464V */      { ISA_LA64, ISA_DOUBLE_FLOAT, { 1 } },
+  /* CPU_LA464 */      { ISA_LA64, ISA_DOUBLE_FLOAT, { 1 } },
 };
 #undef N
 
 int loongarch_cpu_issue_rate[] = {
   /* CPU_NATIVE */      0,
   /* CPU_LOONGARCH64 */ 4,
-  /* CPU_GS464V */      4,
+  /* CPU_LA464 */      4,
 };
 
 int loongarch_cpu_multipass_dfa_lookahead[] = {
   /* CPU_NATIVE */      0,
   /* CPU_LOONGARCH64 */ 4,
-  /* CPU_GS464V */      4,
+  /* CPU_LA464 */      4,
 };
 
 /* RTX costs to use when optimizing for speed, indexed by processor.  */
@@ -64,7 +64,7 @@ loongarch_cpu_rtx_cost_data[] = {
   /* CPU_LOONGARCH64 */ {
       DEFAULT_COSTS
   },
-  /* CPU_GS464V */  {
+  /* CPU_LA464 */  {
       DEFAULT_COSTS
   },
 };
@@ -145,8 +145,8 @@ int fill_native_cpu_config (void)
 
   switch (cpucfg_cache[0] & 0x00ffff00)
   {
-    case 0x0014c000:   /* GS464V */
-      cpu_type = CPU_GS464V;
+    case 0x0014c000:   /* LA464 */
+      cpu_type = CPU_LA464;
       break;
 
     default:

@@ -4965,7 +4965,7 @@ case "${target}" in
 
 		# Perform final sanity checks.
 		case ${with_arch} in
-		loongarch64 | gs464v) ;; # OK
+		loongarch64 | la464) ;; # OK
 		native)
 			if test x${host} != x${target}; then
 				echo "--with-arch=native is illegal for cross-compiler." 1>&2
@@ -5554,8 +5554,8 @@ case ${target} in
 		native)
 			tm_defines="$tm_defines DEFAULT_CPU_ARCH=CPU_NATIVE"
 			;;
-		gs464v)
-			tm_defines="$tm_defines DEFAULT_CPU_ARCH=CPU_GS464V"
+		la464)
+			tm_defines="$tm_defines DEFAULT_CPU_ARCH=CPU_LA464"
 			;;
 		loongarch64)
 			tm_defines="$tm_defines DEFAULT_CPU_ARCH=CPU_LOONGARCH64"

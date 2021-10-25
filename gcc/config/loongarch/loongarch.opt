@@ -90,7 +90,7 @@ EnumValue
 Enum(loongarch_cpu_type) String(loongarch64) Value(CPU_LOONGARCH64)
 
 EnumValue
-Enum(loongarch_cpu_type) String(gs464v) Value(CPU_GS464V)
+Enum(loongarch_cpu_type) String(la464) Value(CPU_LA464)
 
 march=
 Target RejectNegative Joined Enum(loongarch_cpu_type) Var(loongarch_cpu_arch) Init(M_OPTION_NOT_SEEN)

@@ -27,7 +27,7 @@ along with GCC; see the file COPYING3.  If not see
 enum loongarch_cpu_type {
     CPU_NATIVE = 0,
     CPU_LOONGARCH64 = 1,
-    CPU_GS464V = 2,
+    CPU_LA464 = 2,
     N_CPU_TYPES = 3,
 };
 

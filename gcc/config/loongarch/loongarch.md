@@ -3798,7 +3798,7 @@
 (include "sync.md")
 
 (include "generic.md")
-(include "gs464v.md")
+(include "la464.md")
 
 (define_c_enum "unspec" [
   UNSPEC_ADDRESS_FIRST

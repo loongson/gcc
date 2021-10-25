@@ -124,10 +124,10 @@ loongarch_handle_m_option_combinations (
 
 #define TARGET_ARCH_NATIVE          (loongarch_cpu_arch == CPU_NATIVE)
 #define TARGET_ARCH_LOONGARCH64     (loongarch_cpu_arch == CPU_LOONGARCH64)
-#define TARGET_ARCH_GS464V          (loongarch_cpu_arch == CPU_GS464V)
+#define TARGET_ARCH_LA464          (loongarch_cpu_arch == CPU_LA464)
 
 #define TARGET_TUNE_NATIVE          (loongarch_cpu_tune == CPU_NATIVE)
 #define TARGET_TUNE_LOONGARCH64     (loongarch_cpu_tune == CPU_LOONGARCH64)
-#define TARGET_TUNE_GS464V          (loongarch_cpu_tune == CPU_GS464V)
+#define TARGET_TUNE_LA464          (loongarch_cpu_tune == CPU_LA464)
 
 #endif /* LOONGARCH_OPTS_H */
