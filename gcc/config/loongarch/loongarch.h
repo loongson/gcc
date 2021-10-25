@@ -510,7 +510,7 @@ enum reg_class
 {
   NO_REGS,	  /* no registers in set  */
   SIBCALL_REGS,	  /* SIBCALL_REGS  */
-  JALR_REGS,	  /* JALR_REGS  */
+  JIRL_REGS,	  /* JIRL_REGS  */
   GR_REGS,	  /* integer registers  */
   CSR_REGS,	  /* integer registers except for $r0 and $r1 for lcsr.  */
   FP_REGS,	  /* floating point registers  */
@@ -532,7 +532,7 @@ enum reg_class
 {									\
   "NO_REGS",								\
   "SIBCALL_REGS",							\
-  "JALR_REGS",								\
+  "JIRL_REGS",								\
   "GR_REGS",								\
   "CSR_REGS",								\
   "FP_REGS",								\
@@ -556,7 +556,7 @@ enum reg_class
 {									\
   { 0x00000000, 0x00000000, 0x00000000 },	/* NO_REGS  */		\
   { 0x001ff000, 0x00000000, 0x00000000 },	/* SIBCALL_REGS  */	\
-  { 0xff9ffff0, 0x00000000, 0x00000000 },	/* JALR_REGS  */	\
+  { 0xff9ffff0, 0x00000000, 0x00000000 },	/* JIRL_REGS  */	\
   { 0xffffffff, 0x00000000, 0x00000000 },	/* GR_REGS  */		\
   { 0xfffffffc, 0x00000000, 0x00000000 },	/* CSR_REGS  */		\
   { 0x00000000, 0xffffffff, 0x00000000 },	/* FP_REGS  */		\

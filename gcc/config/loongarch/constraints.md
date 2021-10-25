@@ -98,7 +98,7 @@
    A constant call local address."
   (match_operand 0 "is_const_call_local_symbol"))
 
-(define_register_constraint "e" "JALR_REGS"
+(define_register_constraint "e" "JIRL_REGS"
   "@internal")
 
 (define_register_constraint "f" "TARGET_HARD_FLOAT ? FP_REGS : NO_REGS"
