@@ -23,8 +23,7 @@
 ;; "a" "A constant call global and noplt address."
 ;; "b" <-----unused
 ;; "c" "A constant call local address."
-;; "d" GR_REGS
-;; "e" JALR_REGS
+;; "e" JIRL_REGS
 ;; "f" FP_REGS
 ;; "g" <-----unused
 ;; "h" "A constant call plt address."
@@ -98,9 +97,6 @@
   "@internal
    A constant call local address."
   (match_operand 0 "is_const_call_local_symbol"))
-
-(define_register_constraint "d" "GR_REGS"
-  "A general-purpose register.  This is equivalent to @code{r}.")
 
 (define_register_constraint "e" "JALR_REGS"
   "@internal")
