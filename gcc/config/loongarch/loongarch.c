@@ -3412,8 +3412,9 @@ loongarch_output_move (rtx dest, rtx src)
 
       if (symbolic_operand (src, VOIDmode))
 	{
-	  if (TARGET_CMODEL_NORMAL
-	      || TARGET_CMODEL_TINY_STATIC)
+	  if ((TARGET_CMODEL_TINY && (!loongarch_global_symbol_p (src)
+				      || loongarch_symbol_binds_local_p(src)))
+	      || (TARGET_CMODEL_TINY_STATIC && !loongarch_weak_symbol_p (src)))
 	    {
 	      /* The symbol must be aligned to 4 byte.  */
 	      unsigned int align;
@@ -3436,23 +3437,8 @@ loongarch_output_move (rtx dest, rtx src)
 	      else
 		align = BITS_PER_UNIT;
 
-	      if (TARGET_CMODEL_TINY)
-		{
-		  if (!loongarch_global_symbol_p (src)
-		      || loongarch_symbol_binds_local_p (src))
-		    {
-		      if (align % (4 * 8) == 0)
-			return "pcaddi\t%0,%%pcrel(%1)>>2";
-		    }
-		}
-	      if (TARGET_CMODEL_TINY_STATIC)
-		{
-		  if (!loongarch_weak_symbol_p (src))
-		    {
-		      if (align % (4 * 8) == 0)
-			return "pcaddi\t%0,%%pcrel(%1)>>2";
-		    }
-		}
+	      if (align % (4 * 8) == 0)
+		return "pcaddi\t%0,%%pcrel(%1)>>2";
 	    }
 	  if (TARGET_CMODEL_TINY
 	      || TARGET_CMODEL_TINY_STATIC
