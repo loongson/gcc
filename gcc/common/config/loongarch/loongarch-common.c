@@ -40,10 +40,6 @@ loongarch_handle_option (struct gcc_options *opts,
 
   switch (code)
     {
-    case OPT_mno_flush_func:
-      opts->x_loongarch_cache_flush_func = NULL;
-      return true;
-
     case OPT_mmemcpy:
       if (value)
 	{

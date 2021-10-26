@@ -158,21 +158,9 @@ mcond-move-float
 Target Var(TARGET_COND_MOVE_FLOAT) Init(1)
 Conditional moves for float are enabled.
 
-mflush-func=
-Target RejectNegative Joined Var(loongarch_cache_flush_func) Init(CACHE_FLUSH_FUNC)
--mflush-func=FUNC	Use FUNC to flush the cache before calling stack trampolines.
-
 mmemcpy
 Target Mask(MEMCPY)
 Don't optimize block moves.
-
-mno-flush-func
-Target RejectNegative
-Do not use a cache-flushing function before calling stack trampolines.
-
-mshared
-Target Var(TARGET_SHARED) Init(1)
-When generating -mabicalls code, make the code suitable for use in shared libraries.
 
 mlra
 Target Var(loongarch_lra_flag) Init(1) Save

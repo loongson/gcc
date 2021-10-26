@@ -391,7 +391,7 @@
     case SYMBOL_GOT_DISP:
       /* Without explicit relocs, there is no special syntax for
 	 loading the address of a call destination into a register.
-	 Using "la $25,foo; jal $25" would prevent the lazy binding
+	 Using "la.global JIRL_REGS,foo; jirl JIRL_REGS" would prevent the lazy binding
 	 of "foo", so keep the address of global symbols with the
 	 jal macro.  */
       return 1;

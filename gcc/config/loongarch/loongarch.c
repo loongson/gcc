@@ -6077,7 +6077,7 @@ loongarch_option_override_internal (struct gcc_options *opts,
 
   /* .cfi_* directives generate a read-only section, so fall back on
      manual .eh_frame creation if we need the section to be writable.  */
-  if (flag_pic && TARGET_SHARED)
+  if (flag_pic)
     flag_dwarf2_cfi_asm = 0;
 
   loongarch_init_print_operand_punct ();
