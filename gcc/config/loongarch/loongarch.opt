@@ -1,0 +1,202 @@
+; Options for the LoongArch port of the compiler.
+;
+; Copyright (C) 2021 Free Software Foundation, Inc.
+;
+; This file is part of GCC.
+;
+; GCC is free software; you can redistribute it and/or modify it under
+; the terms of the GNU General Public License as published by the Free
+; Software Foundation; either version 3, or (at your option) any later
+; version.
+;
+; GCC is distributed in the hope that it will be useful, but WITHOUT
+; ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+; or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+; License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with GCC; see the file COPYING3.  If not see
+; <http://www.gnu.org/licenses/>.
+
+
+HeaderInclude
+config/loongarch/loongarch-opts.h
+
+; We collect machine related options with the following global variables:
+;  enum loongarch_isa_int    loongarch_isa_int
+;  enum loongarch_isa_float  loongarch_isa_float
+;
+;  enum loongarch_cpu_type   loongarch_cpu_arch    -> DEFAULT_CPU_ARCH
+;                            loongarch_cpu_tune
+;
+;  enum loongarch_abi_int    loongarch_abi_int
+;  enum loongarch_abi_float  loongarch_abi_float
+
+
+;;;; ISA related options
+
+;; Integer ISA
+Enum
+Name(loongarch_isa_int) Type(int)
+Integer ISA for LoongArch:
+
+EnumValue
+Enum(loongarch_isa_int) String(la64) Value(ISA_LA64)
+
+Variable
+int loongarch_isa_int = M_OPTION_NOT_SEEN
+
+
+;; Floating-point ISA
+Enum
+Name(loongarch_isa_float) Type(int)
+Floating-point ISA for LoongArch:
+
+EnumValue
+Enum(loongarch_isa_float) String(none) Value(ISA_SOFT_FLOAT)
+
+EnumValue
+Enum(loongarch_isa_float) String(single) Value(ISA_SINGLE_FLOAT)
+
+EnumValue
+Enum(loongarch_isa_float) String(double) Value(ISA_DOUBLE_FLOAT)
+
+mfpu=
+Target RejectNegative Joined ToLower Enum(loongarch_isa_float) Var(loongarch_isa_float) Init(M_OPTION_NOT_SEEN)
+-mfpu=FPU	Generate code for the given floating-point isa.
+
+msoft-float
+Target RejectNegative Alias(mfpu=,none)
+Prevent the use of all hardware floating-point instructions.
+
+msingle-float
+Target RejectNegative Alias(mfpu=,single)
+Restrict the use of hardware floating-point instructions to 32-bit operations.
+
+mdouble-float
+Target RejectNegative Alias(mfpu=,double)
+Allow hardware floating-point instructions to cover both 32-bit and 64-bit operations.
+
+
+;; CPU types (implies ISA & tune parameters)
+Enum
+Name(loongarch_cpu_type) Type(int)
+LoongArch CPU types:
+
+EnumValue
+Enum(loongarch_cpu_type) String(native) Value(CPU_NATIVE)
+
+EnumValue
+Enum(loongarch_cpu_type) String(loongarch64) Value(CPU_LOONGARCH64)
+
+EnumValue
+Enum(loongarch_cpu_type) String(la464) Value(CPU_LA464)
+
+march=
+Target RejectNegative Joined Enum(loongarch_cpu_type) Var(loongarch_cpu_arch) Init(M_OPTION_NOT_SEEN)
+-march=PROCESSOR	Generate code for the given PROCESSOR ISA.
+
+mtune=
+Target RejectNegative Joined Enum(loongarch_cpu_type) Var(loongarch_cpu_tune) Init(M_OPTION_NOT_SEEN)
+-mtune=PROCESSOR	Generate optimized code for PROCESSOR.
+
+Variable
+int loongarch_native_cpu_type = M_OPTION_NOT_SEEN
+
+
+
+
+;;;; ABI related options
+;;;; (ISA constraint on ABI are handled later.)
+
+;; Integer ABI
+Enum
+Name(loongarch_abi_int) Type(int)
+Integer ABI for LoongArch:
+
+EnumValue
+Enum(loongarch_abi_int) String(lp64) Value(ABI_LP64)
+
+mabi=
+Target RejectNegative Joined ToLower Enum(loongarch_abi_int) Var(loongarch_abi_int) Init(M_OPTION_NOT_SEEN)
+-mabi=ABI	Generate code that conforms to the given ABI.
+
+
+;; Floating-point ABI
+Enum
+Name(loongarch_abi_float) Type(int)
+Floating-point ABI for LoongArch:
+
+EnumValue
+Enum(loongarch_abi_float) String(soft) Value(ABI_SOFT_FLOAT)
+
+EnumValue
+Enum(loongarch_abi_float) String(single) Value(ABI_SINGLE_FLOAT)
+
+EnumValue
+Enum(loongarch_abi_float) String(double) Value(ABI_DOUBLE_FLOAT)
+
+mfloat-abi=
+Target RejectNegative Joined ToLower Enum(loongarch_abi_float) Var(loongarch_abi_float) Init(M_OPTION_NOT_SEEN)
+-mfloat-abi=ABI     Generate code for the given floating-point ABI.
+
+
+
+mbranch-cost=
+Target RejectNegative Joined UInteger Var(loongarch_branch_cost)
+-mbranch-cost=COST	Set the cost of branches to roughly COST instructions.
+
+mcheck-zero-division
+Target Mask(CHECK_ZERO_DIV)
+Trap on integer divide by zero.
+
+mcond-move-int
+Target Var(TARGET_COND_MOVE_INT) Init(1)
+Conditional moves for integral are enabled.
+
+mcond-move-float
+Target Var(TARGET_COND_MOVE_FLOAT) Init(1)
+Conditional moves for float are enabled.
+
+mmemcpy
+Target Mask(MEMCPY)
+Don't optimize block moves.
+
+mlra
+Target Var(loongarch_lra_flag) Init(1) Save
+Use LRA instead of reload.
+
+noasmopt
+Driver
+
+mstrict-align
+Target Mask(STRICT_ALIGN) Save
+Do not generate unaligned memory accesses.
+
+mmax-inline-memcpy-size=
+Target Joined RejectNegative UInteger Var(loongarch_max_inline_memcpy_size) Init(1024)
+-mmax-inline-memcpy-size=SIZE	Set the max size of memcpy to inline, default is 1024.
+
+; The code model option names for -mcmodel.
+Enum
+Name(cmodel) Type(int)
+The code model option names for -mcmodel:
+
+EnumValue
+Enum(cmodel) String(normal) Value(CMODEL_NORMAL)
+
+EnumValue
+Enum(cmodel) String(tiny) Value(CMODEL_TINY)
+
+EnumValue
+Enum(cmodel) String(tiny-static) Value(CMODEL_TINY_STATIC)
+
+EnumValue
+Enum(cmodel) String(large) Value(CMODEL_LARGE)
+
+EnumValue
+Enum(cmodel) String(extreme) Value(CMODEL_EXTREME)
+
+mcmodel=
+Target RejectNegative Joined Enum(cmodel) Var(loongarch_cmodel_var) Init(CMODEL_NORMAL)
+Specify the code model.
