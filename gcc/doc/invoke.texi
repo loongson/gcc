@@ -978,6 +978,16 @@ Objective-C and Objective-C++ Dialects}.
 @gccoptlist{-mbarrel-shift-enabled  -mdivide-enabled  -mmultiply-enabled @gol
 -msign-extend-enabled  -muser-enabled}
 
+@emph{LoongArch Options}
+@gccoptlist{-march=@var{cpu-type}  -mtune=@var{cpu-type} @gol
+-mabi=@var{abi-int-name}  -mfloat-abi=@var{abi-float-name} @gol
+-mfpu=@var{fpu-type}  -msoft-float  -msingle-float @gol
+-mdouble-float -mbranch-cost=@var{n}  -mcheck-zero-division @gol
+-mno-check-zero-division  -mcond-move-int  -mno-cond-move-int @gol
+-mcond-move-float  -mno-cond-move-float  -memcpy  -mno-memcpy @gol
+-mlra  -mstrict-align  -mmax-inline-memcpy-size=@var{n} @gol
+-mcmodel=@var{code-model}}
+
 @emph{M32R/D Options}
 @gccoptlist{-m32r2  -m32rx  -m32r @gol
 -mdebug @gol
@@ -18208,6 +18218,7 @@ platform.
 * HPPA Options::
 * IA-64 Options::
 * LM32 Options::
+* LoongArch Options::
 * M32C Options::
 * M32R/D Options::
 * M680x0 Options::
@@ -23635,6 +23646,188 @@ Enable sign extend instructions.
 Enable user-defined instructions.
 
 @end table
+
+@node LoongArch Options
+@subsection LoongArch Options
+@cindex LoongArch Options
+
+These command-line options are defined for LoongArch targets:
+
+@table @gcctabopt
+@item -march=@var{cpu-type}
+@opindex -march
+Generate instructions for the machine type @var{cpu-type}.  In contrast to
+@option{-mtune=@var{cpu-type}}, which merely tunes the generated code
+for the specified @var{cpu-type}, @option{-march=@var{cpu-type}} allows GCC
+to generate code that may not run at all on processors other than the one
+indicated.  Specifying @option{-march=@var{cpu-type}} implies
+@option{-mtune=@var{cpu-type}}, except where noted otherwise.
+
+The choices for @var{cpu-type} are:
+
+@table @samp
+@item native
+This selects the CPU to generate code for at compilation time by determining
+the processor type of the compiling machine.  Using @option{-march=native}
+enables all instruction subsets supported by the local machine (hence
+the result might not run on different machines).  Using @option{-mtune=native}
+produces code optimized for the local machine under the constraints
+of the selected instruction set.
+@item loongarch64
+A generic CPU with 64-bit extensions.
+@item la464
+LoongArch LA464 CPU with LBT, LSX, LASX, LVZ.
+
+@end table
+
+@item -mtune=@var{cpu-type}
+@opindex mtune
+Optimize the ouput for the given processor, specified by microarchitecture
+name.
+
+
+@item -mabi=@var{abi-int-name}
+@opindex -mabi
+Generate code for the specified integer calling convention. @gol
+Set int ABI to one of: @gol
+
+@table @samp
+@item lp64
+Data model where int is 32 bits, but long int and pointers are 64
+bits.
+@item ilp32
+Date model where int, long int and pointers are 32 bits. This ABI
+is not yet implemented.
+@end table
+
+
+@item -mfloat-abi=@var{abi-float-name}
+@opindex -mfloat-abi
+Generate code for the specified floating point calling convention. @gol
+Set float ABI to one of:
+
+@table @samp
+@item soft
+No FPR is used for parameter passing.
+@item single
+32-bit FPRs are used for parameter passing.
+@item double
+64-bit FPRs are used for parameter passing.
+@end table
+
+@item -mfpu=@var{none}
+@itemx -msoft-float
+@opindex -mfpu=none
+Prevent the use of all hardware floating-point instructions.
+
+@item -mfpu=@var{single}
+@itemx -msingle-float
+@opindex -mfpu=single
+Restrict the use of hardware floating-point instructions to 32-bit operations.
+
+@item -mfpu=@var{double}
+@itemx -mdouble-float
+@opindex -mfpu=double
+Allow hardwared floating-point instructions to cover both 32-bit an 64-bit operations.
+This is the default.
+
+
+@item -mbranch-cost=@var{n}
+@opindex -mbranch-cost
+Set the cost of branches to roughly n instructions.
+
+@item -mcheck-zero-division
+@itemx -mno-check-zero-divison
+@opindex -mcheck-zero-division
+Trap (do not trap) on integer division by zero. The default is '-mcheck-zero-
+division'.
+
+
+@item -mcond-move-int
+@itemx -mno-cond-move-int
+@opindex -mcond-move-int
+Conditional moves for floating point are enabled (disabled). The default is
+'-mcond-move-float'.
+
+@item -mmemcpy
+@itemx -mno-memcpy
+@opindex -mmemcpy
+Force (do not force) the use of memcpy for non-trivial block moves. The default
+is '-mno-memcpy', which allows GCC to inline most constant-sized copies.
+
+
+@item -mlra
+@opindex -mlra
+Use the new LRA register allocator. By default, the LRA is used.
+
+@item -mstrict-align
+@itemx -mno-strict-align
+@opindex -mstrict-align
+Avoid or allow generating memory accesses that may not be aligned on a natural
+object boundary as described in the architecture specification.
+
+@item -msmall-data-limit=@var{number}
+@opindex -msmall-data-limit
+Put global and static data smaller than @code{number} bytes into a special section (on some targets).
+Default value is 0.
+
+
+@item -mmax-inline-memcpy-size={n}
+@opindex -mmax-inline-memcpy-size
+Set the max size n of memcpy to inline, default n is 1024.
+
+@item -mcmodel=@var{code-model}
+Default code model is normal.
+Set the code model to one of:
+@table @samp
+@item tiny-static
+@itemize @bullet
+@item
+local symbol and global strong symbol: The data section must be within +/-2MiB addressing space.
+The text section must be within +/-128MiB addressing space.
+@item
+global weak symbol: The got table must be within +/-2GiB addressing space.
+@end itemize
+
+@item tiny
+@itemize @bullet
+@item
+local symbol: The data section must be within +/-2MiB addressing space.
+The text section must be within +/-128MiB
+addressing space.
+@item
+global symbol: The got table must be within +/-2GiB addressing space.
+@end itemize
+
+@item normal
+@itemize @bullet
+@item
+local symbol: The data section must be within +/-2GiB addressing space.
+The text section must be within +/-128MiB addressing space.
+@item
+global symbol: The got table must be within +/-2GiB addressing space.
+@end itemize
+
+@item large
+@itemize @bullet
+@item
+local symbol: The data section must be within +/-2GiB addressing space.
+The text section must be within +/-128GiB addressing space.
+@item
+global symbol: The got table must be within +/-2GiB addressing space.
+@end itemize
+
+@item extreme(Not implemented yet)
+@itemize @bullet
+@item
+local symbol: The data and text section must be within +/-8EiB addressing space.
+@item
+global symbol: The data got table must be within +/-8EiB addressing space.
+@end itemize
+@end table
+@end table
+
+
 
 @node M32C Options
 @subsection M32C Options
