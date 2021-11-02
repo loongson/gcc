@@ -56,10 +56,7 @@ loongarch_handle_option (struct gcc_options *opts,
 }
 
 #undef TARGET_DEFAULT_TARGET_FLAGS
-#define TARGET_DEFAULT_TARGET_FLAGS		\
-  (TARGET_DEFAULT				\
-   | TARGET_CPU_DEFAULT				\
-   | MASK_CHECK_ZERO_DIV)
+#define TARGET_DEFAULT_TARGET_FLAGS	MASK_CHECK_ZERO_DIV
 #undef TARGET_HANDLE_OPTION
 #define TARGET_HANDLE_OPTION loongarch_handle_option
 

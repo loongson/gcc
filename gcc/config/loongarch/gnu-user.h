@@ -24,7 +24,7 @@ along with GCC; see the file COPYING3.  If not see
 #undef WCHAR_TYPE_SIZE
 #define WCHAR_TYPE_SIZE 32
 
-/* GNU-specific SPEC definitions */
+/* GNU-specific SPEC definitions.  */
 #define GNU_USER_LINK_EMULATION64 "elf64loongarch"
 
 #define GLIBC_DYNAMIC_LINKER_LP64 "/lib64/ld.so.1"
@@ -55,10 +55,6 @@ along with GCC; see the file COPYING3.  If not see
   GNU_USER_TARGET_MATHFILE_SPEC " " \
   GNU_USER_TARGET_ENDFILE_SPEC
 
-/* If we don't set MASK_ABICALLS, we can't default to PIC.  */
-/* #undef TARGET_DEFAULT */
-/* #define TARGET_DEFAULT MASK_ABICALLS */
-
 #undef SUBTARGET_CPP_SPEC
 #define SUBTARGET_CPP_SPEC "%{posix:-D_POSIX_SOURCE} %{pthread:-D_REENTRANT}"
 
@@ -78,11 +74,6 @@ along with GCC; see the file COPYING3.  If not see
     } \
   while (0)
 
-
-/* -G is incompatible with -KPIC which is the default, so only allow objects
-   in the small data section if the user explicitly asks for it.  */
-#undef LARCH_DEFAULT_GVALUE
-#define LARCH_DEFAULT_GVALUE 0
 
 /* The glibc _mcount stub will save $v0 for us.  Don't mess with saving
    it, since ASM_OUTPUT_REG_PUSH/ASM_OUTPUT_REG_POP do not work in the

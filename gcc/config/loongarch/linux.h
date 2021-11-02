@@ -21,14 +21,14 @@ along with GCC; see the file COPYING3.  If not see
  * This ensures that a compiler configured with --disable-multilib
  * can work in an multilib environment.  */
 
-#if defined(__DISABLE_MULTILIB) && defined(__DISABLE_MULTIARCH)
+#if defined (__DISABLE_MULTILIB) && defined (__DISABLE_MULTIARCH)
 
-  /* Integer ABI */
+  /* Integer ABI  */
   #if DEFAULT_ABI_INT == ABI_LP64
     #define INT_ABI_SUFFIX "lib64"
   #endif
 
-  /* Floating-Point ABI */
+  /* Floating-Point ABI  */
   #if DEFAULT_ABI_FLOAT == ABI_SOFT_FLOAT
     #define FLOAT_ABI_SUFFIX "soft/"
   #elif DEFAULT_ABI_FLOAT == ABI_SINGLE_FLOAT

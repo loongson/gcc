@@ -27,7 +27,7 @@ config/loongarch/loongarch-opts.h
 ;  enum loongarch_isa_float  loongarch_isa_float
 ;
 ;  enum loongarch_cpu_type   loongarch_cpu_arch    -> DEFAULT_CPU_ARCH
-;                            loongarch_cpu_tune
+;			     loongarch_cpu_tune
 ;
 ;  enum loongarch_abi_int    loongarch_abi_int
 ;  enum loongarch_abi_float  loongarch_abi_float
@@ -172,6 +172,10 @@ Driver
 mstrict-align
 Target Mask(STRICT_ALIGN) Save
 Do not generate unaligned memory accesses.
+
+msmall-data-limit=
+Target Joined Separate UInteger Var(g_switch_value) Init(0)
+-msmall-data-limit=N	Put global and static data smaller than <number> bytes into a special section (on some targets).
 
 mmax-inline-memcpy-size=
 Target Joined RejectNegative UInteger Var(loongarch_max_inline_memcpy_size) Init(1024)

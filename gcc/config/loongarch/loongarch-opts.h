@@ -25,22 +25,22 @@ along with GCC; see the file COPYING3.  If not see
    these values are not used directly. (see loongarch.opt) */
 
 /* enum loongarch_isa_int */
-#define ISA_LA64          0
-#define N_INT_ISA_TYPES   1
+#define ISA_LA64	0
+#define N_INT_ISA_TYPES	1
 
 
 /* enum loongarch_isa_float */
-#define ISA_SOFT_FLOAT    0
+#define ISA_SOFT_FLOAT	  0
 #define ISA_SINGLE_FLOAT  1
 #define ISA_DOUBLE_FLOAT  2
 #define N_FLOAT_ISA_TYPES 3
 
 /* enum loongarch_abi_int */
-#define ABI_LP64          0
-#define N_INT_ABI_TYPES   1
+#define ABI_LP64	0
+#define N_INT_ABI_TYPES	1
 
 /* enum loongarch_abi_float */
-#define ABI_SOFT_FLOAT    0
+#define ABI_SOFT_FLOAT	  0
 #define ABI_SINGLE_FLOAT  1
 #define ABI_DOUBLE_FLOAT  2
 #define N_FLOAT_ABI_TYPES 3
@@ -94,40 +94,40 @@ loongarch_handle_m_option_combinations (
 
 
 /* Enum value definitions for loongarch code models.  */
-#define CMODEL_NORMAL             0
-#define CMODEL_TINY               1
-#define CMODEL_TINY_STATIC        2
-#define CMODEL_LARGE              3
-#define CMODEL_EXTREME            4
+#define CMODEL_NORMAL		  0
+#define CMODEL_TINY		  1
+#define CMODEL_TINY_STATIC	  2
+#define CMODEL_LARGE		  3
+#define CMODEL_EXTREME		  4
 
 
 /* Macros for common conditional expressions used in loongarch.{c,md} */
-#define TARGET_CMODEL_NORMAL        (loongarch_cmodel_var == CMODEL_NORMAL)
-#define TARGET_CMODEL_TINY          (loongarch_cmodel_var == CMODEL_TINY)
-#define TARGET_CMODEL_TINY_STATIC   (loongarch_cmodel_var == CMODEL_TINY_STATIC)
-#define TARGET_CMODEL_LARGE         (loongarch_cmodel_var == CMODEL_LARGE)
-#define TARGET_CMODEL_EXTREME       (loongarch_cmodel_var == CMODEL_EXTREME)
+#define TARGET_CMODEL_NORMAL	  (loongarch_cmodel_var == CMODEL_NORMAL)
+#define TARGET_CMODEL_TINY	  (loongarch_cmodel_var == CMODEL_TINY)
+#define TARGET_CMODEL_TINY_STATIC (loongarch_cmodel_var == CMODEL_TINY_STATIC)
+#define TARGET_CMODEL_LARGE	  (loongarch_cmodel_var == CMODEL_LARGE)
+#define TARGET_CMODEL_EXTREME	  (loongarch_cmodel_var == CMODEL_EXTREME)
 
 
 /* Legacy conditional expression macros (TODO: cleanup) */
-#define TARGET_HARD_FLOAT        (loongarch_isa_float != ISA_SOFT_FLOAT)
-#define TARGET_HARD_FLOAT_ABI    (loongarch_abi_float != ABI_SOFT_FLOAT)
-#define TARGET_SOFT_FLOAT        (loongarch_isa_float == ISA_SOFT_FLOAT)
-#define TARGET_SOFT_FLOAT_ABI    (loongarch_abi_float == ABI_SOFT_FLOAT)
-#define TARGET_SINGLE_FLOAT      (loongarch_isa_float == ISA_SINGLE_FLOAT)
-#define TARGET_SINGLE_FLOAT_ABI  (loongarch_abi_float == ABI_SINGLE_FLOAT)
-#define TARGET_DOUBLE_FLOAT      (loongarch_isa_float == ISA_DOUBLE_FLOAT)
-#define TARGET_DOUBLE_FLOAT_ABI  (loongarch_abi_float == ABI_DOUBLE_FLOAT)
+#define TARGET_HARD_FLOAT	  (loongarch_isa_float != ISA_SOFT_FLOAT)
+#define TARGET_HARD_FLOAT_ABI	  (loongarch_abi_float != ABI_SOFT_FLOAT)
+#define TARGET_SOFT_FLOAT	  (loongarch_isa_float == ISA_SOFT_FLOAT)
+#define TARGET_SOFT_FLOAT_ABI	  (loongarch_abi_float == ABI_SOFT_FLOAT)
+#define TARGET_SINGLE_FLOAT	  (loongarch_isa_float == ISA_SINGLE_FLOAT)
+#define TARGET_SINGLE_FLOAT_ABI	  (loongarch_abi_float == ABI_SINGLE_FLOAT)
+#define TARGET_DOUBLE_FLOAT	  (loongarch_isa_float == ISA_DOUBLE_FLOAT)
+#define TARGET_DOUBLE_FLOAT_ABI	  (loongarch_abi_float == ABI_DOUBLE_FLOAT)
 
-#define TARGET_ABI_LP64        (loongarch_abi_int == ABI_LP64)
-#define TARGET_64BIT           (loongarch_isa_int == ISA_LA64)
+#define TARGET_ABI_LP64		(loongarch_abi_int == ABI_LP64)
+#define TARGET_64BIT		(loongarch_isa_int == ISA_LA64)
 
-#define TARGET_ARCH_NATIVE          (loongarch_cpu_arch == CPU_NATIVE)
-#define TARGET_ARCH_LOONGARCH64     (loongarch_cpu_arch == CPU_LOONGARCH64)
-#define TARGET_ARCH_LA464          (loongarch_cpu_arch == CPU_LA464)
+#define TARGET_ARCH_NATIVE	    (loongarch_cpu_arch == CPU_NATIVE)
+#define TARGET_ARCH_LOONGARCH64	    (loongarch_cpu_arch == CPU_LOONGARCH64)
+#define TARGET_ARCH_LA464	    (loongarch_cpu_arch == CPU_LA464)
 
-#define TARGET_TUNE_NATIVE          (loongarch_cpu_tune == CPU_NATIVE)
-#define TARGET_TUNE_LOONGARCH64     (loongarch_cpu_tune == CPU_LOONGARCH64)
-#define TARGET_TUNE_LA464          (loongarch_cpu_tune == CPU_LA464)
+#define TARGET_TUNE_NATIVE	    (loongarch_cpu_tune == CPU_NATIVE)
+#define TARGET_TUNE_LOONGARCH64	    (loongarch_cpu_tune == CPU_LOONGARCH64)
+#define TARGET_TUNE_LA464	    (loongarch_cpu_tune == CPU_LA464)
 
 #endif /* LOONGARCH_OPTS_H */

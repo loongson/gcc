@@ -478,7 +478,8 @@ loongarch_atomic_assign_expand_fenv (tree *hold, tree *clear, tree *update)
 			      build_int_cst (LARCH_ATYPE_USI, 0xffe0ffe0));
   tree hold_assign_mod = build4 (TARGET_EXPR, LARCH_ATYPE_USI,
 				 fcsr_mod_var, hold_mod_val, NULL, NULL);
-  tree set_fcsr_hold_call = build_call_expr (set_fcsr, 2, const0, fcsr_mod_var);
+  tree set_fcsr_hold_call = build_call_expr (set_fcsr, 2, const0,
+					     fcsr_mod_var);
   tree hold_all = build2 (COMPOUND_EXPR, LARCH_ATYPE_USI, hold_assign_orig,
 			  hold_assign_mod);
   *hold = build2 (COMPOUND_EXPR, void_type_node, hold_all, set_fcsr_hold_call);

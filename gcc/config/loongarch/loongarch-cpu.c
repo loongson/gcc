@@ -92,7 +92,7 @@ read_cpucfg_word (int wordno)
 void cache_cpucfg (void)
 {
   for (int i = 0; i < LARCH_CPUCFG_WORDS; i++)
-    cpucfg_cache[i] = read_cpucfg_word(i);
+    cpucfg_cache[i] = read_cpucfg_word (i);
 }
 
 /* Fill loongarch_cpu_default_config[CPU_NATIVE] with cpucfg data,
@@ -152,13 +152,13 @@ int fill_native_cpu_config (void)
     default:
       /* FIXME: GCC shouldn't complain about this,
 	but current we still rely on static processor feature tables
-	to provide safe fall-back settings.*/
+	to provide safe fall-back settings.  */
       return -1;
   }
 
-  /* Fill the default tables */
-  loongarch_cpu_default_config [CPU_NATIVE]
-    = loongarch_cpu_default_config [cpu_type];
+  /* Fill the default tables.  */
+  loongarch_cpu_default_config[CPU_NATIVE]
+    = loongarch_cpu_default_config[cpu_type];
 
   #define NATIVE_INT_ISA (loongarch_cpu_default_config[CPU_NATIVE].isa_int)
   #define NATIVE_FLOAT_ISA (loongarch_cpu_default_config[CPU_NATIVE].isa_float)
@@ -169,14 +169,14 @@ int fill_native_cpu_config (void)
   if (float_isa != -1 && NATIVE_FLOAT_ISA != float_isa)
       NATIVE_FLOAT_ISA = float_isa;
 
-  loongarch_cpu_issue_rate [CPU_NATIVE]
-    = loongarch_cpu_issue_rate [cpu_type];
+  loongarch_cpu_issue_rate[CPU_NATIVE]
+    = loongarch_cpu_issue_rate[cpu_type];
 
-  loongarch_cpu_multipass_dfa_lookahead [CPU_NATIVE]
-    = loongarch_cpu_multipass_dfa_lookahead [cpu_type];
+  loongarch_cpu_multipass_dfa_lookahead[CPU_NATIVE]
+    = loongarch_cpu_multipass_dfa_lookahead[cpu_type];
 
-  loongarch_cpu_rtx_cost_data [CPU_NATIVE]
-    = loongarch_cpu_rtx_cost_data [cpu_type];
+  loongarch_cpu_rtx_cost_data[CPU_NATIVE]
+    = loongarch_cpu_rtx_cost_data[cpu_type];
 
   return cpu_type;
 }

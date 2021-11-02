@@ -23,6 +23,7 @@
 ;; "a" "A constant call global and noplt address."
 ;; "b" <-----unused
 ;; "c" "A constant call local address."
+;; "d" <-----unused
 ;; "e" JIRL_REGS
 ;; "f" FP_REGS
 ;; "g" <-----unused
@@ -46,7 +47,7 @@
 ;; "w" "Matches any valid memory."
 ;; "x" <-----unused
 ;; "y" <-----unused
-;; "z" ST_REGS
+;; "z" FCC_REGS
 ;; "A" <-----unused
 ;; "B" <-----unused
 ;; "C" <-----unused
@@ -75,7 +76,7 @@
 ;; "Y" -
 ;;    "Yd"
 ;;       "A constant @code{move_operand} that can be safely loaded using
-;;        @code{la}."
+;;	  @code{la}."
 ;;    "Yx"
 ;; "Z" -
 ;;    "ZC"
@@ -142,7 +143,7 @@
   (and (match_code "const_int")
        (match_test "LU52I_OPERAND (ival)")))
 
-(define_register_constraint "z" "ST_REGS"
+(define_register_constraint "z" "FCC_REGS"
   "A floating-point condition code register.")
 
 ;; Floating-point constraints
@@ -207,5 +208,5 @@
   An address that is held in a general-purpose register.
   The offset is zero"
   (and (match_code "mem")
-       (match_test "GET_CODE(XEXP(op,0)) == REG")))
+       (match_test "GET_CODE (XEXP (op,0)) == REG")))
 

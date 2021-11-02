@@ -40,11 +40,10 @@
 ;; This attribute gives the format suffix for atomic memory operations.
 (define_mode_attr amo [(SI "w") (DI "d")])
 
-;; <amop> expands to the name of the atomic operand that implements a particular code.
-(define_code_attr amop [(ior "or")
-			(xor "xor")
-			(and "and")
-			(plus "add")])
+;; <amop> expands to the name of the atomic operand that implements a
+;; particular code.
+(define_code_attr amop [(ior "or") (xor "xor") (and "and") (plus "add")])
+
 ;; Memory barriers.
 
 (define_expand "mem_thread_fence"
@@ -86,7 +85,7 @@
   [(set (match_operand:GPR 0 "memory_operand" "+ZB")
 	(unspec_volatile:GPR
 	  [(any_atomic:GPR (match_dup 0)
-		     (match_operand:GPR 1 "reg_or_0_operand" "rJ"))
+			   (match_operand:GPR 1 "reg_or_0_operand" "rJ"))
 	   (match_operand:SI 2 "const_int_operand")] ;; model
 	 UNSPEC_SYNC_OLD_OP))]
   ""
@@ -147,7 +146,7 @@
 
   return buff;
 }
-  [(set (attr "length") (const_int 24))])
+  [(set (attr "length") (const_int 32))])
 
 (define_expand "atomic_compare_and_swap<mode>"
   [(match_operand:SI 0 "register_operand" "")   ;; bool output
@@ -179,7 +178,8 @@
       compare = reg;
     }
 
-  emit_insn (gen_rtx_SET (operands[0], gen_rtx_EQ (SImode, compare, const0_rtx)));
+  emit_insn (gen_rtx_SET (operands[0],
+			  gen_rtx_EQ (SImode, compare, const0_rtx)));
   DONE;
 })
 
@@ -239,7 +239,6 @@
    (clobber (match_scratch:GPR 7 "=&r"))]
   ""
 {
-
   static char buff[256] = {0};
 
   buff[0] = '\0';
@@ -258,9 +257,8 @@
   sprintf (buff + strlen (buff), "3:\\n\\t");
 
   return buff;
-
 }
-  [(set (attr "length") (const_int 32))])
+  [(set (attr "length") (const_int 40))])
 
 (define_expand "atomic_compare_and_swap<mode>"
   [(match_operand:SI 0 "register_operand" "")   ;; bool output
@@ -275,19 +273,15 @@
 {
   union loongarch_gen_fn_ptrs generator;
   generator.fn_7 = gen_atomic_cas_value_cmp_and_7_si;
-  loongarch_expand_atomic_qihi (generator,
-			   operands[1],
-			   operands[2],
-			   operands[3],
-			   operands[4],
-			   operands[7]);
+  loongarch_expand_atomic_qihi (generator, operands[1], operands[2],
+				operands[3], operands[4], operands[7]);
 
   rtx compare = operands[1];
   if (operands[3] != const0_rtx)
     {
       machine_mode mode = GET_MODE (operands[3]);
-      rtx op1 = convert_modes (SImode,  mode,  operands[1],  true);
-      rtx op3 = convert_modes (SImode,  mode,  operands[3],  true);
+      rtx op1 = convert_modes (SImode, mode, operands[1], true);
+      rtx op3 = convert_modes (SImode, mode, operands[3], true);
       rtx difference = gen_rtx_MINUS (SImode, op1, op3);
       compare = gen_reg_rtx (SImode);
       emit_insn (gen_rtx_SET (compare, difference));
@@ -300,7 +294,8 @@
       compare = reg;
     }
 
-  emit_insn (gen_rtx_SET (operands[0], gen_rtx_EQ (SImode, compare, const0_rtx)));
+  emit_insn (gen_rtx_SET (operands[0],
+			  gen_rtx_EQ (SImode, compare, const0_rtx)));
   DONE;
 })
 
@@ -318,7 +313,6 @@
    (clobber (match_scratch:GPR 8 "=&r"))]
   ""
 {
-
   static char buff[256] = {0};
 
   buff[0] = '\0';
@@ -333,10 +327,9 @@
   sprintf (buff + strlen (buff), "beq\\t$zero,%%7,1b");
 
   return buff;
-
 }
 
-  [(set (attr "length") (const_int 20))])
+  [(set (attr "length") (const_int 32))])
 
 (define_insn "atomic_cas_value_sub_7_<mode>"
   [(set (match_operand:GPR 0 "register_operand" "=&r")				;; res
@@ -352,7 +345,6 @@
    (clobber (match_scratch:GPR 8 "=&r"))]
   ""
 {
-
   static char buff[256] = {0};
 
   buff[0] = '\0';
@@ -367,7 +359,6 @@
   sprintf (buff + strlen (buff), "beq\\t$zero,%%7,1b");
 
   return buff;
-
 }
   [(set (attr "length") (const_int 32))])
 
@@ -385,7 +376,6 @@
    (clobber (match_scratch:GPR 8 "=&r"))]
   ""
 {
-
   static char buff[256] = {0};
 
   buff[0] = '\0';
@@ -400,9 +390,8 @@
   sprintf (buff + strlen (buff), "beq\\t$zero,%%7,1b");
 
   return buff;
-
 }
-  [(set (attr "length") (const_int 20))])
+  [(set (attr "length") (const_int 32))])
 
 (define_insn "atomic_cas_value_xor_7_<mode>"
   [(set (match_operand:GPR 0 "register_operand" "=&r")				;; res
@@ -418,7 +407,6 @@
    (clobber (match_scratch:GPR 8 "=&r"))]
   ""
 {
-
   static char buff[256] = {0};
 
   buff[0] = '\0';
@@ -433,10 +421,9 @@
   sprintf (buff + strlen (buff), "beq\\t$zero,%%7,1b");
 
   return buff;
-
 }
 
-  [(set (attr "length") (const_int 20))])
+  [(set (attr "length") (const_int 32))])
 
 (define_insn "atomic_cas_value_or_7_<mode>"
   [(set (match_operand:GPR 0 "register_operand" "=&r")				;; res
@@ -452,7 +439,6 @@
    (clobber (match_scratch:GPR 8 "=&r"))]
   ""
 {
-
   static char buff[256] = {0};
 
   buff[0] = '\0';
@@ -467,10 +453,9 @@
   sprintf (buff + strlen (buff), "beq\\t$zero,%%7,1b");
 
   return buff;
-
 }
 
-  [(set (attr "length") (const_int 20))])
+  [(set (attr "length") (const_int 32))])
 
 (define_insn "atomic_cas_value_nand_7_<mode>"
   [(set (match_operand:GPR 0 "register_operand" "=&r")				;; res
@@ -486,7 +471,6 @@
    (clobber (match_scratch:GPR 8 "=&r"))]
   ""
 {
-
   static char buff[256] = {0};
 
   buff[0] = '\0';
@@ -501,9 +485,8 @@
   sprintf (buff + strlen (buff), "beq\\t$zero,%%7,1b");
 
   return buff;
-
 }
-  [(set (attr "length") (const_int 20))])
+  [(set (attr "length") (const_int 32))])
 
 (define_expand "atomic_exchange<mode>"
   [(set (match_operand:SHORT 0 "register_operand")
@@ -517,12 +500,8 @@
 {
   union loongarch_gen_fn_ptrs generator;
   generator.fn_7 = gen_atomic_cas_value_cmp_and_7_si;
-  loongarch_expand_atomic_qihi (generator,
-			   operands[0],
-			   operands[1],
-			   operands[1],
-			   operands[2],
-			   operands[3]);
+  loongarch_expand_atomic_qihi (generator, operands[0], operands[1],
+				operands[1], operands[2], operands[3]);
   DONE;
 })
 
@@ -532,19 +511,15 @@
    (set (match_dup 1)
 	(unspec_volatile:SHORT
 	  [(plus:SHORT (match_dup 1)
-		     (match_operand:SHORT 2 "reg_or_0_operand" "rJ"))
+		       (match_operand:SHORT 2 "reg_or_0_operand" "rJ"))
 	   (match_operand:SI 3 "const_int_operand")] ;; model
 	 UNSPEC_SYNC_OLD_OP))]
   ""
 {
   union loongarch_gen_fn_ptrs generator;
   generator.fn_7 = gen_atomic_cas_value_add_7_si;
-  loongarch_expand_atomic_qihi (generator,
-			   operands[0],
-			   operands[1],
-			   operands[1],
-			   operands[2],
-			   operands[3]);
+  loongarch_expand_atomic_qihi (generator, operands[0], operands[1],
+				operands[1], operands[2], operands[3]);
   DONE;
 })
 
@@ -554,19 +529,15 @@
    (set (match_dup 1)
 	(unspec_volatile:SHORT
 	  [(minus:SHORT (match_dup 1)
-		     (match_operand:SHORT 2 "reg_or_0_operand" "rJ"))
+			(match_operand:SHORT 2 "reg_or_0_operand" "rJ"))
 	   (match_operand:SI 3 "const_int_operand")] ;; model
 	 UNSPEC_SYNC_OLD_OP))]
   ""
 {
   union loongarch_gen_fn_ptrs generator;
   generator.fn_7 = gen_atomic_cas_value_sub_7_si;
-  loongarch_expand_atomic_qihi (generator,
-			   operands[0],
-			   operands[1],
-			   operands[1],
-			   operands[2],
-			   operands[3]);
+  loongarch_expand_atomic_qihi (generator, operands[0], operands[1],
+				operands[1], operands[2], operands[3]);
   DONE;
 })
 
@@ -576,19 +547,15 @@
    (set (match_dup 1)
 	(unspec_volatile:SHORT
 	  [(and:SHORT (match_dup 1)
-		     (match_operand:SHORT 2 "reg_or_0_operand" "rJ"))
+		      (match_operand:SHORT 2 "reg_or_0_operand" "rJ"))
 	   (match_operand:SI 3 "const_int_operand")] ;; model
 	 UNSPEC_SYNC_OLD_OP))]
   ""
 {
   union loongarch_gen_fn_ptrs generator;
   generator.fn_7 = gen_atomic_cas_value_and_7_si;
-  loongarch_expand_atomic_qihi (generator,
-			   operands[0],
-			   operands[1],
-			   operands[1],
-			   operands[2],
-			   operands[3]);
+  loongarch_expand_atomic_qihi (generator, operands[0], operands[1],
+				operands[1], operands[2], operands[3]);
   DONE;
 })
 
@@ -598,19 +565,15 @@
    (set (match_dup 1)
 	(unspec_volatile:SHORT
 	  [(xor:SHORT (match_dup 1)
-		     (match_operand:SHORT 2 "reg_or_0_operand" "rJ"))
+		      (match_operand:SHORT 2 "reg_or_0_operand" "rJ"))
 	   (match_operand:SI 3 "const_int_operand")] ;; model
 	 UNSPEC_SYNC_OLD_OP))]
   ""
 {
   union loongarch_gen_fn_ptrs generator;
   generator.fn_7 = gen_atomic_cas_value_xor_7_si;
-  loongarch_expand_atomic_qihi (generator,
-			   operands[0],
-			   operands[1],
-			   operands[1],
-			   operands[2],
-			   operands[3]);
+  loongarch_expand_atomic_qihi (generator, operands[0], operands[1],
+				operands[1], operands[2], operands[3]);
   DONE;
 })
 
@@ -620,19 +583,15 @@
    (set (match_dup 1)
 	(unspec_volatile:SHORT
 	  [(ior:SHORT (match_dup 1)
-		     (match_operand:SHORT 2 "reg_or_0_operand" "rJ"))
+		      (match_operand:SHORT 2 "reg_or_0_operand" "rJ"))
 	   (match_operand:SI 3 "const_int_operand")] ;; model
 	 UNSPEC_SYNC_OLD_OP))]
   ""
 {
   union loongarch_gen_fn_ptrs generator;
   generator.fn_7 = gen_atomic_cas_value_or_7_si;
-  loongarch_expand_atomic_qihi (generator,
-			   operands[0],
-			   operands[1],
-			   operands[1],
-			   operands[2],
-			   operands[3]);
+  loongarch_expand_atomic_qihi (generator, operands[0], operands[1],
+				operands[1], operands[2], operands[3]);
   DONE;
 })
 
@@ -642,19 +601,14 @@
    (set (match_dup 1)
 	(unspec_volatile:SHORT
 	  [(not:SHORT (and:SHORT (match_dup 1)
-		                 (match_operand:SHORT 2 "reg_or_0_operand" "rJ")))
+				 (match_operand:SHORT 2 "reg_or_0_operand" "rJ")))
 	   (match_operand:SI 3 "const_int_operand")] ;; model
 	 UNSPEC_SYNC_OLD_OP))]
   ""
 {
   union loongarch_gen_fn_ptrs generator;
   generator.fn_7 = gen_atomic_cas_value_nand_7_si;
-  loongarch_expand_atomic_qihi (generator,
-			   operands[0],
-			   operands[1],
-			   operands[1],
-			   operands[2],
-			   operands[3]);
+  loongarch_expand_atomic_qihi (generator, operands[0], operands[1],
+				operands[1], operands[2], operands[3]);
   DONE;
 })
-

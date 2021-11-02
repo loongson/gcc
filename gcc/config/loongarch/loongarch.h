@@ -28,21 +28,12 @@ along with GCC; see the file COPYING3.  If not see
 
 #define BITMASK_HIGH (((unsigned long) 1) << 31) /* 0x80000000  */
 
-
 /* Run-time compilation parameters selecting different hardware subsets.  */
 
 /* Target CPU builtins.  */
 #define TARGET_CPU_CPP_BUILTINS() loongarch_cpu_cpp_builtins (pfile)
 
 /* Default target_flags if no switches are specified.  */
-
-#ifndef TARGET_DEFAULT
-#define TARGET_DEFAULT 0
-#endif
-
-#ifndef TARGET_CPU_DEFAULT
-#define TARGET_CPU_DEFAULT 0
-#endif
 
 #ifdef IN_LIBGCC2
 #undef TARGET_64BIT
@@ -77,7 +68,6 @@ along with GCC; see the file COPYING3.  If not see
 #define NM_FLAGS "-Bn"
 #endif
 
-
 /* SUBTARGET_ASM_DEBUGGING_SPEC handles passing debugging options to
    the assembler.  It may be overridden by subtargets.  */
 
@@ -155,7 +145,7 @@ along with GCC; see the file COPYING3.  If not see
    prepended.  */
 
 #define USER_LABEL_PREFIX ""
-
+
 #ifndef PREFERRED_DEBUGGING_TYPE
 #define PREFERRED_DEBUGGING_TYPE DWARF2_DEBUG
 #endif
@@ -193,7 +183,6 @@ along with GCC; see the file COPYING3.  If not see
    SFmode register saves.  */
 #define DWARF_CIE_DATA_ALIGNMENT -4
 
-
 /* Target machine storage layout.  */
 
 #define BITS_BIG_ENDIAN 0
@@ -369,7 +358,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #define CLZ_DEFINED_VALUE_AT_ZERO(MODE, VALUE) \
   ((VALUE) = GET_MODE_UNIT_BITSIZE (MODE), 2)
-
+
 /* Standard register usage.  */
 
 /* Number of hardware registers.  We have:
@@ -392,7 +381,7 @@ along with GCC; see the file COPYING3.  If not see
   /* Floating-point registers.  */					\
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,			\
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,			\
-  /* Others.  */								\
+  /* Others.  */							\
   0, 0, 0, 0, 0, 0, 0, 0, 1, 1}
 
 /* The call RTLs themselves clobber ra.  */
@@ -403,7 +392,7 @@ along with GCC; see the file COPYING3.  If not see
   /* Floating-point registers.  */					\
   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
   1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,			\
-  /* Others.  */								\
+  /* Others.  */							\
   1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
 
 /* Internal macros to classify a register number as to whether it's a
@@ -424,16 +413,16 @@ along with GCC; see the file COPYING3.  If not see
    would need to be handled by the DWARF unwinder.  */
 #define DWARF_ALT_FRAME_RETURN_COLUMN 72
 
-#define ST_REG_FIRST 64
-#define ST_REG_LAST 71
-#define ST_REG_NUM (ST_REG_LAST - ST_REG_FIRST + 1)
+#define FCC_REG_FIRST 64
+#define FCC_REG_LAST 71
+#define FCC_REG_NUM (FCC_REG_LAST - FCC_REG_FIRST + 1)
 
 #define GP_REG_P(REGNO) \
   ((unsigned int) ((int) (REGNO) -GP_REG_FIRST) < GP_REG_NUM)
 #define FP_REG_P(REGNO) \
   ((unsigned int) ((int) (REGNO) -FP_REG_FIRST) < FP_REG_NUM)
-#define ST_REG_P(REGNO) \
-  ((unsigned int) ((int) (REGNO) -ST_REG_FIRST) < ST_REG_NUM)
+#define FCC_REG_P(REGNO) \
+  ((unsigned int) ((int) (REGNO) -FCC_REG_FIRST) < FCC_REG_NUM)
 
 #define FP_REG_RTX_P(X) (REG_P (X) && FP_REG_P (REGNO (X)))
 
@@ -485,7 +474,6 @@ along with GCC; see the file COPYING3.  If not see
 
 #define THREAD_POINTER_REGNUM (GP_REG_FIRST + 2)
 
-
 /* Define the classes of registers for register constraints in the
    machine description.  Also define ranges of constants.
 
@@ -514,8 +502,8 @@ enum reg_class
   GR_REGS,	  /* integer registers  */
   CSR_REGS,	  /* integer registers except for $r0 and $r1 for lcsr.  */
   FP_REGS,	  /* floating point registers  */
-  ST_REGS,	  /* status registers (fp status)  */
-  FRAME_REGS,	  /* $arg and $frame  */
+  FCC_REGS,	  /* status registers (fp status)  */
+  FRAME_REGS,	  /* arg pointer and frame pointer  */
   ALL_REGS,	  /* all registers  */
   LIM_REG_CLASSES /* max value + 1  */
 };
@@ -536,7 +524,7 @@ enum reg_class
   "GR_REGS",								\
   "CSR_REGS",								\
   "FP_REGS",								\
-  "ST_REGS",								\
+  "FCC_REGS",								\
   "FRAME_REGS",								\
   "ALL_REGS"								\
 }
@@ -560,8 +548,8 @@ enum reg_class
   { 0xffffffff, 0x00000000, 0x00000000 },	/* GR_REGS  */		\
   { 0xfffffffc, 0x00000000, 0x00000000 },	/* CSR_REGS  */		\
   { 0x00000000, 0xffffffff, 0x00000000 },	/* FP_REGS  */		\
-  { 0x00000000, 0x00000000, 0x000000ff },	/* ST_REGS  */		\
-  { 0x00400000, 0x00000000, 0x00000200 },	/* FRAME_REGS  */	\
+  { 0x00000000, 0x00000000, 0x000000ff },	/* FCC_REGS  */		\
+  { 0x00000000, 0x00000000, 0x00000300 },	/* FRAME_REGS  */	\
   { 0xffffffff, 0xffffffff, 0x000003ff }	/* ALL_REGS  */		\
 }
 
@@ -672,7 +660,7 @@ enum reg_class
    needed to represent mode MODE in a register of class CLASS.  */
 
 #define CLASS_MAX_NREGS(CLASS, MODE) loongarch_class_max_nregs (CLASS, MODE)
-
+
 /* Stack layout; function entry, exit and calling.  */
 
 #define STACK_GROWS_DOWNWARD 1
@@ -713,7 +701,7 @@ enum reg_class
 #define OUTGOING_REG_PARM_STACK_SPACE(FNTYPE) 1
 
 #define STACK_BOUNDARY (TARGET_ABI_LP64 ? 128 : 64)
-
+
 /* Symbolic macros for the registers used to return integer and floating
    point values.  */
 
@@ -737,7 +725,6 @@ enum reg_class
   (IN_RANGE ((N), GP_ARG_FIRST, GP_ARG_LAST) \
    || (UNITS_PER_FP_ARG && IN_RANGE ((N), FP_ARG_FIRST, FP_ARG_LAST)))
 
-
 /* This structure has to cope with two different argument allocation
    schemes.  Most LoongArch ABIs view the arguments as a structure, of which
    the first N words go in registers and the rest go on the stack.  If I
@@ -767,7 +754,6 @@ typedef struct loongarch_args
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, INDIRECT, N_NAMED_ARGS) \
   memset (&(CUM), 0, sizeof (CUM))
 
-
 #define EPILOGUE_USES(REGNO) loongarch_epilogue_uses (REGNO)
 
 /* Treat LOC as a byte offset from the stack pointer and round it up
@@ -775,7 +761,6 @@ typedef struct loongarch_args
 #define LARCH_STACK_ALIGN(LOC) \
   (TARGET_ABI_LP64 ? ROUND_UP ((LOC), 16) : ROUND_UP ((LOC), 8))
 
-
 /* Output assembler code to FILE to increment profiler label # LABELNO
    for profiling a function entry.  */
 
@@ -792,11 +777,7 @@ typedef struct loongarch_args
   }
 
 /* All the work done in PROFILE_HOOK, but still required.  */
-#define FUNCTION_PROFILER(STREAM, LABELNO) \
-  do \
-    { \
-    } \
-  while (0)
+#define FUNCTION_PROFILER(STREAM, LABELNO) do { } while (0)
 
 #define NO_PROFILE_COUNTERS 1
 
@@ -807,7 +788,6 @@ typedef struct loongarch_args
 
 #define EXIT_IGNORE_STACK 1
 
-
 /* Trampolines are a block of code followed by two pointers.  */
 
 #define TRAMPOLINE_CODE_SIZE 16
@@ -823,13 +803,12 @@ typedef struct loongarch_args
 #define CACHE_FLUSH_FUNC "_flush_cache"
 #endif
 
-
 /* Addressing modes, and classification of registers for them.  */
 
 #define REGNO_OK_FOR_INDEX_P(REGNO) 0
 #define REGNO_MODE_OK_FOR_BASE_P(REGNO, MODE) \
   loongarch_regno_mode_ok_for_base_p (REGNO, MODE, 1)
-
+
 /* Maximum number of registers that can appear in a valid memory address.  */
 
 #define MAX_REGS_PER_ADDRESS 1
@@ -841,7 +820,7 @@ typedef struct loongarch_args
 
 /* This handles the magic '..CURRENT_FUNCTION' symbol, which means
    'the start of the function that this code is output in'.  */
-
+
 #define ASM_OUTPUT_LABELREF(FILE, NAME) \
   do \
     { \
@@ -894,7 +873,6 @@ typedef struct loongarch_args
 
 #define FUNCTION_MODE SImode
 
-
 /* We allocate $fcc registers by hand and can't cope with moves of
    CCmode registers to and from pseudos (or memory).  */
 #define AVOID_CCMODE_COPIES
@@ -917,7 +895,6 @@ typedef struct loongarch_args
    its operands.  */
 #define LARCH_BRANCH(OPCODE, OPERANDS) OPCODE "\t" OPERANDS
 
-
 /* Control the assembler format that we output.  */
 
 /* Output to assembler file text saying following lines
@@ -939,10 +916,10 @@ typedef struct loongarch_args
   "$r8",   "$r9",   "$r10",  "$r11",  "$r12",  "$r13",  "$r14",  "$r15",  \
   "$r16",  "$r17",  "$r18",  "$r19",  "$r20",  "$r21",  "$r22",  "$r23",  \
   "$r24",  "$r25",  "$r26",  "$r27",  "$r28",  "$r29",  "$r30",  "$r31",  \
-  "$f0",  "$f1",  "$f2",  "$f3",  "$f4",  "$f5",  "$f6",  "$f7",          \
-  "$f8",  "$f9",  "$f10", "$f11", "$f12", "$f13", "$f14", "$f15",         \
-  "$f16", "$f17", "$f18", "$f19", "$f20", "$f21", "$f22", "$f23",         \
-  "$f24", "$f25", "$f26", "$f27", "$f28", "$f29", "$f30", "$f31",         \
+  "$f0",  "$f1",  "$f2",  "$f3",  "$f4",  "$f5",  "$f6",  "$f7",	  \
+  "$f8",  "$f9",  "$f10", "$f11", "$f12", "$f13", "$f14", "$f15",	  \
+  "$f16", "$f17", "$f18", "$f19", "$f20", "$f21", "$f22", "$f23",	  \
+  "$f24", "$f25", "$f26", "$f27", "$f28", "$f29", "$f30", "$f31",	  \
   "$fcc0","$fcc1","$fcc2","$fcc3","$fcc4","$fcc5","$fcc6","$fcc7",	  \
   "$arg", "$frame"}
 
@@ -1118,12 +1095,6 @@ typedef struct loongarch_args
 #undef ASM_OUTPUT_ASCII
 #define ASM_OUTPUT_ASCII loongarch_output_ascii
 
-/* FIXME: delete ???
-   Default to -G 8.  */
-#ifndef LARCH_DEFAULT_GVALUE
-#define LARCH_DEFAULT_GVALUE 8
-#endif
-
 /* Define the strings to put out for each section in the object file.  */
 #define TEXT_SECTION_ASM_OP "\t.text" /* instructions  */
 #define DATA_SECTION_ASM_OP "\t.data" /* large data  */
@@ -1131,7 +1102,6 @@ typedef struct loongarch_args
 #undef READONLY_DATA_SECTION_ASM_OP
 #define READONLY_DATA_SECTION_ASM_OP "\t.section\t.rodata" /* read-only data \
 							    */
-
 #define ASM_OUTPUT_REG_PUSH(STREAM, REGNO) \
   do \
     { \
@@ -1162,7 +1132,7 @@ typedef struct loongarch_args
 #ifndef ASM_COMMENT_START
 #define ASM_COMMENT_START " #"
 #endif
-
+
 #undef SIZE_TYPE
 #define SIZE_TYPE (POINTER_SIZE == 64 ? "long unsigned int" : "unsigned int")
 
@@ -1207,7 +1177,7 @@ typedef struct loongarch_args
 /* This is similar to CLEAR_RATIO, but for a non-zero constant, so when
    optimizing for size adjust the ratio to account for the overhead of
    loading the constant and replicating it across the word.  */
-
+
 #define SET_RATIO(speed) ((speed) ? 15 : LARCH_CALL_RATIO - 2)
 
 #ifndef USED_FOR_TARGET
@@ -1229,7 +1199,8 @@ struct GTY (()) loongarch_frame_info
   /* How much the GPR save/restore routines adjust sp (or 0 if unused).  */
   unsigned save_libcall_adjustment;
 
-  /* Offsets of fixed-point and floating-point save areas from frame bottom.  */
+  /* Offsets of fixed-point and floating-point save areas from frame
+     bottom.  */
   HOST_WIDE_INT gp_sp_offset;
   HOST_WIDE_INT fp_sp_offset;
 
@@ -1246,7 +1217,7 @@ struct GTY (()) loongarch_frame_info
 struct GTY (()) machine_function
 {
   /* The next floating-point condition-code register to allocate
-     for 8CC targets, relative to ST_REG_FIRST.  */
+     for 8CC targets, relative to FCC_REG_FIRST.  */
   unsigned int next_fcc;
 
   /* The number of extra stack bytes taken up by register varargs.
@@ -1320,6 +1291,7 @@ struct GTY (()) machine_function
 
 /* The largest type that can be passed in floating-point registers.  */
 /* TODO: according to mabi.  */
-#define UNITS_PER_FP_ARG (TARGET_HARD_FLOAT ? (TARGET_DOUBLE_FLOAT ? 8 : 4) : 0)
+#define UNITS_PER_FP_ARG  \
+  (TARGET_HARD_FLOAT ? (TARGET_DOUBLE_FLOAT ? 8 : 4) : 0)
 
 #define FUNCTION_VALUE_REGNO_P(N) ((N) == GP_RETURN || (N) == FP_RETURN)

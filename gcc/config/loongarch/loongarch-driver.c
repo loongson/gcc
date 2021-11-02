@@ -42,12 +42,12 @@ static int
    linking (implicitly) against something from the startfile search paths.  */
 static int no_link = 0;
 
-#define LARCH_DRIVER_SET_M_FLAG(OPTS_ARRAY, N_OPTS, FLAG, STR)  \
-  for (int i = 0; i < (N_OPTS); i++)                            \
-  {                                                             \
-    if ((OPTS_ARRAY)[i] != 0)                                   \
-      if (strcmp ((STR), (OPTS_ARRAY)[i]) == 0)                 \
-	(FLAG) = i;                                             \
+#define LARCH_DRIVER_SET_M_FLAG(OPTS_ARRAY, N_OPTS, FLAG, STR)	\
+  for (int i = 0; i < (N_OPTS); i++)				\
+  {								\
+    if ((OPTS_ARRAY)[i] != 0)					\
+      if (strcmp ((STR), (OPTS_ARRAY)[i]) == 0)			\
+	(FLAG) = i;						\
   }
 
 const char*
@@ -64,40 +64,35 @@ driver_set_m_flag (int argc, const char **argv)
     {
       LARCH_DRIVER_SET_M_FLAG (
 	loongarch_abi_int_strings, N_INT_ABI_TYPES,
-	loongarch_abi_int_driver, argv[1]
-      )
+	loongarch_abi_int_driver, argv[1])
     }
 
   else if (strcmp (argv[0], "fpu") == 0)
     {
       LARCH_DRIVER_SET_M_FLAG (
 	loongarch_isa_float_strings, N_FLOAT_ISA_TYPES,
-	loongarch_isa_float_driver, argv[1]
-      )
+	loongarch_isa_float_driver, argv[1])
     }
 
   else if (strcmp (argv[0], "float-abi") == 0)
     {
       LARCH_DRIVER_SET_M_FLAG (
 	loongarch_abi_float_strings, N_FLOAT_ABI_TYPES,
-	loongarch_abi_float_driver, argv[1]
-      )
+	loongarch_abi_float_driver, argv[1])
     }
 
   else if (strcmp (argv[0], "arch") == 0)
     {
       LARCH_DRIVER_SET_M_FLAG (
 	loongarch_cpu_strings, N_CPU_TYPES,
-	loongarch_arch_driver, argv[1]
-      )
+	loongarch_arch_driver, argv[1])
     }
 
   else if (strcmp (argv[0], "tune") == 0)
     {
       LARCH_DRIVER_SET_M_FLAG (
 	loongarch_cpu_strings, N_CPU_TYPES,
-	loongarch_tune_driver, argv[1]
-      )
+	loongarch_tune_driver, argv[1])
     }
 
   else
@@ -126,8 +121,7 @@ driver_get_normalized_m_opts (int argc, const char **argv)
     & loongarch_isa_float_driver,
     & loongarch_abi_int_driver,
     & loongarch_abi_float_driver,
-    NULL
-  );
+    NULL);
 
  /* Don't throw these ABI/multilib-related messages if not linking.  */
   if (!no_link)
@@ -148,8 +142,7 @@ driver_get_normalized_m_opts (int argc, const char **argv)
 
 	  inform (UNKNOWN_LOCATION,
 	      "ABI change detected (%qs -> %qs) while multilib is disabled",
-	      abi_str_default, abi_str_current
-	  );
+	      abi_str_default, abi_str_current);
 	}
 #else
       char* abi_str_current_s = concat ("@", abi_str_current, "@", NULL);
@@ -157,12 +150,12 @@ driver_get_normalized_m_opts (int argc, const char **argv)
       if (strstr (TM_MULTILIB_LIST, abi_str_current_s) == NULL)
 	{
 	  char* multilib_list
-	    = XALLOCAVEC (char, sizeof(TM_MULTILIB_LIST) - 2);
+	    = XALLOCAVEC (char, sizeof (TM_MULTILIB_LIST) - 2);
 
 	  /* Substituing all "@@"s in TM_MULTILIB_LIST with space,
 	     making it decent for printing.  */
 	  int j = 0;
-	  for (unsigned int i = 1; i < sizeof(TM_MULTILIB_LIST) - 2; i++)
+	  for (unsigned int i = 1; i < sizeof (TM_MULTILIB_LIST) - 2; i++)
 	    {
 	      if (TM_MULTILIB_LIST[i] == '@')
 		{
@@ -176,20 +169,19 @@ driver_get_normalized_m_opts (int argc, const char **argv)
 
 	  inform (UNKNOWN_LOCATION,
 	      "ABI (%qs) is not in the configured ABI list (%qs)",
-	      abi_str_current, multilib_list
-	  );
+	      abi_str_current, multilib_list);
 	}
 #endif
     }
 
-  /* Output normalized option strings. */
+  /* Output normalized option strings.  */
   obstack_blank (&opts_obstack, 0);
 
   #define APPEND_LTR(S) \
-    obstack_grow (&opts_obstack, (const void*) (S), sizeof((S))/sizeof(char) -1)
+    obstack_grow (&opts_obstack, (const void*) (S), sizeof ((S))/sizeof (char) -1)
 
   #define APPEND_VAL(S) \
-    obstack_grow (&opts_obstack, (const void*) (S), strlen((S)))
+    obstack_grow (&opts_obstack, (const void*) (S), strlen ((S)))
 
   APPEND_LTR (" -mabi=");
   APPEND_VAL (loongarch_abi_int_strings[loongarch_abi_int_driver]);

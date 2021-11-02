@@ -36,23 +36,24 @@ along with GCC; see the file COPYING3.  If not see
    the selected processor.  If INFO's canonical name is "foo",
    define PREFIX to be "foo", and define an additional macro
    PREFIX_FOO.  */
-#define LARCH_CPP_SET_PROCESSOR(PREFIX, CPU_TYPE) \
-  do \
-    { \
-      char *macro, *p; \
-      int cpu_type = (CPU_TYPE); \
-\
-      if (cpu_type == CPU_NATIVE) \
-	cpu_type = loongarch_native_cpu_type; \
-\
-      macro = concat ((PREFIX), "_", loongarch_cpu_strings[cpu_type], NULL); \
-      for (p = macro; *p != 0; p++) \
-	*p = TOUPPER (*p); \
-\
-      builtin_define (macro); \
-      builtin_define_with_value ((PREFIX), loongarch_cpu_strings[cpu_type], 1); \
-      free (macro); \
-    } \
+#define LARCH_CPP_SET_PROCESSOR(PREFIX, CPU_TYPE)			      \
+  do									      \
+    {									      \
+      char *macro, *p;							      \
+      int cpu_type = (CPU_TYPE);					      \
+									      \
+      if (cpu_type == CPU_NATIVE)					      \
+	cpu_type = loongarch_native_cpu_type;				      \
+									      \
+      macro = concat ((PREFIX), "_", loongarch_cpu_strings[cpu_type], NULL);  \
+      for (p = macro; *p != 0; p++)					      \
+	*p = TOUPPER (*p);						      \
+									      \
+      builtin_define (macro);						      \
+      builtin_define_with_value ((PREFIX),				      \
+				 loongarch_cpu_strings[cpu_type], 1);	      \
+      free (macro);							      \
+    }									      \
   while (0)
 
 /* TODO: what is the pfile technique ??? !!! */

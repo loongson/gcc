@@ -59,36 +59,35 @@ loongarch_handle_m_option_combinations (
 {
   /* Rules for handling machine-specific options:
 
-     1. "-m" options override configure-time default "--with" options,
+     1.  "-m" options override configure-time default "--with" options,
      which provides the build-time default value of machine-specific settings.
 
-     2. The overall goal of handling "-m" options is to obtain a basic
+     2.  The overall goal of handling "-m" options is to obtain a basic
      set of target ISA/ABI requirements, which consists of five components:
      | integer ISA | floating-point ISA | LoongArch ISA extensions |
      | integer ABI | floating-point ABI |
 
      These components may not be combined in arbitrary ways, for example,
-     we can't have LP64 ABI on LA32 instruction set. They are designed
+     we can't have LP64 ABI on LA32 instruction set.  They are designed
      as separate components for flexibility and clearity of backend coding.
 
      Handling of conflicts and overriding between "-m" options
      given at once is the job of this function.
 
-     3. Aside from its own effects (custom preprocessing macros etc.),
+     3.  Aside from its own effects (custom preprocessing macros etc.),
      "-march=CPU" also implies a basic target ISA/ABI set
      and "-mtune=CPU", which can be overridden by other "-m" options.
 
-     4. For now, floating-point ISA decides the fp ABI.
-     */
+     4.  For now, floating-point ISA decides the fp ABI.  */
 
-  /* 1. Compute march / mtune */
-  int cpu_arch_was_absent = LARCH_OPT_ABSENT(*cpu_arch);
+  /* 1.  Compute march / mtune.  */
+  int cpu_arch_was_absent = LARCH_OPT_ABSENT (*cpu_arch);
 
-  if (LARCH_OPT_ABSENT(*cpu_arch))
+  if (LARCH_OPT_ABSENT (*cpu_arch))
     /* Using configure-time default.  */
     *cpu_arch = DEFAULT_CPU_ARCH;
 
-  if (LARCH_OPT_ABSENT(*cpu_tune))
+  if (LARCH_OPT_ABSENT (*cpu_tune))
     /* Try inferring -mtune from -march.  */
     *cpu_tune = *cpu_arch;
 
@@ -98,13 +97,13 @@ loongarch_handle_m_option_combinations (
      and fill the "CPU_NATIVE" index of arrays defined in
      cpu/loongarch-cpu.c.  */
 
-  cache_cpucfg();
+  cache_cpucfg ();
 
-  int cpu_detected = fill_native_cpu_config();
+  int cpu_detected = fill_native_cpu_config ();
   if (cpu_detected == -1)
     {
       error ("unknown processor ID %<0x%x%> detected, do not use %qs",
-	     get_native_prid(), "-march=native");
+	     get_native_prid (), "-march=native");
 
       if (native_cpu_type != NULL)
 	*native_cpu_type = M_OPTION_NOT_SEEN;
@@ -134,28 +133,28 @@ loongarch_handle_m_option_combinations (
 #endif
 
 
-  /* 2. Compute ISA Extensions */
+  /* 2.  Compute ISA Extensions.  */
 
-#define SET_EXT_FLAG(name)                                   \
-  if (ext_##name != NULL)                                    \
-  if (LARCH_OPT_ABSENT (*ext_##name))                        \
-    {                                                        \
-      if (!LARCH_OPT_ABSENT ( DEFAULT_EXT_##name ))          \
-	*ext_##name = DEFAULT_EXT_##name ;                   \
-      else                                                   \
-	*ext_##name                                          \
-	  = loongarch_cpu_default_config[*cpu_arch].ext.name ; \
+#define SET_EXT_FLAG(name)					\
+  if (ext_##name != NULL)					\
+  if (LARCH_OPT_ABSENT (*ext_##name))				\
+    {								\
+      if (!LARCH_OPT_ABSENT (DEFAULT_EXT_##name))		\
+	*ext_##name = DEFAULT_EXT_##name ;			\
+      else							\
+	*ext_##name						\
+	  = loongarch_cpu_default_config[*cpu_arch].ext.name ;	\
     }
 
 
-  /* 3. Compute integer ISA */
+  /* 3.  Compute integer ISA.  */
   int int_isa_was_absent = 0;
-  if (LARCH_OPT_ABSENT(*isa_int))
+  if (LARCH_OPT_ABSENT (*isa_int))
     {
       int_isa_was_absent = 1;
 
       /* Try inferring int isa from int abi.  */
-      if (!LARCH_OPT_ABSENT(*abi_int))
+      if (!LARCH_OPT_ABSENT (*abi_int))
 	switch (*abi_int)
 	  {
 	  case ABI_LP64:
@@ -163,7 +162,7 @@ loongarch_handle_m_option_combinations (
 	    break;
 
 	  default:
-	    gcc_unreachable();
+	    gcc_unreachable ();
 	  }
 
       /* Try inferring int ISA from "-march" option.  */
@@ -171,7 +170,8 @@ loongarch_handle_m_option_combinations (
 	*isa_int
 	  = loongarch_cpu_default_config[*cpu_arch].isa_int;
 
-      /* If "-march" wasn't present, set *isa_int to configure-time default.  */
+      /* If "-march" wasn't present, set *isa_int to configure-time
+	 default.  */
       else if (DEFAULT_ISA_INT != M_OPTION_NOT_SEEN)
 	*isa_int = DEFAULT_ISA_INT;
 
@@ -181,8 +181,8 @@ loongarch_handle_m_option_combinations (
 	*isa_int = loongarch_cpu_default_config[*cpu_arch].isa_int;
     }
 
-  /* 4. Compute integer ABI */
-  if (LARCH_OPT_ABSENT(*abi_int))
+  /* 4.  Compute integer ABI.  */
+  if (LARCH_OPT_ABSENT (*abi_int))
     {
       if (int_isa_was_absent && cpu_arch_was_absent
 	  && DEFAULT_ABI_INT != M_OPTION_NOT_SEEN)
@@ -198,12 +198,12 @@ loongarch_handle_m_option_combinations (
 	    break;
 
 	  default:
-	    gcc_unreachable();
+	    gcc_unreachable ();
 	  }
     }
 
-  /* 5. Check integer ABI-ISA for conflicts */
-  switch(*isa_int)
+  /* 5.  Check integer ABI-ISA for conflicts.  */
+  switch (*isa_int)
     {
     case ISA_LA64:
       if (*abi_int != ABI_LP64) goto error_int_abi;
@@ -213,18 +213,17 @@ loongarch_handle_m_option_combinations (
       error_int_abi:
       error ("%qs ABI is incompatible with %qs ISA",
 	     loongarch_abi_int_strings[*abi_int],
-	     loongarch_isa_int_strings[*isa_int]
-	    );
+	     loongarch_isa_int_strings[*isa_int]);
     }
 
-  /* 6. Compute floating-point ISA */
+  /* 6.  Compute floating-point ISA.  */
   int float_isa_was_absent = 0;
-  if (LARCH_OPT_ABSENT(*isa_float))
+  if (LARCH_OPT_ABSENT (*isa_float))
     {
       float_isa_was_absent = 1;
 
       /* Try inferring fp isa from fp abi.  */
-      if (!LARCH_OPT_ABSENT(*abi_float))
+      if (!LARCH_OPT_ABSENT (*abi_float))
 	switch (*abi_float)
 	  {
 	  case ABI_SOFT_FLOAT:
@@ -240,7 +239,7 @@ loongarch_handle_m_option_combinations (
 	    break;
 
 	  default:
-	    gcc_unreachable();
+	    gcc_unreachable ();
 	  }
 
       /* Try inferring fp ISA from "-march" option.  */
@@ -257,8 +256,8 @@ loongarch_handle_m_option_combinations (
 	*isa_float = loongarch_cpu_default_config[*cpu_arch].isa_float;
     }
 
-  /* 7. Compute floating-point ABI */
-  if (LARCH_OPT_ABSENT(*abi_float))
+  /* 7.  Compute floating-point ABI.  */
+  if (LARCH_OPT_ABSENT (*abi_float))
     {
       if (float_isa_was_absent && cpu_arch_was_absent
 	  && DEFAULT_ABI_FLOAT != M_OPTION_NOT_SEEN)
@@ -282,13 +281,13 @@ loongarch_handle_m_option_combinations (
 	    break;
 
 	  default:
-	    gcc_unreachable();
+	    gcc_unreachable ();
 	  }
     }
-  /* 8. Check floating-point ABI-ISA for conflicts */
+  /* 8.  Check floating-point ABI-ISA for conflicts.  */
   else if (!float_isa_was_absent)
     {
-      switch(*isa_float)
+      switch (*isa_float)
 	{
 	case ISA_SOFT_FLOAT:
 	  if (*abi_float != ABI_SOFT_FLOAT) goto error_float_abi;
@@ -306,8 +305,7 @@ loongarch_handle_m_option_combinations (
 	  error_float_abi:
 	  error ("%<%s-float%> ABI is incompatible with %qs fpu",
 		 loongarch_abi_float_strings[*abi_float],
-		 loongarch_isa_float_strings[*isa_float]
-		);
+		 loongarch_isa_float_strings[*isa_float]);
 	}
     }
 }

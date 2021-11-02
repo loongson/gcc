@@ -373,7 +373,7 @@
 
 (define_predicate "fcc_reload_operand"
   (and (match_code "reg,subreg")
-       (match_test "ST_REG_P (true_regnum (op))")))
+       (match_test "FCC_REG_P (true_regnum (op))")))
 
 (define_predicate "muldiv_target_operand"
 		(match_operand 0 "register_operand"))
@@ -391,9 +391,9 @@
     case SYMBOL_GOT_DISP:
       /* Without explicit relocs, there is no special syntax for
 	 loading the address of a call destination into a register.
-	 Using "la.global JIRL_REGS,foo; jirl JIRL_REGS" would prevent the lazy binding
-	 of "foo", so keep the address of global symbols with the
-	 jal macro.  */
+	 Using "la.global JIRL_REGS,foo; jirl JIRL_REGS" would prevent the lazy
+	 binding of "foo", so keep the address of global symbols with the jirl
+	 macro.  */
       return 1;
 
     default:
@@ -490,7 +490,8 @@
     case CONST:
     case SYMBOL_REF:
     case LABEL_REF:
-      return (loongarch_symbolic_constant_p (op, SYMBOL_CONTEXT_LEA, &symbol_type));
+      return (loongarch_symbolic_constant_p (op, SYMBOL_CONTEXT_LEA,
+					     &symbol_type));
     default:
       return true;
     }
