@@ -826,7 +826,7 @@ loongarch_save_libcall_count (unsigned mask)
      |  split between registers and  |
      |  the stack		     |
      |				     |
-     +-------------------------------+ <-- arg_pointer_rtx
+     +-------------------------------+ <-- arg_pointer_rtx (virtual)
      |				     |
      |  callee-allocated save area   |
      |  for register varargs	     |
@@ -1042,7 +1042,7 @@ loongarch_restore_reg (rtx reg, rtx mem)
 static HOST_WIDE_INT
 loongarch_first_stack_step (struct loongarch_frame_info *frame)
 {
-  if (SMALL_OPERAND (frame->total_size))
+  if (IMM12_OPERAND (frame->total_size))
     return frame->total_size;
 
   HOST_WIDE_INT min_first_step
@@ -1053,7 +1053,7 @@ loongarch_first_stack_step (struct loongarch_frame_info *frame)
 
   /* As an optimization, use the least-significant bits of the total frame
      size, so that the second adjustment step is just LU12I + ADD.  */
-  if (!SMALL_OPERAND (min_second_step)
+  if (!IMM12_OPERAND (min_second_step)
       && frame->total_size % IMM_REACH < IMM_REACH / 2
       && frame->total_size % IMM_REACH >= min_first_step)
     return frame->total_size % IMM_REACH;
@@ -1275,7 +1275,7 @@ loongarch_expand_prologue (void)
   /* Allocate the rest of the frame.  */
   if (size > 0)
     {
-      if (SMALL_OPERAND (-size))
+      if (IMM12_OPERAND (-size))
 	{
 	  insn = gen_add3_insn (stack_pointer_rtx, stack_pointer_rtx,
 				GEN_INT (-size));
@@ -1340,7 +1340,7 @@ loongarch_expand_epilogue (bool sibcall_p)
       need_barrier_p = false;
 
       rtx adjust = GEN_INT (-frame->hard_frame_pointer_offset);
-      if (!SMALL_OPERAND (INTVAL (adjust)))
+      if (!IMM12_OPERAND (INTVAL (adjust)))
 	{
 	  loongarch_emit_move (LARCH_PROLOGUE_TEMP (Pmode), adjust);
 	  adjust = LARCH_PROLOGUE_TEMP (Pmode);
@@ -1381,7 +1381,7 @@ loongarch_expand_epilogue (bool sibcall_p)
 
       /* Get an rtx for STEP1 that we can add to BASE.  */
       rtx adjust = GEN_INT (step1);
-      if (!SMALL_OPERAND (step1))
+      if (!IMM12_OPERAND (step1))
 	{
 	  loongarch_emit_move (LARCH_PROLOGUE_TEMP (Pmode), adjust);
 	  adjust = LARCH_PROLOGUE_TEMP (Pmode);
@@ -1432,24 +1432,6 @@ loongarch_expand_epilogue (bool sibcall_p)
     emit_jump_insn (gen_simple_return_internal (ra));
 }
 
-/* Implement TARGET_MERGE_DECL_ATTRIBUTES.  */
-
-static tree
-loongarch_merge_decl_attributes (tree olddecl, tree newdecl)
-{
-  return merge_attributes (DECL_ATTRIBUTES (olddecl),
-			   DECL_ATTRIBUTES (newdecl));
-}
-
-/* Implement TARGET_CAN_INLINE_P.  */
-
-static bool
-loongarch_can_inline_p (tree caller, tree callee)
-{
-  return default_target_can_inline_p (caller, callee);
-}
-
-
 #define LU32I_B (0xfffffUL << 32)
 #define LU52I_B (0xfffUL << 52)
 
@@ -1462,7 +1444,7 @@ loongarch_build_integer (struct loongarch_integer_op *codes,
 
   HOST_WIDE_INT low_part = TARGET_64BIT ? value << 32 >> 32 : value;
 
-  if (SMALL_OPERAND (low_part) || SMALL_OPERAND_UNSIGNED (low_part))
+  if (IMM12_OPERAND (low_part) || IMM12_OPERAND_UNSIGNED (low_part))
     {
       codes[0].code = UNKNOWN;
       codes[0].method = METHOD_NORMAL;
@@ -1729,11 +1711,6 @@ loongarch_cannot_force_const_mem (machine_mode mode, rtx x)
   enum loongarch_symbol_type type;
   rtx base, offset;
 
-  /* There is no assembler syntax for expressing an address-sized
-     high part.  */
-  if (GET_CODE (x) == HIGH)
-    return true;
-
   /* As an optimization, reject constants that loongarch_legitimize_move
      can expand inline.
 
@@ -1750,7 +1727,7 @@ loongarch_cannot_force_const_mem (machine_mode mode, rtx x)
   if (loongarch_symbolic_constant_p (base, SYMBOL_CONTEXT_LEA, &type))
     {
       /* The same optimization as for CONST_INT.  */
-      if (SMALL_INT (offset)
+      if (IMM12_INT (offset)
 	  && loongarch_symbol_insns (type, MAX_MACHINE_MODE) > 0)
 	return true;
     }
@@ -1817,7 +1794,7 @@ loongarch_valid_offset_p (rtx x, machine_mode mode)
   /* We may need to split multiword moves, so make sure that every word
      is accessible.  */
   if (GET_MODE_SIZE (mode) > UNITS_PER_WORD
-      && !SMALL_OPERAND (INTVAL (x) + GET_MODE_SIZE (mode) - UNITS_PER_WORD))
+      && !IMM12_OPERAND (INTVAL (x) + GET_MODE_SIZE (mode) - UNITS_PER_WORD))
     return false;
 
   return true;
@@ -1964,20 +1941,6 @@ loongarch_12bit_offset_address_p (rtx x, machine_mode mode)
 	  && LARCH_U12BIT_OFFSET_P (INTVAL (addr.offset)));
 }
 
-/* Return true if X is a legitimate address with a 9-bit offset.
-   MODE is the mode of the value being accessed.  */
-
-bool
-loongarch_9bit_offset_address_p (rtx x, machine_mode mode)
-{
-  struct loongarch_address_info addr;
-
-  return (loongarch_classify_address (&addr, x, mode, false)
-	  && addr.type == ADDRESS_REG
-	  && CONST_INT_P (addr.offset)
-	  && LARCH_9BIT_OFFSET_P (INTVAL (addr.offset)));
-}
-
 /* Return true if X is a legitimate address with a 14-bit offset shifted 2.
    MODE is the mode of the value being accessed.  */
 
@@ -2033,7 +1996,7 @@ loongarch_const_insns (rtx x)
 	  int n = loongarch_const_insns (x);
 	  if (n != 0)
 	    {
-	      if (SMALL_INT (offset))
+	      if (IMM12_INT (offset))
 		return n + 1;
 	      else if (!targetm.cannot_force_const_mem (GET_MODE (x), x))
 		return n + 1 + loongarch_integer_cost (INTVAL (offset));
@@ -2190,12 +2153,12 @@ loongarch_strip_unspec_address (rtx op)
 
 /* Return a legitimate address for REG + OFFSET.  TEMP is as for
    loongarch_force_temporary; it is only needed when OFFSET is not a
-   SMALL_OPERAND.  */
+   IMM12_OPERAND.  */
 
 static rtx
 loongarch_add_offset (rtx temp, rtx reg, HOST_WIDE_INT offset)
 {
-  if (!SMALL_OPERAND (offset))
+  if (!IMM12_OPERAND (offset))
     {
       rtx high;
 
@@ -2619,7 +2582,7 @@ loongarch_rewrite_small_data (rtx pattern)
    larger than the cost of any constant we want to synthesize inline.  */
 #define CONSTANT_POOL_COST COSTS_N_INSNS (8)
 
-/* Return true if there is a  instruction that implements CODE
+/* Return true if there is a instruction that implements CODE
    and if that instruction accepts X as an immediate operand.  */
 
 static int
@@ -2642,13 +2605,13 @@ loongarch_immediate_operand_p (int code, HOST_WIDE_INT x)
     case IOR:
     case XOR:
       /* These instructions take 12-bit unsigned immediates.  */
-      return SMALL_OPERAND_UNSIGNED (x);
+      return IMM12_OPERAND_UNSIGNED (x);
 
     case PLUS:
     case LT:
     case LTU:
       /* These instructions take 12-bit signed immediates.  */
-      return SMALL_OPERAND (x);
+      return IMM12_OPERAND (x);
 
     case EQ:
     case NE:
@@ -2665,11 +2628,11 @@ loongarch_immediate_operand_p (int code, HOST_WIDE_INT x)
 
     case LE:
       /* We add 1 to the immediate and use SLT.  */
-      return SMALL_OPERAND (x + 1);
+      return IMM12_OPERAND (x + 1);
 
     case LEU:
       /* Likewise SLTU, but reject the always-true case.  */
-      return SMALL_OPERAND (x + 1) && x + 1 != 0;
+      return IMM12_OPERAND (x + 1) && x + 1 != 0;
 
     case SIGN_EXTRACT:
     case ZERO_EXTRACT:
@@ -3379,9 +3342,9 @@ loongarch_output_move (rtx dest, rtx src)
 	{
 	  if (LU12I_INT (src))
 	    return "lu12i.w\t%0,%1>>12\t\t\t# %X1";
-	  else if (SMALL_INT (src))
+	  else if (IMM12_INT (src))
 	    return "addi.w\t%0,$r0,%1\t\t\t# %X1";
-	  else if (SMALL_INT_UNSIGNED (src))
+	  else if (IMM12_INT_UNSIGNED (src))
 	    return "ori\t%0,$r0,%1\t\t\t# %X1";
 	  else if (LU52I_INT (src))
 	    return "lu52i.d\t%0,$r0,%X1>>52\t\t\t# %1";
@@ -3650,7 +3613,7 @@ loongarch_emit_int_compare (enum rtx_code *code, rtx *op0, rtx *op1)
       if (*code == EQ || *code == NE)
 	{
 	  /* Convert e.g. OP0 == 2048 into OP0 - 2048 == 0.  */
-	  if (SMALL_OPERAND (-rhs))
+	  if (IMM12_OPERAND (-rhs))
 	    {
 	      *op0 = loongarch_force_binary (GET_MODE (*op0), PLUS, *op0,
 					     GEN_INT (-rhs));
@@ -3859,7 +3822,7 @@ static bool
 loongarch_function_ok_for_sibcall (tree decl ATTRIBUTE_UNUSED,
 				   tree exp ATTRIBUTE_UNUSED)
 {
-  /* Otherwise OK.  */
+  /* Always OK.  */
   return true;
 }
 
@@ -4221,7 +4184,6 @@ loongarch_use_ins_ext_p (rtx op, HOST_WIDE_INT width, HOST_WIDE_INT bitpos)
 
    '.'	Print the name of the register with a hard-wired zero (zero or $r0).
    '$'	Print the name of the stack pointer register (sp or $r3).
-   ':'  Print "c" to use the compact version if the delay slot is a nop.
 
    See also loongarch_init_print_operand_punct.  */
 
@@ -4238,14 +4200,6 @@ loongarch_print_operand_punctuation (FILE *file, int ch)
       fputs (reg_names[STACK_POINTER_REGNUM], file);
       break;
 
-    case ':':
-      /* When final_sequence is 0, the delay slot will be a nop.  We can
-	 use the compact version where available.  The %: formatter will
-	 only be present if a compact form of the branch is available.  */
-      if (final_sequence == 0)
-	putc ('c', file);
-      break;
-
     default:
       gcc_unreachable ();
       break;
@@ -4259,7 +4213,7 @@ loongarch_init_print_operand_punct (void)
 {
   const char *p;
 
-  for (p = ".$:"; *p; p++)
+  for (p = ".$"; *p; p++)
     loongarch_print_operand_punct[(unsigned char) *p] = true;
 }
 
@@ -4953,8 +4907,8 @@ loongarch_frame_pointer_required (void)
   return false;
 }
 
-/* Make sure that we're not trying to eliminate to the wrong hard frame
-   pointer.  */
+/* Implement TARGET_CAN_ELIMINATE.  Make sure that we're not trying
+   to eliminate to the wrong hard frame pointer.  */
 
 static bool
 loongarch_can_eliminate (const int from ATTRIBUTE_UNUSED, const int to)
@@ -5004,19 +4958,6 @@ loongarch_declare_function_name (FILE *stream ATTRIBUTE_UNUSED,
 				 tree fndecl ATTRIBUTE_UNUSED)
 {
   loongarch_start_function_definition (name);
-}
-
-/* Implement TARGET_OUTPUT_FUNCTION_EPILOGUE.  */
-
-static void
-loongarch_output_function_epilogue (FILE *)
-{
-  const char *fnname ATTRIBUTE_UNUSED;
-
-  /* Get the function name the same way that toplev.c does before calling
-     assemble_start_function.  This is needed so that the name used here
-     exactly matches the name used in ASM_DECLARE_FUNCTION_NAME.  */
-  fnname = XSTR (XEXP (DECL_RTL (current_function_decl), 0), 0);
 }
 
 /* Return true if register REGNO can store a value of mode MODE.
@@ -5070,15 +5011,6 @@ loongarch_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
 bool
 loongarch_hard_regno_rename_ok (unsigned int old_reg ATTRIBUTE_UNUSED,
 				unsigned int new_reg ATTRIBUTE_UNUSED)
-{
-  return true;
-}
-
-/* Return nonzero if register REGNO can be used as a scratch register
-   in peephole2.  */
-
-bool
-loongarch_hard_regno_scratch_ok (unsigned int regno ATTRIBUTE_UNUSED)
 {
   return true;
 }
@@ -5576,21 +5508,9 @@ loongarch_output_order_conditional_branch (rtx_insn *insn, rtx *operands,
 	  switch (GET_CODE (operands[1]))
 	    {
 	    case LE:
-	      branch[!inverted_p] = LARCH_BRANCH ("bge", "%3,%2,%0");
-	      branch[inverted_p] = LARCH_BRANCH ("blt", "%3,%2,%0");
-	      break;
 	    case LEU:
-	      branch[!inverted_p] = LARCH_BRANCH ("bgeu", "%3,%2,%0");
-	      branch[inverted_p] = LARCH_BRANCH ("bltu", "%3,%2,%0");
-	      break;
 	    case GT:
-	      branch[!inverted_p] = LARCH_BRANCH ("blt", "%3,%2,%0");
-	      branch[inverted_p] = LARCH_BRANCH ("bge", "%3,%2,%0");
-	      break;
 	    case GTU:
-	      branch[!inverted_p] = LARCH_BRANCH ("bltu", "%3,%2,%0");
-	      branch[inverted_p] = LARCH_BRANCH ("bgeu", "%3,%2,%0");
-	      break;
 	    case LT:
 	    case LTU:
 	    case GE:
@@ -5609,30 +5529,11 @@ loongarch_output_order_conditional_branch (rtx_insn *insn, rtx *operands,
 	{
 	  /* These cases are equivalent to comparisons against zero.  */
 	case LEU:
-	  inverted_p = !inverted_p;
-	  /* Fall through.  */
 	case GTU:
-	  branch[!inverted_p] = LARCH_BRANCH ("bne", "%2,%.,%0");
-	  branch[inverted_p] = LARCH_BRANCH ("beq", "%2,%.,%0");
-	  break;
-
-	  /* These cases are always true or always false.  */
 	case LTU:
-	  inverted_p = !inverted_p;
-	  /* Fall through.  */
 	case GEU:
-	  branch[!inverted_p] = LARCH_BRANCH ("beq", "%.,%.,%0");
-	  branch[inverted_p] = LARCH_BRANCH ("bne", "%.,%.,%0");
-	  break;
-
 	case LE:
-	  branch[!inverted_p] = LARCH_BRANCH ("bge", "$r0,%2,%0");
-	  branch[inverted_p] = LARCH_BRANCH ("blt", "$r0,%2,%0");
-	  break;
 	case GT:
-	  branch[!inverted_p] = LARCH_BRANCH ("blt", "$r0,%2,%0");
-	  branch[inverted_p] = LARCH_BRANCH ("bge", "$r0,%2,%0");
-	  break;
 	case LT:
 	case GE:
 	  branch[!inverted_p] = LARCH_BRANCH ("b%C1", "%2,$r0,%0");
@@ -5904,7 +5805,7 @@ loongarch_output_mi_thunk (FILE *file, tree thunk_fndecl ATTRIBUTE_UNUSED,
   if (delta != 0)
     {
       rtx offset = GEN_INT (delta);
-      if (!SMALL_OPERAND (delta))
+      if (!IMM12_OPERAND (delta))
 	{
 	  loongarch_emit_move (temp1, offset);
 	  offset = temp1;
@@ -6370,8 +6271,6 @@ loongarch_starting_frame_offset (void)
 #undef TARGET_LEGITIMIZE_ADDRESS
 #define TARGET_LEGITIMIZE_ADDRESS loongarch_legitimize_address
 
-#undef TARGET_ASM_FUNCTION_EPILOGUE
-#define TARGET_ASM_FUNCTION_EPILOGUE loongarch_output_function_epilogue
 #undef TARGET_ASM_SELECT_RTX_SECTION
 #define TARGET_ASM_SELECT_RTX_SECTION loongarch_select_rtx_section
 #undef TARGET_ASM_FUNCTION_RODATA_SECTION
@@ -6395,11 +6294,6 @@ loongarch_starting_frame_offset (void)
 
 #undef TARGET_FUNCTION_OK_FOR_SIBCALL
 #define TARGET_FUNCTION_OK_FOR_SIBCALL loongarch_function_ok_for_sibcall
-
-#undef TARGET_MERGE_DECL_ATTRIBUTES
-#define TARGET_MERGE_DECL_ATTRIBUTES loongarch_merge_decl_attributes
-#undef TARGET_CAN_INLINE_P
-#define TARGET_CAN_INLINE_P loongarch_can_inline_p
 
 #undef TARGET_VALID_POINTER_MODE
 #define TARGET_VALID_POINTER_MODE loongarch_valid_pointer_mode
@@ -6556,9 +6450,6 @@ loongarch_starting_frame_offset (void)
 #undef TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS
 #define TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS \
   loongarch_ira_change_pseudo_allocno_class
-
-#undef TARGET_HARD_REGNO_SCRATCH_OK
-#define TARGET_HARD_REGNO_SCRATCH_OK loongarch_hard_regno_scratch_ok
 
 #undef TARGET_HARD_REGNO_NREGS
 #define TARGET_HARD_REGNO_NREGS loongarch_hard_regno_nregs

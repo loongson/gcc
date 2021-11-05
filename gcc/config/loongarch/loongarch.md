@@ -3220,7 +3220,7 @@
       return "jr\t%0";
     case 1:
       if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r12,(%%pcrel(%0+0x20000))>>18\n\t" \
+	return "pcaddu18i\t$r12,(%%pcrel(%0+0x20000))>>18\n\t"
 	       "jirl\t$r0,$r12,%%pcrel(%0+4)-(%%pcrel(%0+4+0x20000)>>18<<18)";
       else if (TARGET_CMODEL_EXTREME)
 	return "la.local\t$r12,$r13,%0\n\tjr\t$r12";
@@ -3242,7 +3242,7 @@
       if (TARGET_CMODEL_NORMAL || TARGET_CMODEL_TINY)
 	return "b\t%%plt(%0)";
       else if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r12,(%%plt(%0)+0x20000)>>18\n\t" \
+	return "pcaddu18i\t$r12,(%%plt(%0)+0x20000)>>18\n\t"
 	       "jirl\t$r0,$r12,%%plt(%0)+4-((%%plt(%0)+(4+0x20000))>>18<<18)";
       else
 	{
@@ -3298,8 +3298,8 @@
       return "jr\t%1";
     case 1:
       if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r12,%%pcrel(%1+0x20000)>>18\n\t"\
-"jirl\t$r0,$r12,%%pcrel(%1+4)-((%%pcrel(%1+4+0x20000))>>18<<18)";
+	return "pcaddu18i\t$r12,%%pcrel(%1+0x20000)>>18\n\t"
+	       "jirl\t$r0,$r12,%%pcrel(%1+4)-((%%pcrel(%1+4+0x20000))>>18<<18)";
       else if (TARGET_CMODEL_EXTREME)
 	return "la.local\t$r12,$r13,%1\n\tjr\t$r12";
       else
@@ -3320,8 +3320,8 @@
       if (TARGET_CMODEL_NORMAL || TARGET_CMODEL_TINY)
 	return " b\t%%plt(%1)";
       else if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r12,(%%plt(%1)+0x20000)>>18\n\t"\
-"jirl\t$r0,$r12,%%plt(%1)+4-((%%plt(%1)+(4+0x20000))>>18<<18)";
+	return "pcaddu18i\t$r12,(%%plt(%1)+0x20000)>>18\n\t"
+	       "jirl\t$r0,$r12,%%plt(%1)+4-((%%plt(%1)+(4+0x20000))>>18<<18)";
       else
 	{
 	  sorry ("loongarch cmodel extreme and tiny-static not support plt");
@@ -3348,8 +3348,8 @@
       return "jr\t%1";
     case 1:
       if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r12,%%pcrel(%1+0x20000)>>18\n\t"\
-"jirl\t$r0,$r12,%%pcrel(%1+4)-(%%pcrel(%1+4+0x20000)>>18<<18)";
+	return "pcaddu18i\t$r12,%%pcrel(%1+0x20000)>>18\n\t"
+	       "jirl\t$r0,$r12,%%pcrel(%1+4)-(%%pcrel(%1+4+0x20000)>>18<<18)";
       else if (TARGET_CMODEL_EXTREME)
 	return "la.local\t$r12,$r13,%1\n\tjr\t$r12";
       else
@@ -3370,8 +3370,8 @@
       if (TARGET_CMODEL_NORMAL || TARGET_CMODEL_TINY)
 	return "b\t%%plt(%1)";
       else if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r12,(%%plt(%1)+0x20000)>>18\n\t"\
-"jirl\t$r0,$r12,%%plt(%1)+4-((%%plt(%1)+(4+0x20000))>>18<<18)";
+	return "pcaddu18i\t$r12,(%%plt(%1)+0x20000)>>18\n\t"
+	       "jirl\t$r0,$r12,%%plt(%1)+4-((%%plt(%1)+(4+0x20000))>>18<<18)";
       else
 	{
 	  sorry ("loongarch cmodel extreme and tiny-static not support plt");
@@ -3408,8 +3408,8 @@
       return "jirl\t$r1,%0,0";
     case 1:
       if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r1,%%pcrel(%0+0x20000)>>18\n\t"\
-"jirl\t$r1,$r1,%%pcrel(%0+4)-(%%pcrel(%0+4+0x20000)>>18<<18)";
+	return "pcaddu18i\t$r1,%%pcrel(%0+0x20000)>>18\n\t"
+	       "jirl\t$r1,$r1,%%pcrel(%0+4)-(%%pcrel(%0+4+0x20000)>>18<<18)";
       else if (TARGET_CMODEL_EXTREME)
 	return "la.local\t$r1,$r12,%0\n\tjirl\t$r1,$r1,0";
       else
@@ -3428,8 +3428,8 @@
 	return "la.global\t$r1,%0\n\tjirl\t$r1,$r1,0";
     case 4:
       if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r1,(%%plt(%0)+0x20000)>>18\n\t"\
-"jirl\t$r1,$r1,%%plt(%0)+4-((%%plt(%0)+(4+0x20000))>>18<<18)";
+	return "pcaddu18i\t$r1,(%%plt(%0)+0x20000)>>18\n\t"
+	       "jirl\t$r1,$r1,%%plt(%0)+4-((%%plt(%0)+(4+0x20000))>>18<<18)";
       else if (TARGET_CMODEL_NORMAL || TARGET_CMODEL_TINY)
 	return "bl\t%%plt(%0)";
       else
@@ -3487,8 +3487,8 @@
       return "jirl\t$r1,%1,0";
     case 1:
       if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r1,%%pcrel(%1+0x20000)>>18\n\t"\
-"jirl\t$r1,$r1,%%pcrel(%1+4)-(%%pcrel(%1+4+0x20000)>>18<<18)";
+	return "pcaddu18i\t$r1,%%pcrel(%1+0x20000)>>18\n\t"
+	       "jirl\t$r1,$r1,%%pcrel(%1+4)-(%%pcrel(%1+4+0x20000)>>18<<18)";
       else if (TARGET_CMODEL_EXTREME)
 	return "la.local\t$r1,$r12,%1\n\tjirl\t$r1,$r1,0";
       else
@@ -3507,8 +3507,8 @@
 	return "la.global\t$r1,%1\n\tjirl\t$r1,$r1,0";
     case 4:
       if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r1,(%%plt(%1)+0x20000)>>18\n\t"\
-"jirl\t$r1,$r1,%%plt(%1)+4-((%%plt(%1)+(4+0x20000))>>18<<18)";
+	return "pcaddu18i\t$r1,(%%plt(%1)+0x20000)>>18\n\t"
+	       "jirl\t$r1,$r1,%%plt(%1)+4-((%%plt(%1)+(4+0x20000))>>18<<18)";
       else if (TARGET_CMODEL_NORMAL || TARGET_CMODEL_TINY)
 	return "bl\t%%plt(%1)";
       else
@@ -3540,8 +3540,8 @@
       return "jirl\t$r1,%1,0";
     case 1:
       if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r1,%%pcrel(%1+0x20000)>>18\n\t"\
-"jirl\t$r1,$r1,%%pcrel(%1+4)-(%%pcrel(%1+4+0x20000)>>18<<18)";
+	return "pcaddu18i\t$r1,%%pcrel(%1+0x20000)>>18\n\t"
+	       "jirl\t$r1,$r1,%%pcrel(%1+4)-(%%pcrel(%1+4+0x20000)>>18<<18)";
       else if (TARGET_CMODEL_EXTREME)
 	return "la.local\t$r1,$r12,%1\n\tjirl\t$r1,$r1,0";
       else
@@ -3560,8 +3560,8 @@
 	return "la.global\t$r1,%1\n\tjirl\t$r1,$r1,0";
     case 4:
       if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r1,(%%plt(%1)+0x20000)>>18\n\t"\
-"jirl\t$r1,$r1,%%plt(%1)+4-((%%plt(%1)+(4+0x20000))>>18<<18)";
+	return "pcaddu18i\t$r1,(%%plt(%1)+0x20000)>>18\n\t"
+	       "jirl\t$r1,$r1,%%plt(%1)+4-((%%plt(%1)+(4+0x20000))>>18<<18)";
       else if (TARGET_CMODEL_NORMAL || TARGET_CMODEL_TINY)
 	return "bl\t%%plt(%1)";
       else

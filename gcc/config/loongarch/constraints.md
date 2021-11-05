@@ -158,7 +158,7 @@
 (define_constraint "I"
   "A signed 12-bit constant (for arithmetic instructions)."
   (and (match_code "const_int")
-       (match_test "SMALL_OPERAND (ival)")))
+       (match_test "IMM12_OPERAND (ival)")))
 
 (define_constraint "J"
   "Integer zero."
@@ -168,7 +168,7 @@
 (define_constraint "K"
   "An unsigned 12-bit constant (for logic instructions)."
   (and (match_code "const_int")
-       (match_test "SMALL_OPERAND_UNSIGNED (ival)")))
+       (match_test "IMM12_OPERAND_UNSIGNED (ival)")))
 
 ;; General constraints
 

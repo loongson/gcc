@@ -21,7 +21,7 @@
 
 (define_predicate "const_uns_arith_operand"
   (and (match_code "const_int")
-       (match_test "SMALL_OPERAND_UNSIGNED (INTVAL (op))")))
+       (match_test "IMM12_OPERAND_UNSIGNED (INTVAL (op))")))
 
 (define_predicate "uns_arith_operand"
   (ior (match_operand 0 "const_uns_arith_operand")
@@ -149,7 +149,7 @@
 
 (define_predicate "sle_operand"
   (and (match_code "const_int")
-       (match_test "SMALL_OPERAND (INTVAL (op) + 1)")))
+       (match_test "IMM12_OPERAND (INTVAL (op) + 1)")))
 
 (define_predicate "sleu_operand"
   (and (match_operand 0 "sle_operand")
@@ -441,7 +441,7 @@
 
   /* Otherwise check whether the constant can be loaded in a single
      instruction.  */
-  return !LU12I_INT (op) && !SMALL_INT (op) && !SMALL_INT_UNSIGNED (op)
+  return !LU12I_INT (op) && !IMM12_INT (op) && !IMM12_INT_UNSIGNED (op)
 	 && !LU52I_INT (op);
 })
 

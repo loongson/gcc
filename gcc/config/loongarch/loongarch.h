@@ -606,21 +606,16 @@ enum reg_class
 /* True if VALUE is a signed 12-bit number.  */
 
 #define IMM12_OPERAND(VALUE) \
-  ((unsigned HOST_WIDE_INT) (VALUE) + 0x800 < 0x1000)
+  ((unsigned HOST_WIDE_INT) (VALUE) + IMM_REACH / 2 < IMM_REACH)
 
 /* True if VALUE is a signed 16-bit number.  */
 
 #define IMM16_OPERAND(VALUE) \
   ((unsigned HOST_WIDE_INT) (VALUE) + 0x8000 < 0x10000)
 
-/* True if VALUE is a signed 12-bit number.  */
-
-#define SMALL_OPERAND(VALUE) \
-  ((unsigned HOST_WIDE_INT) (VALUE) + IMM_REACH / 2 < IMM_REACH)
-
 /* True if VALUE is an unsigned 12-bit number.  */
 
-#define SMALL_OPERAND_UNSIGNED(VALUE) \
+#define IMM12_OPERAND_UNSIGNED(VALUE) \
   (((VALUE) & ~(unsigned HOST_WIDE_INT) (IMM_REACH - 1)) == 0)
 
 /* True if VALUE can be loaded into a register using LU12I.  */
@@ -646,15 +641,15 @@ enum reg_class
 
 #define CONST_LOW_PART(VALUE) ((VALUE) -CONST_HIGH_PART (VALUE))
 
-#define SMALL_INT(X) SMALL_OPERAND (INTVAL (X))
-#define SMALL_INT_UNSIGNED(X) SMALL_OPERAND_UNSIGNED (INTVAL (X))
+#define IMM12_INT(X) IMM12_OPERAND (INTVAL (X))
+#define IMM12_INT_UNSIGNED(X) IMM12_OPERAND_UNSIGNED (INTVAL (X))
 #define LU12I_INT(X) LU12I_OPERAND (INTVAL (X))
 #define LU32I_INT(X) LU32I_OPERAND (INTVAL (X))
 #define LU52I_INT(X) LU52I_OPERAND (INTVAL (X))
 #define LARCH_U12BIT_OFFSET_P(OFFSET) (IN_RANGE (OFFSET, -2048, 2047))
 #define LARCH_9BIT_OFFSET_P(OFFSET) (IN_RANGE (OFFSET, -256, 255))
 #define LARCH_16BIT_OFFSET_P(OFFSET) (IN_RANGE (OFFSET, -32768, 32767))
-#define LARCH_SHIFT_2_OFFSET_P(OFFSET) (((OFFSET) &0x3) == 0)
+#define LARCH_SHIFT_2_OFFSET_P(OFFSET) (((OFFSET) & 0x3) == 0)
 
 /* Return the maximum number of consecutive registers
    needed to represent mode MODE in a register of class CLASS.  */
