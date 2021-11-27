@@ -286,6 +286,10 @@ proc check_configured_with { pattern } {
 proc check_weak_available { } {
     global target_cpu
 
+    if { [ string first "loongarch" $target_cpu ] >= 0 } {
+        return 1
+    }
+
     # All mips targets should support it
 
     if { [ string first "mips" $target_cpu ] >= 0 } {
@@ -1297,6 +1301,14 @@ proc check_effective_target_mpaired_single { } {
 # Return true if the target has access to FPU instructions.
 
 proc check_effective_target_hard_float { } {
+    if { [istarget loongarch*-*-*] } {
+	return [check_no_compiler_messages hard_float assembly {
+		#if (defined __loongarch_soft_float)
+		#error __loongarch_soft_float
+		#endif
+	}]
+    }
+
     if { [istarget mips*-*-*] } {
 	return [check_no_compiler_messages hard_float assembly {
 		#if (defined __mips_soft_float || defined __mips16)
@@ -8616,6 +8628,7 @@ proc check_effective_target_sync_char_short { } {
 	     || [istarget cris-*-*]
 	     || ([istarget sparc*-*-*] && [check_effective_target_sparc_v9])
 	     || ([istarget arc*-*-*] && [check_effective_target_arc_atomic])
+	     || [istarget loongarch*-*-*]
 	     || [check_effective_target_mips_llsc] }}]
 }
 
@@ -10708,6 +10721,7 @@ proc check_effective_target_branch_cost {} {
 	 || [istarget epiphany*-*-*]
 	 || [istarget frv*-*-*]
 	 || [istarget i?86-*-*] || [istarget x86_64-*-*]
+	 || [istarget loongarch*-*-*]
 	 || [istarget mips*-*-*]
 	 || [istarget s390*-*-*]
 	 || [istarget riscv*-*-*]
