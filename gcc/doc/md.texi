@@ -2747,6 +2747,61 @@ Memory addressed using the small base register ($sb).
 $r1h
 @end table
 
+@item LoongArch---@file{config/loongarch/constraints.md}
+@table @code
+@item a
+A constant call global and noplt address.
+@item c
+A constant call local address.
+@item e
+A register that is used as function call.
+@item f
+A floating-point register (if available).
+@item h
+A constant call plt address.
+@item j
+A rester that is used as sibing call.
+@item l
+A signed 16-bit constant.
+@item m
+A memory operand whose address is formed by a base register and offset
+that is suitable for use in instructions with the same addressing mode
+as @code{st.w} and @code{ld.w}.
+@item q
+A general-purpose register except for $r0 and $r1 for csr instructions.
+@item t
+A constant call weak address.
+@item u
+A signed 52bit constant and low 32-bit is zero (for logic instructions).
+@item v
+A nsigned 64-bit constant and low 44-bit is zero (for logic instructions).
+@item z
+A floating-point condition code register.
+@item G
+Floating-point zero.
+@item I
+A signed 12-bit constant (for arithmetic instructions).
+@item J
+Integer zero.
+@item K
+An unsigned 12-bit constant (for logic instructions).
+@item Q
+A 12-bit constant used for logical operations.
+@item W
+A memory address based on a member of @code{BASE_REG_CLASS}.  This is
+true for allreferences.
+@item Yd
+A constant @code{move_operand} that can be safely loaded using
+@code{la}.
+@item ZB
+An address that is held in a general-purpose register.
+The offset is zero.
+@item ZC
+A memory operand whose address is formed by a base register and offset
+that is suitable for use in instructions with the same addressing mode
+as @code{ll.w} and @code{sc.w}.
+@end table
+
 @item MicroBlaze---@file{config/microblaze/constraints.md}
 @table @code
 @item d
