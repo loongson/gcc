@@ -34,7 +34,7 @@ along with GCC; see the file COPYING3.  If not see
 #undef GNU_USER_TARGET_LINK_SPEC
 #define GNU_USER_TARGET_LINK_SPEC \
   "%{G*} %{shared} -m " GNU_USER_LINK_EMULATION \
-  "%{!shared: %{static} %{!static: %{rdynamic:-export-dynamic}" \
+  "%{!shared: %{static} %{!static: %{rdynamic:-export-dynamic} " \
   "-dynamic-linker " GLIBC_DYNAMIC_LINKER "}}"
 
 
