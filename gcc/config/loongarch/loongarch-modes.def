@@ -27,9 +27,3 @@ VECTOR_MODES (FLOAT, 8);      /*       V4HF V2SF */
 CC_MODE (FCC);
 
 INT_MODE (OI, 32);
-
-/* Keep the OI modes from confusing the compiler into thinking
-   that these modes could actually be used for computation.  They are
-   only holders for vectors during data movement.  */
-#define MAX_BITSIZE_MODE_ANY_INT (128)
-
