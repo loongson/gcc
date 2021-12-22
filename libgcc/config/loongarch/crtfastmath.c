@@ -35,8 +35,8 @@ If not, see <http://www.gnu.org/licenses/>.  */
 #define _FPU_IEEE     0x0000001F
 
 /* Macros for accessing the hardware control word.  */
-#define _FPU_GETCW(cw) __asm__ ("movgr2fcsr %0,$r1" : "=r" (cw))
-#define _FPU_SETCW(cw) __asm__ ("movfcsr2gr %0,$r1" : : "r" (cw))
+#define _FPU_GETCW(cw) __asm__ volatile ("movfcsr2gr %0,$r0" : "=r" (cw))
+#define _FPU_SETCW(cw) __asm__ volatile ("movgr2fcsr $r0,%0" : : "r" (cw))
 
 static void __attribute__((constructor))
 set_fast_math (void)
