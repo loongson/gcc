@@ -157,7 +157,7 @@ noasmopt
 Driver
 
 mstrict-align
-Target Mask(STRICT_ALIGN) Save
+Target Var(TARGET_STRICT_ALIGN) Init(1)
 Do not generate unaligned memory accesses.
 
 mmax-inline-memcpy-size=
