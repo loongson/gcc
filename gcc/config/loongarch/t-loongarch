@@ -57,3 +57,11 @@ $(LA_STR_H): \
 	$(srcdir)/config/loongarch/genopts/genstr.sh \
 	$(srcdir)/config/loongarch/genopts/loongarch-strings
 	$(SHELL) $< header > $@
+
+# Post-processing on multilib.h: remove "." if multilib is enabled
+ifeq ($(filter __DISABLE_MULTILIB,$(tm_defines)),)
+.PHONY: filter-ml-dot
+multilib.h: filter-ml-dot
+filter-ml-dot: s-mlib
+	sed -i -e '/\s*". [^";]*;"/ d' multilib.h
+endif
