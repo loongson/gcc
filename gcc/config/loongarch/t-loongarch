@@ -35,7 +35,7 @@ loongarch-builtins.o: $(srcdir)/config/loongarch/loongarch-builtins.c $(CONFIG_H
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
 	$(srcdir)/config/loongarch/loongarch-builtins.c
 
-loongarch-driver.o : $(srcdir)/config/loongarch/loongarch-driver.c \
+loongarch-driver.o : $(srcdir)/config/loongarch/loongarch-driver.c $(LA_STR_H) \
 	$(CONFIG_H) $(SYSTEM_H)
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) $<
 
