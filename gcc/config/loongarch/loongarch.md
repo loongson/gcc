@@ -1413,20 +1413,14 @@
 ;; instead allocated two separate GPRs.  We don't distinguish between
 ;; the GPR and LO cases because we don't usually know during pre-reload
 ;; scheduling whether an operand will be LO or not.
-(define_insn_and_split "extendsidi2"
+(define_insn "extendsidi2"
   [(set (match_operand:DI 0 "register_operand" "=r,r,r")
-	(sign_extend:DI (match_operand:SI 1 "nonimmediate_operand" "0,ZC,m")))]
+	(sign_extend:DI (match_operand:SI 1 "nonimmediate_operand" "r,ZC,m")))]
   "TARGET_64BIT"
   "@
-   #
+   addi.w\t%0,%1,0
    ldptr.w\t%0,%1
    ld.w\t%0,%1"
-  "&& reload_completed && register_operand (operands[1], VOIDmode)"
-  [(const_int 0)]
-{
-  emit_note (NOTE_INSN_DELETED);
-  DONE;
-}
   [(set_attr "move_type" "move,load,load")
    (set_attr "mode" "DI")])
 
