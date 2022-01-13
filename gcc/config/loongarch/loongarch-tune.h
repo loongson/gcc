@@ -43,18 +43,18 @@ struct loongarch_rtx_cost_data
 
 /* Default RTX cost initializer.  */
 #define COSTS_N_INSNS(N) ((N) * 4)
-#define DEFAULT_COSTS \
-    .fp_add          = COSTS_N_INSNS (6),   \
-    .fp_mult_sf      = COSTS_N_INSNS (7),   \
-    .fp_mult_df      = COSTS_N_INSNS (8),   \
-    .fp_div_sf       = COSTS_N_INSNS (23),  \
-    .fp_div_df       = COSTS_N_INSNS (36),  \
-    .int_mult_si     = COSTS_N_INSNS (10),  \
-    .int_mult_di     = COSTS_N_INSNS (10),  \
-    .int_div_si      = COSTS_N_INSNS (69),  \
-    .int_div_di      = COSTS_N_INSNS (69),  \
-    .branch_cost     = 2,                   \
-    .memory_latency  = 4
+#define DEFAULT_COSTS				\
+    .fp_add		= COSTS_N_INSNS (1),	\
+    .fp_mult_sf		= COSTS_N_INSNS (2),	\
+    .fp_mult_df		= COSTS_N_INSNS (2),	\
+    .fp_div_sf		= COSTS_N_INSNS (4),	\
+    .fp_div_df		= COSTS_N_INSNS (4),	\
+    .int_mult_si	= COSTS_N_INSNS (1),	\
+    .int_mult_di	= COSTS_N_INSNS (1),	\
+    .int_div_si		= COSTS_N_INSNS (1),	\
+    .int_div_di		= COSTS_N_INSNS (1),	\
+    .branch_cost	= 2,			\
+    .memory_latency	= 4
 
 /* Costs to use when optimizing for size.  */
 extern const struct loongarch_rtx_cost_data loongarch_rtx_cost_optimize_size;

@@ -96,8 +96,8 @@ enum loongarch_fp_condition
 
 /* Index X provides the string representation of LARCH_FP_COND_<X>.  */
 #define STRINGIFY(X) #X
-const char *const loongarch_fp_conditions[16]
-  = {LARCH_FP_CONDITIONS (STRINGIFY)};
+const char *const
+loongarch_fp_conditions[16]= {LARCH_FP_CONDITIONS (STRINGIFY)};
 #undef STRINGIFY
 
 /* Declare an availability predicate for built-in functions that require
@@ -272,9 +272,9 @@ loongarch_build_cvpointer_type (void)
   static tree cache;
 
   if (cache == NULL_TREE)
-    cache = build_pointer_type (build_qualified_type
-				(void_type_node,
-				 TYPE_QUAL_CONST | TYPE_QUAL_VOLATILE));
+    cache = build_pointer_type (build_qualified_type (void_type_node,
+						      TYPE_QUAL_CONST
+						       | TYPE_QUAL_VOLATILE));
   return cache;
 }
 

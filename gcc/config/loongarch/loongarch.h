@@ -418,11 +418,11 @@ along with GCC; see the file COPYING3.  If not see
 #define FCC_REG_NUM (FCC_REG_LAST - FCC_REG_FIRST + 1)
 
 #define GP_REG_P(REGNO) \
-  ((unsigned int) ((int) (REGNO) -GP_REG_FIRST) < GP_REG_NUM)
+  ((unsigned int) ((int) (REGNO) - GP_REG_FIRST) < GP_REG_NUM)
 #define FP_REG_P(REGNO) \
-  ((unsigned int) ((int) (REGNO) -FP_REG_FIRST) < FP_REG_NUM)
+  ((unsigned int) ((int) (REGNO) - FP_REG_FIRST) < FP_REG_NUM)
 #define FCC_REG_P(REGNO) \
-  ((unsigned int) ((int) (REGNO) -FCC_REG_FIRST) < FCC_REG_NUM)
+  ((unsigned int) ((int) (REGNO) - FCC_REG_FIRST) < FCC_REG_NUM)
 
 #define FP_REG_RTX_P(X) (REG_P (X) && FP_REG_P (REGNO (X)))
 
@@ -1094,9 +1094,9 @@ typedef struct loongarch_args
 #define DATA_SECTION_ASM_OP "\t.data" /* large data  */
 
 #undef READONLY_DATA_SECTION_ASM_OP
-#define READONLY_DATA_SECTION_ASM_OP "\t.section\t.rodata" /* read-only data \
-							    */
-#define ASM_OUTPUT_REG_PUSH(STREAM, REGNO) \
+#define READONLY_DATA_SECTION_ASM_OP "\t.section\t.rodata" /* read-only data */
+
+#define ASM_OUTPUT_REG_PUSH(STREAM, REGNO)	\
   do \
     { \
       fprintf (STREAM, "\t%s\t%s,%s,-8\n\t%s\t%s,%s,0\n", \

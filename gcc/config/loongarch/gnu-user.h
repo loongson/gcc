@@ -74,12 +74,5 @@ along with GCC; see the file COPYING3.  If not see
   while (0)
 
 
-/* The glibc _mcount stub will save $v0 for us.  Don't mess with saving
-   it, since ASM_OUTPUT_REG_PUSH/ASM_OUTPUT_REG_POP do not work in the
-   presence of $gp-relative calls.  */
-#undef ASM_OUTPUT_REG_PUSH
-#undef ASM_OUTPUT_REG_POP
-
-
 #undef ASM_DECLARE_OBJECT_NAME
 #define ASM_DECLARE_OBJECT_NAME loongarch_declare_object_name

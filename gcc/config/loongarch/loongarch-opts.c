@@ -528,18 +528,18 @@ arch_str (const struct loongarch_target *target)
 {
   if (target->cpu_arch == CPU_NATIVE)
     {
-    if (target->cpu_native == CPU_NATIVE)
-      {
-	/* Describe a native CPU with unknown PRID.  */
-	const char* isa_string = isa_str (&target->isa, ',');
-	APPEND_STRING ("PRID: 0x")
-	APPEND_STRING (get_native_prid_str ())
-	APPEND_STRING (", ISA features: ")
-	APPEND_STRING (isa_string)
-	APPEND1 ('\0')
-      }
-    else
-      APPEND_STRING (loongarch_cpu_strings[target->cpu_native]);
+      if (target->cpu_native == CPU_NATIVE)
+	{
+	  /* Describe a native CPU with unknown PRID.  */
+	  const char* isa_string = isa_str (&target->isa, ',');
+	  APPEND_STRING ("PRID: 0x")
+	  APPEND_STRING (get_native_prid_str ())
+	  APPEND_STRING (", ISA features: ")
+	  APPEND_STRING (isa_string)
+	  APPEND1 ('\0')
+	}
+      else
+	APPEND_STRING (loongarch_cpu_strings[target->cpu_native]);
     }
   else
     APPEND_STRING (loongarch_cpu_strings[target->cpu_arch]);

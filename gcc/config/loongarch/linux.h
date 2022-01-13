@@ -46,3 +46,5 @@ along with GCC; see the file COPYING3.  If not see
 
 /* The default value isn't sufficient in 64-bit mode.  */
 #define STACK_CHECK_PROTECT (TARGET_64BIT ? 16 * 1024 : 12 * 1024)
+
+#define TARGET_ASM_FILE_END file_end_indicate_exec_stack

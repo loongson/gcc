@@ -61,7 +61,7 @@ loongarch_config_target (struct loongarch_target *target,
 #define TARGET_DOUBLE_FLOAT_ABI	  (la_target.abi.base == ABI_BASE_LP64D)
 
 #define TARGET_64BIT		  (la_target.isa.base == ISA_BASE_LA64V100)
-#define TARGET_ABI_LP64		  (la_target.abi.base == ABI_BASE_LP64D \
+#define TARGET_ABI_LP64	  (la_target.abi.base == ABI_BASE_LP64D \
 				   || la_target.abi.base == ABI_BASE_LP64F \
 				   || la_target.abi.base == ABI_BASE_LP64S)
 

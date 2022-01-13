@@ -60,8 +60,8 @@ LIST = aarch64-elf aarch64-linux-gnu aarch64-rtems \
   loongarch64-linux-gnu loongarch64-linux-gnuf64 \
   loongarch64-linux-gnuf32 loongarch64-linux-gnusf \
   m32c-rtems m32c-elf m32r-elf m32rle-elf \
-  m32r-linux m32rle-linux m68k-elf m68k-netbsdelf \
-  m68k-openbsd m68k-uclinux m68k-linux m68k-rtems \
+  m68k-elf m68k-netbsdelf \
+  m68k-uclinux m68k-linux m68k-rtems \
   mcore-elf microblaze-linux microblaze-elf \
   mips-netbsd \
   mips64el-st-linux-gnu mips64octeon-linux mipsisa64r2-linux \

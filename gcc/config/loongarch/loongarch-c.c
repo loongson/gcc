@@ -108,29 +108,4 @@ loongarch_cpu_cpp_builtins (cpp_reader *pfile)
   builtin_define_with_int_value ("_LOONGARCH_FPSET", 32 / MAX_FPRS_PER_FMT);
   builtin_define_with_int_value ("_LOONGARCH_SPFPSET", 32);
 
-  /* Macros dependent on the C dialect.  */
-  if (preprocessing_asm_p ())
-    {
-      builtin_define_std ("LANGUAGE_ASSEMBLY");
-      builtin_define ("_LANGUAGE_ASSEMBLY");
-    }
-  else if (c_dialect_cxx ())
-    {
-      builtin_define ("_LANGUAGE_C_PLUS_PLUS");
-      builtin_define ("__LANGUAGE_C_PLUS_PLUS");
-      builtin_define ("__LANGUAGE_C_PLUS_PLUS__");
-    }
-  else
-    {
-      builtin_define_std ("LANGUAGE_C");
-      builtin_define ("_LANGUAGE_C");
-    }
-  if (c_dialect_objc ())
-    {
-      builtin_define ("_LANGUAGE_OBJECTIVE_C");
-      builtin_define ("__LANGUAGE_OBJECTIVE_C");
-      /* Bizarre, but retained for backwards compatibility.  */
-      builtin_define_std ("LANGUAGE_C");
-      builtin_define ("_LANGUAGE_C");
-    }
 }

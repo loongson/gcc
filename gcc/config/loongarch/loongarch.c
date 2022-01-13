@@ -3605,6 +3605,9 @@ loongarch_extend_comparands (rtx_code code, rtx *op0, rtx *op1)
 static void
 loongarch_emit_int_compare (enum rtx_code *code, rtx *op0, rtx *op1)
 {
+  static const enum rtx_code
+  mag_comparisons[][2] = {{LEU, LTU}, {GTU, GEU}, {LE, LT}, {GT, GE}};
+
   if (splittable_const_int_operand (*op1, VOIDmode))
     {
       HOST_WIDE_INT rhs = INTVAL (*op1);
@@ -3621,10 +3624,6 @@ loongarch_emit_int_compare (enum rtx_code *code, rtx *op0, rtx *op1)
 	}
       else
 	{
-	  static const enum rtx_code mag_comparisons[][2] = {
-		{LEU, LTU}, {GTU, GEU}, {LE, LT}, {GT, GE}
-	  };
-
 	  /* Convert e.g. (OP0 <= 0xFFF) into (OP0 < 0x1000).  */
 	  for (size_t i = 0; i < ARRAY_SIZE (mag_comparisons); i++)
 	    {
@@ -3697,10 +3696,8 @@ loongarch_expand_scc (rtx operands[])
 
   if (code == EQ || code == NE)
     {
-      {
-	rtx zie = loongarch_zero_if_equal (op0, op1);
-	loongarch_emit_binary (code, target, zie, const0_rtx);
-      }
+      rtx zie = loongarch_zero_if_equal (op0, op1);
+      loongarch_emit_binary (code, target, zie, const0_rtx);
     }
   else
     loongarch_emit_int_order_test (code, 0, target, op0, op1);
@@ -4883,15 +4880,6 @@ loongarch_file_start (void)
   default_file_start ();
 }
 
-/* Implement TARGET_ASM_CODE_END.  */
-
-static void
-loongarch_code_end (void)
-{
-  if (NEED_INDICATE_EXEC_STACK)
-    /* Add .note.GNU-stack.  */
-    file_end_indicate_exec_stack ();
-}
 
 /* Implement TARGET_FRAME_POINTER_REQUIRED.  */
 
@@ -6308,8 +6296,6 @@ loongarch_starting_frame_offset (void)
 #define TARGET_ASM_FILE_START loongarch_file_start
 #undef TARGET_ASM_FILE_START_FILE_DIRECTIVE
 #define TARGET_ASM_FILE_START_FILE_DIRECTIVE true
-#undef TARGET_ASM_CODE_END
-#define TARGET_ASM_CODE_END loongarch_code_end
 
 #undef TARGET_EXPAND_BUILTIN_VA_START
 #define TARGET_EXPAND_BUILTIN_VA_START loongarch_va_start
