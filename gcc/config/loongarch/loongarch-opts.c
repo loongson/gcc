@@ -55,6 +55,10 @@ static int enabled_abi_types[N_ABI_BASE_TYPES][N_ABI_EXT_TYPES] = { 0 };
 extern "C" const struct loongarch_isa
 abi_minimal_isa[N_ABI_BASE_TYPES][N_ABI_EXT_TYPES];
 
+/* loongarch_cpu_default_isa[abi_default_cpu] >= abi_minimal_isa */
+extern "C" const unsigned char
+abi_default_cpu[N_ABI_BASE_TYPES][N_ABI_EXT_TYPES];
+
 static inline int
 is_multilib_enabled (struct loongarch_abi abi)
 {
@@ -118,6 +122,10 @@ static int abi_default_cpu_arch (struct loongarch_abi abi);
 
 #ifndef DEFAULT_CPU_ARCH
 #error missing definition of DEFAULT_CPU_ARCH in ${tm_defines}.
+#endif
+
+#ifndef DEFAULT_CPU_TUNE
+#error missing definition of DEFAULT_CPU_TUNE in ${tm_defines}.
 #endif
 
 #ifndef DEFAULT_ISA_EXT_FPU
@@ -220,7 +228,23 @@ loongarch_config_target (struct loongarch_target *target,
   t.cpu_arch = constrained.arch ? opt_arch : DEFAULT_CPU_ARCH;
 
   t.cpu_tune = constrained.tune ? opt_tune
-    : (constrained.arch ? DEFAULT_CPU_ARCH : DEFAULT_CPU_TUNE);
+    : (constrained.arch && t.cpu_arch != CPU_AUTO ?
+       opt_arch : DEFAULT_CPU_TUNE);
+
+  /* -march/tune=auto: adjust initial instruction set / tune target
+     according to the ABI.  */
+  gcc_assert (DEFAULT_CPU_ARCH != CPU_AUTO);
+  gcc_assert (DEFAULT_CPU_TUNE != CPU_AUTO);
+
+  if (t.cpu_tune == CPU_AUTO)
+    {
+      t.cpu_tune = abi_default_cpu[t.abi.base][t.abi.ext];
+      if (t.cpu_arch != CPU_AUTO)
+	fatal_error (UNKNOWN_LOCATION,
+		     "%qs must be used with %qs",
+		     "-m" OPTSTR_TUNE "=" STR_CPU_AUTO,
+		     "-m" OPTSTR_ARCH "=" STR_CPU_AUTO);
+    }
 
 #ifdef __loongarch__
   /* For native compilers, gather local CPU information
@@ -246,13 +270,28 @@ loongarch_config_target (struct loongarch_target *target,
 config_target_isa:
 
   /* Get default ISA from "-march" or its default value.  */
-  t.isa = loongarch_cpu_default_isa[__ACTUAL_ARCH];
+  if (t.cpu_arch == CPU_AUTO)
+    t.isa = abi_minimal_isa[t.abi.base][t.abi.ext];
+  else
+    t.isa = loongarch_cpu_default_isa[__ACTUAL_ARCH];
+
 
   /* Apply incremental changes.  */
-  /* "-march=native" overrides the default FPU type.  */
+
+  /* "-march=native" and "-march=auto" overrides the default FPU type.  */
+  /* Actually, any ISA component that should not be used without change
+     in all multilibs should be overriden by "-march=auto".
+     (for now we have .base and .fpu)  */
+
   t.isa.fpu = constrained.fpu ? opt_fpu :
-    ((t.cpu_arch == CPU_NATIVE && constrained.arch) ?
+    ((t.cpu_arch == CPU_NATIVE && constrained.arch)
+     || (t.cpu_arch == CPU_AUTO) ?
      t.isa.fpu : DEFAULT_ISA_EXT_FPU);
+
+  /* Set actual cpu arch for "-march=auto",
+     we no longer need it to write conditionals.  */
+  if (t.cpu_arch == CPU_AUTO)
+    t.cpu_arch = abi_default_cpu[t.abi.base][t.abi.ext];
 
 
   /* 4.  ABI-ISA compatibility */

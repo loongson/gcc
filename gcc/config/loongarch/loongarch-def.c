@@ -25,6 +25,7 @@ along with GCC; see the file COPYING3.  If not see
 const char*
 loongarch_cpu_strings[N_TUNE_TYPES] = {
   [CPU_NATIVE]		  = STR_CPU_NATIVE,
+  [CPU_AUTO]		  = STR_CPU_AUTO,
   [CPU_LOONGARCH64]	  = STR_CPU_LOONGARCH64,
   [CPU_LA464]		  = STR_CPU_LA464,
 };
@@ -62,9 +63,6 @@ loongarch_cpu_cache[N_TUNE_TYPES] = {
 
 struct loongarch_rtx_cost_data
 loongarch_cpu_rtx_cost_data[N_TUNE_TYPES] = {
-  [CPU_NATIVE] = {
-      DEFAULT_COSTS
-  },
   [CPU_LOONGARCH64] = {
       DEFAULT_COSTS
   },
@@ -91,14 +89,12 @@ loongarch_rtx_cost_optimize_size = {
 
 int
 loongarch_cpu_issue_rate[N_TUNE_TYPES] = {
-  [CPU_NATIVE]	      = 4,
   [CPU_LOONGARCH64]   = 4,
   [CPU_LA464]	      = 4,
 };
 
 int
 loongarch_cpu_multipass_dfa_lookahead[N_TUNE_TYPES] = {
-  [CPU_NATIVE]	      = 4,
   [CPU_LOONGARCH64]   = 4,
   [CPU_LA464]	      = 4,
 };
@@ -152,13 +148,24 @@ loongarch_switch_strings[] = {
 /* ABI-related definitions.  */
 const struct loongarch_isa
 abi_minimal_isa[N_ABI_BASE_TYPES][N_ABI_EXT_TYPES] = {
-  [ABI_BASE_LP64D] = {
-      [ABI_EXT_BASE] = {.base = ISA_BASE_LA64V100, .fpu = ISA_EXT_FPU64},
+  [ABI_BASE_LP64D][ABI_EXT_BASE] = {
+      .base = ISA_BASE_LA64V100,
+      .fpu  = ISA_EXT_FPU64,
   },
-  [ABI_BASE_LP64F] = {
-      [ABI_EXT_BASE] = {.base = ISA_BASE_LA64V100, .fpu = ISA_EXT_FPU32},
+  [ABI_BASE_LP64F][ABI_EXT_BASE] = {
+      .base = ISA_BASE_LA64V100,
+      .fpu  = ISA_EXT_FPU32,
   },
-  [ABI_BASE_LP64S] = {
-      [ABI_EXT_BASE] = {.base = ISA_BASE_LA64V100, .fpu = ISA_EXT_NOFPU},
+  [ABI_BASE_LP64S][ABI_EXT_BASE] = {
+      .base = ISA_BASE_LA64V100,
+      .fpu  = ISA_EXT_NOFPU,
   },
+};
+
+/* loongarch_cpu_default_isa[abi_default_cpu] >= abi_minimal_isa */
+const unsigned char
+abi_default_cpu[N_ABI_BASE_TYPES][N_ABI_EXT_TYPES] = {
+  [ABI_BASE_LP64D][ABI_EXT_BASE] = CPU_LOONGARCH64,
+  [ABI_BASE_LP64F][ABI_EXT_BASE] = CPU_LOONGARCH64,
+  [ABI_BASE_LP64S][ABI_EXT_BASE] = CPU_LOONGARCH64,
 };

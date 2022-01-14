@@ -20,6 +20,8 @@
 MULTILIB_OPTIONS = mabi=lp64d/mabi=lp64f/mabi=lp64s
 MULTILIB_DIRNAMES = base/lp64d base/lp64f base/lp64s
 
+MULTILIB_EXTRA_OPTS = march=auto
+
 # The GCC driver always gets all abi-related options on the command line.
 # (see loongarch-driver.c:driver_get_normalized_m_opts)
 comma=,

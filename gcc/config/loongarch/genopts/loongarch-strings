@@ -23,6 +23,7 @@ OPTSTR_ARCH	      arch
 OPTSTR_TUNE	      tune
 
 STR_CPU_NATIVE	      native
+STR_CPU_AUTO          auto
 STR_CPU_LOONGARCH64   loongarch64
 STR_CPU_LA464	      la464
 

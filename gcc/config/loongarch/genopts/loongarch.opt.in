@@ -89,6 +89,9 @@ EnumValue
 Enum(cpu_type) String(@@STR_CPU_NATIVE@@) Value(CPU_NATIVE)
 
 EnumValue
+Enum(cpu_type) String(@@STR_CPU_AUTO@@) Value(CPU_AUTO)
+
+EnumValue
 Enum(cpu_type) String(@@STR_CPU_LOONGARCH64@@) Value(CPU_LOONGARCH64)
 
 EnumValue

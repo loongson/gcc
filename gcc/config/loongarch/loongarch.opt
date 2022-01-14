@@ -89,6 +89,9 @@ EnumValue
 Enum(cpu_type) String(native) Value(CPU_NATIVE)
 
 EnumValue
+Enum(cpu_type) String(auto) Value(CPU_AUTO)
+
+EnumValue
 Enum(cpu_type) String(loongarch64) Value(CPU_LOONGARCH64)
 
 EnumValue
