@@ -57,3 +57,20 @@ $(LA_STR_H): \
 	$(srcdir)/config/loongarch/genopts/genstr.sh \
 	$(srcdir)/config/loongarch/genopts/loongarch-strings
 	$(SHELL) $< header > $@
+
+
+# Post-processing on multilib.h: remove "." if multilib is enabled
+$(foreach abi_base, lp64d lp64f lp64s, \
+  $(if $(filter DEFAULT_ABI_BASE=$\
+    ABI_BASE_$(shell echo $(abi_base) | tr 'a-z' 'A-Z'), $(tm_defines)), \
+    $(eval la_default_multisubdir := base/$(abi_base)) \
+  )\
+)
+
+ifeq ($(filter __DISABLE_MULTILIB,$(tm_defines)),)
+.PHONY: filter-ml-dot
+multilib.h: filter-ml-dot
+filter-ml-dot: s-mlib
+	sed -e '/"$(subst /,\/,$(la_default_multisubdir)):/ {h; s@ m@ !m@p; g}' \
+	    -e '/\s*". [^";]*;"/ d' -i multilib.h
+endif

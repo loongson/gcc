@@ -383,6 +383,20 @@ mips*-*-*)
 	  done
 	fi
 	;;
+loongarch*-*-*)
+	old_multidirs="${multidirs}"
+	multidirs=""
+	for x in ${old_multidirs}; do
+	  case "$x" in
+	    `${CC-gcc} --print-multi-directory`) : ;;
+	    *) multidirs="${multidirs} ${x}" ;;
+	  esac
+	done
+
+	with_multisubdir=`${CC-gcc} --print-multi-directory`
+	ml_subdir="/${with_multisubdir}"
+	ml_builddotdot=
+	;;
 msp430-*-*)
 	if [ x$enable_no_exceptions = xno ]
 	then
@@ -509,7 +523,7 @@ multi-do:
 	  compiler="$(CC)"; \
 	  for i in `$${compiler} --print-multi-lib 2>/dev/null`; do \
 	    dir=`echo $$i | sed -e 's/;.*$$//'`; \
-	    if [ "$${dir}" = "." ]; then \
+	    if [ "$${dir}" = "." ] || [ "/$${dir}" = "$(MULTISUBDIR)" ]; then \
 	      true; \
 	    else \
 	      if [ -d ../$${dir}/$${lib} ]; then \
@@ -595,6 +609,12 @@ if [ -z "${with_multisubdir}" ]; then
   ml_subdir=
   ml_builddotdot=
   : # ml_srcdotdot= # already set
+elif [ "${ml_toplevel_p}" = yes ]; then
+  : # When ml_* is set by ${host}.
+  ml_subdir="/${with_multisubdir}"
+  ml_builddotdot=
+  ml_builddotdot_link=`echo ${with_multisubdir} | sed -e 's:[^/][^/]*:..:g'`/
+  : # ml_srcdotdot= # already set
 else
   ml_subdir="/${with_multisubdir}"
   # The '[^/][^/]*' appears that way to work around a SunOS sed bug.
@@ -653,6 +673,25 @@ mv Makefile.tem ${Makefile}
 # Makefile before going on to configure the subdirs.
 
 if [ "${ml_toplevel_p}" = yes ]; then
+
+# If multisubdir is set on the top level, create a symbolic link
+# to cope with in-tree regression tests (see dejagnu: libgloss.exp).
+
+if [ -n "${with_multisubdir}" ]; then
+  if [ "${ml_verbose}" = --verbose ]; then
+    echo "Creating multilib link (${with_multisubdir}) for the default library."
+    echo "pwd: `${PWDCMD-pwd}`"
+  fi
+
+  ml_origdir=`${PWDCMD-pwd}`
+  ml_libdir=`echo "$ml_origdir" | sed -e 's,^.*/,,'`
+  # cd to top-level-build-dir/${with_target_subdir}
+  cd ..
+
+  mkdir -p "${with_multisubdir}"
+  ln -sf "${ml_builddotdot_link}${ml_libdir}" "${with_multisubdir}/"
+  cd "${ml_origdir}"
+fi
 
 # We must freshly configure each subdirectory.  This bit of code is
 # actually partially stolen from the main configure script.  FIXME.

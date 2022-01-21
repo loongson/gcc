@@ -7,3 +7,19 @@ softfp_truncations :=
 softfp_exclude_libgcc2 := n
 
 LIB2ADD_ST += $(srcdir)/config/loongarch/lib2funcs.c
+
+# Since we employ a symmetric multilib layout, i.e. the default lib
+# always gets installed to its ${multisubdir} (see config-ml.in),
+# we need to copy it (again) into the GCC directory
+# (without the multilib suffix) in order to keep some regression
+# tests working (libstdc++), because "too many things knows
+# about the layout of the build tree" for now (libgcc/Makefile.in).
+
+# If we are on the top level (default library),
+# copy libgcc into gcc build directory.
+ifneq ($(MULTIDO),true)
+all: install-default-lib
+.PHONY: install-default-lib
+install-default-lib: libgcc.a
+	-$(LN_S) .$(MULTISUBDIR)/libgcc.a $(gcc_objdir)/libgcc.a
+endif
