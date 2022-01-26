@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,6 +29,7 @@
 --  not been explicitly With'ed.
 
 with Types; use Types;
+with Uintp; use Uintp;
 
 package Rtsfind is
 
@@ -58,6 +59,12 @@ package Rtsfind is
    --  compilation. The presence of extraneous visible stuff has no effect on
    --  the compilation except in the presence of use clauses, which might
    --  result in unexpected ambiguities.
+
+   --  IMPORTANT NOTE: the specs of packages and procedures with'ed using
+   --  this mechanism must not contain private with clauses. This is because
+   --  the special context installation/removal for private with clauses
+   --  only works in a clean environment for compilation, and could lead
+   --  here to removing visibility over lib units in the calling context.
 
    --  NOTE: If RTU_Id is modified, the subtypes of RTU_Id in the package body
    --  might need to be modified. See Get_Unit_Name.
@@ -125,12 +132,11 @@ package Rtsfind is
       Ada_Strings_Wide_Superbounded,
       Ada_Strings_Wide_Wide_Superbounded,
       Ada_Strings_Unbounded,
-      Ada_Strings_Text_Output,
+      Ada_Strings_Text_Buffers,
 
-      --  Children of Ada.Strings.Text_Output
+      --  Children of Ada.Strings.Text_Buffers
 
-      Ada_Strings_Text_Output_Utils,
-      Ada_Strings_Text_Output_Buffers,
+      Ada_Strings_Text_Buffers_Unbounded,
 
       --  Children of Ada.Text_IO (for Check_Text_IO_Special_Unit)
 
@@ -195,6 +201,7 @@ package Rtsfind is
       System_Arith_128,
       System_AST_Handling,
       System_Assertions,
+      System_Atomic_Operations,
       System_Atomic_Primitives,
       System_Aux_DEC,
       System_Bignums,
@@ -468,6 +475,10 @@ package Rtsfind is
       System_WWd_Enum,
       System_WWd_Wchar,
 
+      --  Children of System.Atomic_Operations
+
+       System_Atomic_Operations_Test_And_Set,
+
       --  Children of System.Dim
 
       System_Dim_Float_IO,
@@ -603,19 +614,19 @@ package Rtsfind is
 
      RE_Unbounded_String,                -- Ada.Strings.Unbounded
 
-     RE_Sink,                            -- Ada.Strings.Text_Output
+     RE_Root_Buffer_Type,                -- Ada.Strings.Text_Buffers
+     RE_Put_UTF_8,                       -- Ada.Strings.Text_Buffers
+     RE_Wide_Wide_Put,                   -- Ada.Strings.Text_Buffers
 
-     RE_Put_UTF_8,                       -- Ada.Strings.Text_Output.Utils
-     RE_Put_Wide_Wide_String,            -- Ada.Strings.Text_Output.Utils
-
-     RE_Buffer,                          -- Ada.Strings.Text_Output.Buffers
-     RE_New_Buffer,                      -- Ada.Strings.Text_Output.Buffers
-     RE_Destroy,                         -- Ada.Strings.Text_Output.Buffers
-     RE_Get,                             -- Ada.Strings.Text_Output.Buffers
+     RE_Buffer_Type,                     -- Ada.Strings.Text_Buffers.Unbounded
+     RE_Get,                             -- Ada.Strings.Text_Buffers.Unbounded
+     RE_Wide_Get,                        -- Ada.Strings.Text_Buffers.Unbounded
+     RE_Wide_Wide_Get,                   -- Ada.Strings.Text_Buffers.Unbounded
 
      RE_Wait_For_Release,                -- Ada.Synchronous_Barriers
 
      RE_Suspend_Until_True,              -- Ada.Synchronous_Task_Control
+     RE_Suspension_Object,               -- Ada.Synchronous_Task_Control
 
      RE_Access_Level,                    -- Ada.Tags
      RE_Alignment,                       -- Ada.Tags
@@ -709,6 +720,7 @@ package Rtsfind is
      RE_TK_Tagged,                       -- Ada.Tags
      RE_TK_Task,                         -- Ada.Tags
      RE_Unregister_Tag,                  -- Ada.Tags
+     RE_Wide_Wide_Expanded_Name,         -- Ada.Tags
 
      RE_Set_Specific_Handler,            -- Ada.Task_Termination
      RE_Specific_Handler,                -- Ada.Task_Termination
@@ -800,6 +812,9 @@ package Rtsfind is
      RE_Uint32,                          -- System.Atomic_Primitives
      RE_Uint64,                          -- System.Atomic_Primitives
 
+     RE_Test_And_Set_Flag,             -- System.Atomic_Operations.Test_And_Set
+     RE_Atomic_Test_And_Set,           -- System.Atomic_Operations.Test_And_Set
+
      RE_AST_Handler,                     -- System.Aux_DEC
      RE_Import_Address,                  -- System.Aux_DEC
      RE_Import_Value,                    -- System.Aux_DEC
@@ -837,7 +852,9 @@ package Rtsfind is
      RE_To_Bignum,                       -- System.Bignums
      RE_From_Bignum,                     -- System.Bignums
 
+     RE_Val_2,                           -- System.Bitfields
      RE_Copy_Bitfield,                   -- System.Bitfields
+     RE_Fast_Copy_Bitfield,              -- System.Bitfields
 
      RE_Bit_And,                         -- System.Bit_Ops
      RE_Bit_Eq,                          -- System.Bit_Ops
@@ -1975,11 +1992,6 @@ package Rtsfind is
      RE_Conditional_Call,                -- System.Tasking
      RE_Asynchronous_Call,               -- System.Tasking
 
-     RE_Foreign_Task_Level,              -- System.Tasking
-     RE_Environment_Task_Level,          -- System.Tasking
-     RE_Independent_Task_Level,          -- System.Tasking
-     RE_Library_Task_Level,              -- System.Tasking
-
      RE_Ada_Task_Control_Block,          -- System.Tasking
 
      RE_Task_List,                       -- System.Tasking
@@ -1996,7 +2008,6 @@ package Rtsfind is
      RE_Task_Entry_Index,                -- System.Tasking
      RE_Self,                            -- System.Tasking
 
-     RE_Master_Id,                       -- System.Tasking
      RE_Unspecified_Priority,            -- System.Tasking
 
      RE_Activation_Chain,                -- System.Tasking
@@ -2041,9 +2052,13 @@ package Rtsfind is
 
      RE_Value_Decimal128,                -- System_Val_Decimal_128
 
-     RE_Value_Enumeration_8,             -- System.Val_Enum
-     RE_Value_Enumeration_16,            -- System.Val_Enum
-     RE_Value_Enumeration_32,            -- System.Val_Enum
+     RE_Value_Enumeration_8,             -- System.Val_Enum_8
+     RE_Value_Enumeration_16,            -- System.Val_Enum_16
+     RE_Value_Enumeration_32,            -- System.Val_Enum_32
+
+     RE_Valid_Value_Enumeration_8,       -- System.Val_Enum_8
+     RE_Valid_Value_Enumeration_16,      -- System.Val_Enum_16
+     RE_Valid_Value_Enumeration_32,      -- System.Val_Enum_32
 
      RE_Value_Fixed32,                   -- System_Val_Fixed_32
 
@@ -2285,19 +2300,19 @@ package Rtsfind is
 
      RE_Unbounded_String                 => Ada_Strings_Unbounded,
 
-     RE_Sink                             => Ada_Strings_Text_Output,
+     RE_Root_Buffer_Type                 => Ada_Strings_Text_Buffers,
+     RE_Put_UTF_8                        => Ada_Strings_Text_Buffers,
+     RE_Wide_Wide_Put                    => Ada_Strings_Text_Buffers,
 
-     RE_Put_UTF_8                        => Ada_Strings_Text_Output_Utils,
-     RE_Put_Wide_Wide_String             => Ada_Strings_Text_Output_Utils,
-
-     RE_Buffer                           => Ada_Strings_Text_Output_Buffers,
-     RE_New_Buffer                       => Ada_Strings_Text_Output_Buffers,
-     RE_Destroy                          => Ada_Strings_Text_Output_Buffers,
-     RE_Get                              => Ada_Strings_Text_Output_Buffers,
+     RE_Buffer_Type                      => Ada_Strings_Text_Buffers_Unbounded,
+     RE_Get                              => Ada_Strings_Text_Buffers_Unbounded,
+     RE_Wide_Get                         => Ada_Strings_Text_Buffers_Unbounded,
+     RE_Wide_Wide_Get                    => Ada_Strings_Text_Buffers_Unbounded,
 
      RE_Wait_For_Release                 => Ada_Synchronous_Barriers,
 
      RE_Suspend_Until_True               => Ada_Synchronous_Task_Control,
+     RE_Suspension_Object                => Ada_Synchronous_Task_Control,
 
      RE_Access_Level                     => Ada_Tags,
      RE_Alignment                        => Ada_Tags,
@@ -2391,6 +2406,7 @@ package Rtsfind is
      RE_TK_Tagged                        => Ada_Tags,
      RE_TK_Task                          => Ada_Tags,
      RE_Unregister_Tag                   => Ada_Tags,
+     RE_Wide_Wide_Expanded_Name          => Ada_Tags,
 
      RE_Set_Specific_Handler             => Ada_Task_Termination,
      RE_Specific_Handler                 => Ada_Task_Termination,
@@ -2482,6 +2498,9 @@ package Rtsfind is
      RE_Uint32                           => System_Atomic_Primitives,
      RE_Uint64                           => System_Atomic_Primitives,
 
+     RE_Test_And_Set_Flag             => System_Atomic_Operations_Test_And_Set,
+     RE_Atomic_Test_And_Set           => System_Atomic_Operations_Test_And_Set,
+
      RE_AST_Handler                      => System_Aux_DEC,
      RE_Import_Address                   => System_Aux_DEC,
      RE_Import_Value                     => System_Aux_DEC,
@@ -2519,7 +2538,9 @@ package Rtsfind is
      RE_To_Bignum                        => System_Bignums,
      RE_From_Bignum                      => System_Bignums,
 
+     RE_Val_2                            => System_Bitfields,
      RE_Copy_Bitfield                    => System_Bitfields,
+     RE_Fast_Copy_Bitfield               => System_Bitfields,
 
      RE_Bit_And                          => System_Bit_Ops,
      RE_Bit_Eq                           => System_Bit_Ops,
@@ -3665,11 +3686,6 @@ package Rtsfind is
      RE_Conditional_Call                 => System_Tasking,
      RE_Asynchronous_Call                => System_Tasking,
 
-     RE_Foreign_Task_Level               => System_Tasking,
-     RE_Environment_Task_Level           => System_Tasking,
-     RE_Independent_Task_Level           => System_Tasking,
-     RE_Library_Task_Level               => System_Tasking,
-
      RE_Ada_Task_Control_Block           => System_Tasking,
 
      RE_Task_List                        => System_Tasking,
@@ -3686,7 +3702,6 @@ package Rtsfind is
      RE_Task_Entry_Index                 => System_Tasking,
      RE_Self                             => System_Tasking,
 
-     RE_Master_Id                        => System_Tasking,
      RE_Unspecified_Priority             => System_Tasking,
 
      RE_Activation_Chain                 => System_Tasking,
@@ -3736,6 +3751,12 @@ package Rtsfind is
      RE_Value_Enumeration_16             => System_Val_Enum_16,
 
      RE_Value_Enumeration_32             => System_Val_Enum_32,
+
+     RE_Valid_Value_Enumeration_8        => System_Val_Enum_8,
+
+     RE_Valid_Value_Enumeration_16       => System_Val_Enum_16,
+
+     RE_Valid_Value_Enumeration_32       => System_Val_Enum_32,
 
      RE_Value_Fixed32                    => System_Val_Fixed_32,
 
@@ -3994,6 +4015,9 @@ package Rtsfind is
       System_Unsigned_Types   => True,
       others                  => False);
 
+   Library_Task_Level : constant Uint := Uint_3;
+   --  Corresponds to System.Tasking.Library_Task_Level
+
    -----------------
    -- Subprograms --
    -----------------
@@ -4082,10 +4106,11 @@ package Rtsfind is
    --  and without generating an error message, i.e. if the call will obtain
    --  the desired entity without any problems.
    --
-   --  If we call this and it returns True, we should generate a call to E.
-   --  In other words, the compiler should not call RTE_Available (E) until
-   --  it has decided it wants to generate a call to E. Otherwise we can get
-   --  spurious dependencies and elaboration orders.
+   --  If we call this and it returns True, we should generate a reference to
+   --  E (usually a call). In other words, for a subprogram E, the compiler
+   --  should not call RTE_Available (E) until it has decided it wants to
+   --  generate a call to E. Otherwise we can get spurious dependencies and
+   --  elaboration orders.
    --
    --     if RTE_Available (E) -- WRONG!
    --       and then <some condition>

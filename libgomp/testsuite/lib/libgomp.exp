@@ -210,7 +210,8 @@ proc libgomp_init { args } {
 
     # We use atomic operations in the testcases to validate results.
     if { ([istarget i?86-*-*] || [istarget x86_64-*-*])
-	 && [check_effective_target_ia32] } {
+	 && [check_effective_target_ia32]
+	 && ![check_effective_target_cas_char] } {
 	lappend ALWAYS_CFLAGS "additional_flags=-march=i486"
     }
 
@@ -447,6 +448,28 @@ proc check_effective_target_openacc_nvidia_accel_selected { } {
     return [string match "nvidia" $openacc_device_type]
 }
 
+# Return 1 if using Intel MIC offload device.
+proc check_effective_target_offload_device_intel_mic { } {
+    return [check_runtime_nocache offload_device_intel_mic {
+      #include "testsuite/libgomp.c-c++-common/on_device_arch.h"
+      int main ()
+	{
+	  return !on_device_arch_intel_mic ();
+	}
+    } ]
+}
+
+# Return 1 if any Intel MIC offload device is available.
+proc check_effective_target_offload_device_any_intel_mic { } {
+    return [check_runtime_nocache offload_device_any_intel_mic {
+      #include "testsuite/libgomp.c-c++-common/on_device_arch.h"
+      int main ()
+	{
+	  return !any_device_arch_intel_mic ();
+	}
+    } ]
+}
+
 # Return 1 if the OpenACC 'host' device type is selected.
 
 proc check_effective_target_openacc_host_selected { } {
@@ -472,11 +495,8 @@ proc check_effective_target_openacc_radeon_accel_selected { } {
     if { ![check_effective_target_openacc_radeon_accel_present] } {
 	return 0;
     }
-    global offload_target
-    if { [string match "amdgcn*" $offload_target] } {
-        return 1;
-    }
-    return 0;
+    global openacc_device_type
+    return [string match "radeon" $openacc_device_type]
 }
 
 # Return 1 if cuda.h and -lcuda are available.

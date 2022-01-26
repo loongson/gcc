@@ -1,4 +1,4 @@
-/* Copyright (C) 2016-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2016-2022 Free Software Foundation, Inc.
 
    This file is free software; you can redistribute it and/or modify it under
    the terms of the GNU General Public License as published by the Free
@@ -38,9 +38,11 @@ extern rtx gcn_full_exec ();
 extern rtx gcn_full_exec_reg ();
 extern rtx gcn_gen_undef (machine_mode);
 extern bool gcn_global_address_p (rtx);
-extern tree gcn_goacc_adjust_propagation_record (tree record_type, bool sender,
-						 const char *name);
 extern tree gcn_goacc_adjust_private_decl (location_t, tree var, int level);
+extern tree gcn_goacc_create_worker_broadcast_record (tree record_type,
+						      bool sender,
+						      const char *name,
+						      unsigned HOST_WIDE_INT offset);
 extern void gcn_goacc_reduction (gcall *call);
 extern bool gcn_hard_regno_rename_ok (unsigned int from_reg,
 				      unsigned int to_reg);

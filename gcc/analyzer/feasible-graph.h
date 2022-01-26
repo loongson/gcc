@@ -1,5 +1,5 @@
 /* A graph for exploring trees of feasible paths through the egraph.
-   Copyright (C) 2021 Free Software Foundation, Inc.
+   Copyright (C) 2021-2022 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -115,17 +115,18 @@ class infeasible_node : public base_feasible_node
 {
 public:
   infeasible_node (const exploded_node *inner_node, unsigned index,
-		   const rejected_constraint &rc)
+		   rejected_constraint *rc)
   : base_feasible_node (inner_node, index),
     m_rc (rc)
   {
   }
+  ~infeasible_node () { delete m_rc; }
 
   void dump_dot (graphviz_out *gv,
 		 const dump_args_t &args) const FINAL OVERRIDE;
 
 private:
-  rejected_constraint m_rc;
+  rejected_constraint *m_rc;
 };
 
 /* Base class of edge within a feasible_graph.  */
@@ -192,7 +193,7 @@ class feasible_graph : public digraph <fg_traits>
 
   void add_feasibility_problem (feasible_node *src_fnode,
 				const exploded_edge *eedge,
-				const rejected_constraint &rc);
+				rejected_constraint *rc);
 
   exploded_path *make_epath (feasible_node *fnode) const;
 

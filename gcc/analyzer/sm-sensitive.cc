@@ -1,6 +1,6 @@
 /* An experimental state machine, for tracking exposure of sensitive
    data (e.g. through logging).
-   Copyright (C) 2019-2021 Free Software Foundation, Inc.
+   Copyright (C) 2019-2022 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -57,13 +57,6 @@ public:
   bool on_stmt (sm_context *sm_ctxt,
 		const supernode *node,
 		const gimple *stmt) const FINAL OVERRIDE;
-
-  void on_condition (sm_context *sm_ctxt,
-		     const supernode *node,
-		     const gimple *stmt,
-		     tree lhs,
-		     enum tree_code op,
-		     tree rhs) const FINAL OVERRIDE;
 
   bool can_purge_p (state_t s) const FINAL OVERRIDE;
 
@@ -220,17 +213,6 @@ sensitive_state_machine::on_stmt (sm_context *sm_ctxt,
 	// TODO: ...etc.  This is just a proof-of-concept at this point.
       }
   return false;
-}
-
-void
-sensitive_state_machine::on_condition (sm_context *sm_ctxt ATTRIBUTE_UNUSED,
-				       const supernode *node ATTRIBUTE_UNUSED,
-				       const gimple *stmt ATTRIBUTE_UNUSED,
-				       tree lhs ATTRIBUTE_UNUSED,
-				       enum tree_code op ATTRIBUTE_UNUSED,
-				       tree rhs ATTRIBUTE_UNUSED) const
-{
-  /* Empty.  */
 }
 
 bool

@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2021 Free Software Foundation, Inc.
+// Copyright (C) 2020-2022 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -130,6 +130,49 @@ test05()
   static_assert(!requires { 0 | all; });
 }
 
+template<bool B1, bool B2>
+struct BorrowedRange
+{
+  int* ptr = nullptr;
+
+  BorrowedRange(int (&arr)[3]) noexcept : ptr(arr) { }
+
+  int* begin() const noexcept(B1) { return ptr; }
+  int* end() const noexcept(B2) { return ptr + 3; }
+};
+
+template<bool B1, bool B2>
+const bool std::ranges::enable_borrowed_range<BorrowedRange<B1, B2>> = true;
+
+void
+test06()
+{
+  int x[] { 1, 2, 3 };
+
+  // Using ref_view:
+  static_assert(noexcept(views::all(x)));
+
+  // Using subrange:
+  static_assert(noexcept(views::all(BorrowedRange<true, true>(x))));
+  static_assert(!noexcept(views::all(BorrowedRange<true, false>(x))));
+  static_assert(!noexcept(views::all(BorrowedRange<false, true>(x))));
+  static_assert(!noexcept(views::all(BorrowedRange<false, false>(x))));
+}
+
+void
+test07()
+{
+  // LWG 3481
+  struct view_t : ranges::empty_view<int> { // move-only view
+    view_t(const view_t&) = delete;
+    view_t(view_t&&) = default;
+    view_t& operator=(const view_t&) = delete;
+    view_t& operator=(view_t&&) = default;
+  };
+  static_assert(std::movable<view_t> && !std::copyable<view_t>);
+  static_assert(!ranges::viewable_range<view_t&>);
+}
+
 int
 main()
 {
@@ -138,4 +181,6 @@ main()
   static_assert(test03());
   static_assert(test04());
   test05();
+  test06();
+  test07();
 }

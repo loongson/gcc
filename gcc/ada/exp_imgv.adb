@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -37,6 +37,8 @@ with Namet;          use Namet;
 with Nmake;          use Nmake;
 with Nlists;         use Nlists;
 with Opt;            use Opt;
+with Restrict;       use Restrict;
+with Rident;         use Rident;
 with Rtsfind;        use Rtsfind;
 with Sem_Aux;        use Sem_Aux;
 with Sem_Res;        use Sem_Res;
@@ -88,7 +90,7 @@ package body Exp_Imgv is
       Lit  : Entity_Id;
       Nlit : Nat;
       S_Id : Entity_Id;
-      S_N  : Nat;
+      S_N  : Nat := 0;
       Str  : String_Id;
 
       package SPHG renames System.Perfect_Hash_Generators;
@@ -157,8 +159,11 @@ package body Exp_Imgv is
                    Make_Component_Definition (Loc,
                      Aliased_Present    => False,
                      Subtype_Indication => New_Occurrence_Of (Ctyp, Loc))),
-             Expression          => Make_Aggregate (Loc, Expressions => V)));
+             Expression          => Make_Aggregate (Loc, Expressions => V,
+                                      Is_Enum_Array_Aggregate => True)));
       end Append_Table_To;
+
+   --  Start of Build_Enumeration_Image_Tables
 
    begin
       --  Nothing to do for types other than a root enumeration type
@@ -247,7 +252,7 @@ package body Exp_Imgv is
       Append_Table_To (Act, Eind, Nlit, Ityp, Ind);
 
       --  If the number of literals is not greater than Threshold, then we are
-      --  done. Otherwise we compute a (perfect) hash function for use by the
+      --  done. Otherwise we generate a (perfect) hash function for use by the
       --  Value attribute.
 
       if Nlit > Threshold then
@@ -283,11 +288,12 @@ package body Exp_Imgv is
 
          --  If the unit where the type is declared is the main unit, and the
          --  number of literals is greater than Threshold_For_Size when we are
-         --  optimizing for size, and -gnatd_h is not specified, try to compute
-         --  the hash function.
+         --  optimizing for size, and the restriction No_Implicit_Loops is not
+         --  active, and -gnatd_h is not specified, generate the hash function.
 
          if In_Main_Unit
            and then (Optimize_Size = 0 or else Nlit > Threshold_For_Size)
+           and then not Restriction_Active (No_Implicit_Loops)
            and then not Debug_Flag_Underscore_H
          then
             declare
@@ -952,7 +958,7 @@ package body Exp_Imgv is
          end;
 
          --  Generate:
-         --    S4 : String renames call_put_enumS (S2 .. S3 - 1);
+         --    P4 : String renames call_put_enumS (P2 .. P3 - 1);
 
          declare
             Sub_Node : constant Node_Id := New_Op_Node (N_Op_Subtract, Loc);
@@ -1039,9 +1045,18 @@ package body Exp_Imgv is
          return;
       end if;
 
+      --  If Image should be transformed using Put_Image, then do so. See
+      --  Exp_Put_Image for details.
+
+      if Exp_Put_Image.Image_Should_Call_Put_Image (N) then
+         Rewrite (N, Exp_Put_Image.Build_Image_Call (N));
+         Analyze_And_Resolve (N, Standard_String, Suppress => All_Checks);
+         return;
+      end if;
+
       Ptyp := Underlying_Type (Entity (Pref));
 
-      --  Ada 2020 allows 'Image on private types, so fetch the underlying
+      --  Ada 2022 allows 'Image on private types, so fetch the underlying
       --  type to obtain the structure of the type. We use the base type,
       --  not the root type for discrete types, to handle properly derived
       --  types, but we use the root type for enumeration types, because the
@@ -1058,15 +1073,7 @@ package body Exp_Imgv is
 
       Enum_Case := False;
 
-      --  If this is a case where Image should be transformed using Put_Image,
-      --  then do so. See Exp_Put_Image for details.
-
-      if Exp_Put_Image.Image_Should_Call_Put_Image (N) then
-         Rewrite (N, Exp_Put_Image.Build_Image_Call (N));
-         Analyze_And_Resolve (N, Standard_String, Suppress => All_Checks);
-         return;
-
-      elsif Rtyp = Standard_Boolean then
+      if Rtyp = Standard_Boolean then
          --  Use inline expansion if the -gnatd_x switch is not passed to the
          --  compiler. Otherwise expand into a call to the runtime.
 
@@ -1259,7 +1266,7 @@ package body Exp_Imgv is
              Prefix         => New_Occurrence_Of (Ptyp, Loc),
              Expressions    => New_List (Expr)));
 
-      --  AI12-0020: Ada 2020 allows 'Image for all types, including private
+      --  AI12-0020: Ada 2022 allows 'Image for all types, including private
       --  types. If the full type is not a fixed-point type, then it is enough
       --  to set the Conversion_OK flag. However, that would not work for
       --  fixed-point types, because that flag changes the run-time semantics
@@ -1422,6 +1429,71 @@ package body Exp_Imgv is
       Analyze_And_Resolve (N, Standard_String, Suppress => All_Checks);
    end Expand_Image_Attribute;
 
+   ----------------------------------
+   -- Expand_Valid_Value_Attribute --
+   ----------------------------------
+
+   procedure Expand_Valid_Value_Attribute (N : Node_Id) is
+      Loc   : constant Source_Ptr := Sloc (N);
+      Btyp  : constant Entity_Id  := Base_Type (Entity (Prefix (N)));
+      Rtyp  : constant Entity_Id  := Root_Type (Btyp);
+      pragma Assert (Is_Enumeration_Type (Rtyp));
+
+      Args  : constant List_Id := Expressions (N);
+      Func  : RE_Id;
+      Ttyp  : Entity_Id;
+
+   begin
+      --  Generate:
+
+      --     Valid_Value_Enumeration_NN
+      --       (typS, typN'Address, typH'Unrestricted_Access, Num, X)
+
+      Ttyp := Component_Type (Etype (Lit_Indexes (Rtyp)));
+
+      if Ttyp = Standard_Integer_8 then
+         Func := RE_Valid_Value_Enumeration_8;
+      elsif Ttyp = Standard_Integer_16 then
+         Func := RE_Valid_Value_Enumeration_16;
+      else
+         Func := RE_Valid_Value_Enumeration_32;
+      end if;
+
+      Prepend_To (Args,
+        Make_Attribute_Reference (Loc,
+          Prefix => New_Occurrence_Of (Rtyp, Loc),
+          Attribute_Name => Name_Pos,
+          Expressions => New_List (
+            Make_Attribute_Reference (Loc,
+              Prefix => New_Occurrence_Of (Rtyp, Loc),
+              Attribute_Name => Name_Last))));
+
+      if Present (Lit_Hash (Rtyp)) then
+         Prepend_To (Args,
+           Make_Attribute_Reference (Loc,
+             Prefix => New_Occurrence_Of (Lit_Hash (Rtyp), Loc),
+             Attribute_Name => Name_Unrestricted_Access));
+      else
+         Prepend_To (Args, Make_Null (Loc));
+      end if;
+
+      Prepend_To (Args,
+        Make_Attribute_Reference (Loc,
+          Prefix => New_Occurrence_Of (Lit_Indexes (Rtyp), Loc),
+          Attribute_Name => Name_Address));
+
+      Prepend_To (Args,
+        New_Occurrence_Of (Lit_Strings (Rtyp), Loc));
+
+      Rewrite (N,
+        Make_Function_Call (Loc,
+          Name =>
+            New_Occurrence_Of (RTE (Func), Loc),
+          Parameter_Associations => Args));
+
+      Analyze_And_Resolve (N, Standard_Boolean);
+   end Expand_Valid_Value_Attribute;
+
    ----------------------------
    -- Expand_Value_Attribute --
    ----------------------------
@@ -1490,27 +1562,25 @@ package body Exp_Imgv is
 
    procedure Expand_Value_Attribute (N : Node_Id) is
       Loc   : constant Source_Ptr := Sloc (N);
-      Typ   : constant Entity_Id  := Etype (N);
-      Btyp  : constant Entity_Id  := Base_Type (Typ);
-      Rtyp  : constant Entity_Id  := Root_Type (Typ);
-      Exprs : constant List_Id    := Expressions (N);
-      Args  : List_Id;
-      Func  : RE_Id;
+      Btyp  : constant Entity_Id  := Etype (N);
+      pragma Assert (Is_Base_Type (Btyp));
+      pragma Assert (Btyp = Base_Type (Entity (Prefix (N))));
+      Rtyp  : constant Entity_Id  := Root_Type (Btyp);
+
+      Args  : constant List_Id := Expressions (N);
       Ttyp  : Entity_Id;
       Vid   : RE_Id;
 
    begin
-      Args := Exprs;
-
       --  Fall through for all cases except user-defined enumeration type
       --  and decimal types, with Vid set to the Id of the entity for the
       --  Value routine and Args set to the list of parameters for the call.
 
-      if Rtyp = Standard_Character then
-         Vid := RE_Value_Character;
-
-      elsif Rtyp = Standard_Boolean then
+      if Rtyp = Standard_Boolean then
          Vid := RE_Value_Boolean;
+
+      elsif Rtyp = Standard_Character then
+         Vid := RE_Value_Character;
 
       elsif Rtyp = Standard_Wide_Character then
          Vid := RE_Value_Wide_Character;
@@ -1633,7 +1703,7 @@ package body Exp_Imgv is
          --  Case of pragma Discard_Names, transform the Value
          --  attribute to Btyp'Val (Long_Long_Integer'Value (Args))
 
-         if Discard_Names (First_Subtype (Typ))
+         if Discard_Names (First_Subtype (Btyp))
            or else No (Lit_Strings (Rtyp))
          then
             Rewrite (N,
@@ -1659,11 +1729,11 @@ package body Exp_Imgv is
             Ttyp := Component_Type (Etype (Lit_Indexes (Rtyp)));
 
             if Ttyp = Standard_Integer_8 then
-               Func := RE_Value_Enumeration_8;
+               Vid := RE_Value_Enumeration_8;
             elsif Ttyp = Standard_Integer_16 then
-               Func := RE_Value_Enumeration_16;
+               Vid := RE_Value_Enumeration_16;
             else
-               Func := RE_Value_Enumeration_32;
+               Vid := RE_Value_Enumeration_32;
             end if;
 
             Prepend_To (Args,
@@ -1694,12 +1764,12 @@ package body Exp_Imgv is
 
             Rewrite (N,
               Make_Attribute_Reference (Loc,
-                Prefix => New_Occurrence_Of (Typ, Loc),
+                Prefix => New_Occurrence_Of (Btyp, Loc),
                 Attribute_Name => Name_Val,
                 Expressions => New_List (
                   Make_Function_Call (Loc,
                     Name =>
-                      New_Occurrence_Of (RTE (Func), Loc),
+                      New_Occurrence_Of (RTE (Vid), Loc),
                     Parameter_Associations => Args))));
 
             Analyze_And_Resolve (N, Btyp);
@@ -1711,11 +1781,7 @@ package body Exp_Imgv is
       --  Compiling package Ada.Tags under No_Run_Time_Mode we disable the
       --  expansion of the attribute into the function call statement to avoid
       --  generating spurious errors caused by the use of Integer_Address'Value
-      --  in our implementation of Ada.Tags.Internal_Tag
-
-      --  Seems like a bit of a odd approach, there should be a better way ???
-
-      --  There is a better way, test RTE_Available ???
+      --  in our implementation of Ada.Tags.Internal_Tag.
 
       if No_Run_Time_Mode
         and then Is_RTE (Rtyp, RE_Integer_Address)
@@ -1726,6 +1792,7 @@ package body Exp_Imgv is
          Rewrite (N,
            Unchecked_Convert_To (Rtyp,
              Make_Integer_Literal (Loc, Uint_0)));
+
       else
          Rewrite (N,
            Convert_To (Btyp,

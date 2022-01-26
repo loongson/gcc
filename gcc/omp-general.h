@@ -1,7 +1,7 @@
 /* General types and functions that are uselful for processing of OpenMP,
    OpenACC and similar directivers at various stages of compilation.
 
-   Copyright (C) 2005-2021 Free Software Foundation, Inc.
+   Copyright (C) 2005-2022 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -32,9 +32,10 @@ enum oacc_loop_flags {
   OLF_INDEPENDENT = 1u << 2,	/* Iterations are known independent.  */
   OLF_GANG_STATIC = 1u << 3,	/* Gang partitioning is static (has op). */
   OLF_TILE	= 1u << 4,	/* Tiled loop. */
+  OLF_REDUCTION = 1u << 5,	/* Reduction loop.  */
   
   /* Explicitly specified loop axes.  */
-  OLF_DIM_BASE = 5,
+  OLF_DIM_BASE = 6,
   OLF_DIM_GANG   = 1u << (OLF_DIM_BASE + GOMP_DIM_GANG),
   OLF_DIM_WORKER = 1u << (OLF_DIM_BASE + GOMP_DIM_WORKER),
   OLF_DIM_VECTOR = 1u << (OLF_DIM_BASE + GOMP_DIM_VECTOR),
@@ -93,7 +94,7 @@ struct omp_for_data
 extern tree omp_find_clause (tree clauses, enum omp_clause_code kind);
 extern bool omp_is_allocatable_or_ptr (tree decl);
 extern tree omp_check_optional_argument (tree decl, bool for_present_check);
-extern bool omp_is_reference (tree decl);
+extern bool omp_privatize_by_reference (tree decl);
 extern void omp_adjust_for_condition (location_t loc, enum tree_code *cond_code,
 				      tree *n2, tree v, tree step);
 extern tree omp_get_for_step_from_incr (location_t loc, tree incr);
@@ -104,6 +105,9 @@ extern tree find_combined_omp_for (tree *, int *, void *);
 extern poly_uint64 omp_max_vf (void);
 extern int omp_max_simt_vf (void);
 extern int omp_constructor_traits_to_codes (tree, enum tree_code *);
+extern tree omp_check_context_selector (location_t loc, tree ctx);
+extern void omp_mark_declare_variant (location_t loc, tree variant,
+				      tree construct);
 extern int omp_context_selector_matches (tree);
 extern int omp_context_selector_set_compare (const char *, tree, tree);
 extern tree omp_get_context_selector (tree, const char *, const char *);

@@ -5,11 +5,13 @@
 #include <openacc.h>
 #include <gomp-constants.h>
 
-#ifdef ACC_DEVICE_TYPE_radeon
 #define NUM_WORKERS 16
+#ifdef ACC_DEVICE_TYPE_radeon
+/* AMD GCN uses the autovectorizer for the vector dimension: the use
+   of a function call in vector-partitioned code in this test is not
+   currently supported.  */
 #define NUM_VECTORS 1
 #else
-#define NUM_WORKERS 16
 #define NUM_VECTORS 32
 #endif
 #define WIDTH 64

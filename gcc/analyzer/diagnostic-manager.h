@@ -1,5 +1,5 @@
 /* Classes for saving, deduplicating, and emitting analyzer diagnostics.
-   Copyright (C) 2019-2021 Free Software Foundation, Inc.
+   Copyright (C) 2019-2022 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -57,6 +57,8 @@ public:
   unsigned get_num_dupes () const { return m_duplicates.length (); }
 
   unsigned get_index () const { return m_idx; }
+
+  bool supercedes_p (const saved_diagnostic &other) const;
 
   //private:
   const state_machine *m_sm;

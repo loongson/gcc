@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2000-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 2000-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -84,6 +84,10 @@ package Exp_Imgv is
    procedure Expand_Wide_Wide_Image_Attribute (N : Node_Id);
    --  This procedure is called from Exp_Attr to expand an occurrence of the
    --  attribute Wide_Wide_Image.
+
+   procedure Expand_Valid_Value_Attribute (N : Node_Id);
+   --  This procedure is called from Exp_Attr to expand an occurrence of the
+   --  attribute Valid_Value.
 
    procedure Expand_Value_Attribute (N : Node_Id);
    --  This procedure is called from Exp_Attr to expand an occurrence of the

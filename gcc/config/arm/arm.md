@@ -1,5 +1,5 @@
 ;;- Machine description for ARM for GNU compiler
-;;  Copyright (C) 1991-2021 Free Software Foundation, Inc.
+;;  Copyright (C) 1991-2022 Free Software Foundation, Inc.
 ;;  Contributed by Pieter `Tiggr' Schoenmakers (rcpieter@win.tue.nl)
 ;;  and Martin Simmons (@harleqn.co.uk).
 ;;  More major hacks by Richard Earnshaw (rearnsha@arm.com).
@@ -132,9 +132,12 @@
 ; TARGET_32BIT, "t1" or "t2" to specify a specific Thumb mode.  "v6"
 ; for ARM or Thumb-2 with arm_arch6, and nov6 for ARM without
 ; arm_arch6.  "v6t2" for Thumb-2 with arm_arch6 and "v8mb" for ARMv8-M
-; Baseline.  This attribute is used to compute attribute "enabled",
+; Baseline.  "fix_vlldm" is for fixing the v8-m/v8.1-m VLLDM erratum.
+; This attribute is used to compute attribute "enabled",
 ; use type "any" to enable an alternative in all cases.
-(define_attr "arch" "any,a,t,32,t1,t2,v6,nov6,v6t2,v8mb,iwmmxt,iwmmxt2,armv6_or_vfpv3,neon,mve"
+(define_attr "arch" "any, a, t, 32, t1, t2, v6,nov6, v6t2, \
+		     v8mb, fix_vlldm, iwmmxt, iwmmxt2, armv6_or_vfpv3, \
+		     neon, mve"
   (const_string "any"))
 
 (define_attr "arch_enabled" "no,yes"
@@ -175,6 +178,10 @@
 
 	 (and (eq_attr "arch" "v8mb")
 	      (match_test "TARGET_THUMB1 && arm_arch8"))
+	 (const_string "yes")
+
+	 (and (eq_attr "arch" "fix_vlldm")
+	      (match_test "fix_vlldm"))
 	 (const_string "yes")
 
 	 (and (eq_attr "arch" "iwmmxt2")
@@ -6546,7 +6553,7 @@
 ;; This pattern will be split into one of the pic_load_addr_* patterns
 ;; and a move after GCSE optimizations.
 ;;
-;; Note: Update arm.c: legitimize_pic_address() when changing this pattern.
+;; Note: Update arm.cc: legitimize_pic_address() when changing this pattern.
 (define_expand "calculate_pic_address"
   [(set (match_operand:SI 0 "register_operand")
 	(mem:SI (plus:SI (match_operand:SI 1 "register_operand")
@@ -9176,7 +9183,7 @@
 		      UNSPEC_SP_SET))
       (clobber (match_scratch:SI 2 ""))
       (clobber (match_scratch:SI 3 ""))])]
-  ""
+  "arm_stack_protector_guard == SSP_GLOBAL"
   ""
 )
 
@@ -9260,7 +9267,7 @@
       (clobber (match_scratch:SI 3 ""))
       (clobber (match_scratch:SI 4 ""))
       (clobber (reg:CC CC_REGNUM))])]
-  ""
+  "arm_stack_protector_guard == SSP_GLOBAL"
   ""
 )
 
@@ -9352,6 +9359,64 @@
    (set_attr "conds" "set")
    (set_attr "type" "multiple")
    (set_attr "arch" "t,32")]
+)
+
+(define_expand "stack_protect_set"
+  [(match_operand:SI 0 "memory_operand")
+   (match_operand:SI 1 "memory_operand")]
+  "arm_stack_protector_guard == SSP_TLSREG"
+  "
+{
+  operands[1] = arm_stack_protect_tls_canary_mem (false /* reload */);
+  emit_insn (gen_stack_protect_set_tls (operands[0], operands[1]));
+  DONE;
+}"
+)
+
+;; DO NOT SPLIT THIS PATTERN.  It is important for security reasons that the
+;; canary value does not live beyond the life of this sequence.
+(define_insn "stack_protect_set_tls"
+  [(set (match_operand:SI 0 "memory_operand" "=m")
+       (unspec:SI [(match_operand:SI 1 "memory_operand" "m")]
+        UNSPEC_SP_SET))
+   (set (match_scratch:SI 2 "=&r") (const_int 0))]
+  ""
+  "ldr\\t%2, %1\;str\\t%2, %0\;mov\t%2, #0"
+  [(set_attr "length" "12")
+   (set_attr "conds" "unconditional")
+   (set_attr "type" "multiple")]
+)
+
+(define_expand "stack_protect_test"
+  [(match_operand:SI 0 "memory_operand")
+   (match_operand:SI 1 "memory_operand")
+   (match_operand:SI 2)]
+  "arm_stack_protector_guard == SSP_TLSREG"
+  "
+{
+  operands[1] = arm_stack_protect_tls_canary_mem (true /* reload */);
+  emit_insn (gen_stack_protect_test_tls (operands[0], operands[1]));
+
+  rtx cc_reg = gen_rtx_REG (CC_Zmode, CC_REGNUM);
+  rtx eq = gen_rtx_EQ (CC_Zmode, cc_reg, const0_rtx);
+  emit_jump_insn (gen_arm_cond_branch (operands[2], eq, cc_reg));
+  DONE;
+}"
+)
+
+(define_insn "stack_protect_test_tls"
+  [(set (reg:CC_Z CC_REGNUM)
+	(compare:CC_Z (unspec:SI [(match_operand:SI 0 "memory_operand" "m")
+				  (match_operand:SI 1 "memory_operand" "m")]
+				 UNSPEC_SP_TEST)
+		      (const_int 0)))
+   (clobber (match_scratch:SI 2 "=&r"))
+   (clobber (match_scratch:SI 3 "=&r"))]
+  ""
+  "ldr\t%2, %0\;ldr\t%3, %1\;eors\t%2, %3, %2\;mov\t%3, #0"
+  [(set_attr "length" "16")
+   (set_attr "conds" "set")
+   (set_attr "type" "multiple")]
 )
 
 (define_expand "casesi"
@@ -12126,6 +12191,15 @@
    (set_attr "type" "mrs")]
 )
 
+;; Used by the TLS register based stack protector
+(define_insn "reload_tp_hard"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(unspec_volatile:SI [(const_int 0)] VUNSPEC_MRC))]
+  "TARGET_HARD_TP"
+  "mrc\\tp15, 0, %0, c13, c0, 3\\t@ reload_tp_hard"
+  [(set_attr "type" "mrs")]
+)
+
 ;; Doesn't clobber R1-R3.  Must use r0 for the first operand.
 (define_insn "load_tp_soft_fdpic"
   [(set (reg:SI 0) (unspec:SI [(const_int 0)] UNSPEC_TLS))
@@ -12609,6 +12683,22 @@
      DONE;
   }"
 )
+
+;; movmisalign for DImode
+(define_expand "movmisaligndi"
+  [(match_operand:DI 0 "general_operand")
+   (match_operand:DI 1 "general_operand")]
+  "unaligned_access"
+{
+  rtx lo_op0 = gen_lowpart (SImode, operands[0]);
+  rtx lo_op1 = gen_lowpart (SImode, operands[1]);
+  rtx hi_op0 = gen_highpart_mode (SImode, DImode, operands[0]);
+  rtx hi_op1 = gen_highpart_mode (SImode, DImode, operands[1]);
+
+  emit_insn (gen_movmisalignsi (lo_op0, lo_op1));
+  emit_insn (gen_movmisalignsi (hi_op0, hi_op1));
+  DONE;
+})
 
 ;; movmisalign patterns for HImode and SImode.
 (define_expand "movmisalign<mode>"

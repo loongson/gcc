@@ -1,5 +1,5 @@
 /* Implementation of the CHMOD intrinsic.
-   Copyright (C) 2006-2021 Free Software Foundation, Inc.
+   Copyright (C) 2006-2022 Free Software Foundation, Inc.
    Contributed by François-Xavier Coudert <coudert@clipper.ens.fr>
 
 This file is part of the GNU Fortran runtime library (libgfortran).
@@ -271,7 +271,7 @@ chmod_internal (char *file, char *mode, gfc_charlen_type mode_len)
 	      part = 3;
 	      break;
 
-	    /* Tailing blanks are valid in Fortran.  */
+	    /* Trailing blanks are valid in Fortran.  */
 	    case ' ':
 	      for (i++; i < mode_len; i++)
 		if (mode[i] != ' ')

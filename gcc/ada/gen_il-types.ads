@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2020-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 2020-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -27,17 +27,20 @@ package Gen_IL.Types is
 
    --  Enumeration of all the types that are "of interest". We have an
    --  enumeration literal here for every node kind, every entity kind,
-   --  andevery type that can be the type of a field.
-
-   --  The "Between_..." literals below are simply for making subranges.
-   --  When adding literals to this enumeration type, be sure to put them
-   --  in the right place so they end up in the appropriate subranges in
-   --  Gen_IL.Utils (Abstract_Node, Abstract_Entity, Concrete_Node,
-   --  Concrete_Entity).
+   --  and every type that can be the type of a field.
 
    --  The following is "optional type enumeration" -- i.e. it is Type_Enum
-   --  (declared in Gen_IL.Utils) plus the special null value No_Type.
-   --  See the spec of Gen_IL.Gen for how to modify this.
+   --  (declared below) plus the special null value No_Type.  See the spec of
+   --  Gen_IL.Gen for how to modify this. (Of course, in Ada we have to define
+   --  this backwards from the above conceptual description.)
+
+   --  Note that there are various subranges of this type declared below,
+   --  which might need to be kept in sync when modifying this.
+
+   --  The "Between_..." literals below are simply for making the subranges.
+   --  When adding literals to this enumeration type, be sure to put them in
+   --  the right place so they end up in the appropriate subranges
+   --  (Abstract_Node, Abstract_Entity, Concrete_Node, Concrete_Entity).
 
    type Opt_Type_Enum is
      (No_Type,
@@ -52,17 +55,20 @@ package Gen_IL.Types is
       Name_Id,
       String_Id,
       Uint,
+      Valid_Uint,
+      Unat,
+      Upos,
+      Nonzero_Uint,
       Ureal,
 
-      Nkind_Type, -- Type of result of Nkind function, i.e. Node_Kind
-      Ekind_Type, -- Type of result of Ekind function, i.e. Entity_Kind
+      Node_Kind_Type, -- Type of result of Nkind function, i.e. Node_Kind
+      Entity_Kind_Type, -- Type of result of Ekind function, i.e. Entity_Kind
       Source_Ptr,
       Small_Paren_Count_Type,
       Union_Id,
       Convention_Id,
 
       Component_Alignment_Kind,
-      Float_Rep_Kind,
       Mechanism_Type,
 
       Between_Special_And_Abstract_Node_Types,
@@ -71,6 +77,7 @@ package Gen_IL.Types is
 
       Node_Kind, -- root of node type hierarchy
       N_Access_To_Subprogram_Definition,
+      N_Alternative,
       N_Array_Type_Definition,
       N_Binary_Op,
       N_Body_Stub,
@@ -78,13 +85,21 @@ package Gen_IL.Types is
       N_Delay_Statement,
       N_Direct_Name,
       N_Entity,
+      N_Entity_Name,
       N_Formal_Subprogram_Declaration,
       N_Generic_Declaration,
       N_Generic_Instantiation,
       N_Generic_Renaming_Declaration,
+      N_Has_Bounds,
       N_Has_Chars,
+      N_Has_Condition,
       N_Has_Entity,
       N_Has_Etype,
+      N_Is_Case_Choice,
+      N_Is_Decl,
+      N_Is_Exception_Choice,
+      N_Is_Index,
+      N_Is_Range,
       N_Multiplying_Operator,
       N_Later_Decl_Item,
       N_Membership_Test,
@@ -105,7 +120,6 @@ package Gen_IL.Types is
       N_Statement_Other_Than_Procedure_Call,
       N_Subprogram_Call,
       N_Subprogram_Instantiation,
-      N_Has_Condition,
       N_Subexpr,
       N_Subprogram_Specification,
       N_Unary_Op,
@@ -122,6 +136,7 @@ package Gen_IL.Types is
       Access_Subprogram_Kind,
       Access_Protected_Kind,
       Aggregate_Kind,
+      Allocatable_Kind,
       Anonymous_Access_Kind,
       Array_Kind,
       Assignable_Kind,
@@ -129,6 +144,7 @@ package Gen_IL.Types is
       Composite_Kind,
       Concurrent_Kind,
       Concurrent_Body_Kind,
+      Constant_Or_Variable_Kind,
       Decimal_Fixed_Point_Kind,
       Digits_Kind,
       Discrete_Kind,
@@ -136,16 +152,20 @@ package Gen_IL.Types is
       Elementary_Kind,
       Enumeration_Kind,
       Entry_Kind,
+      Evaluable_Kind,
+      Exception_Or_Object_Kind,
       Fixed_Point_Kind,
       Float_Kind,
       Formal_Kind,
       Formal_Object_Kind,
       Generic_Subprogram_Kind,
       Generic_Unit_Kind,
+      Global_Name_Kind,
       Incomplete_Kind,
       Incomplete_Or_Private_Kind,
       Integer_Kind,
       Modular_Integer_Kind,
+      Named_Access_Kind,
       Named_Kind,
       Numeric_Kind,
       Object_Kind,
@@ -155,11 +175,14 @@ package Gen_IL.Types is
       Protected_Kind,
       Real_Kind,
       Record_Kind,
+      Record_Field_Kind,
       Scalar_Kind,
-      Subprogram_Kind,
       Signed_Integer_Kind,
+      Subprogram_Type_Or_Kind,
+      Subprogram_Kind,
       Task_Kind,
       Type_Kind,
+      Void_Or_Type_Kind,
 
       --  End of abstract entity types.
 
@@ -305,12 +328,15 @@ package Gen_IL.Types is
       N_Entry_Call_Statement,
       N_Free_Statement,
       N_Goto_Statement,
+      N_Goto_When_Statement,
       N_Loop_Statement,
       N_Null_Statement,
       N_Raise_Statement,
+      N_Raise_When_Statement,
       N_Requeue_Statement,
       N_Simple_Return_Statement,
       N_Extended_Return_Statement,
+      N_Return_When_Statement,
       N_Selective_Accept,
       N_Timed_Entry_Call,
       N_Exit_Statement,
@@ -492,5 +518,77 @@ package Gen_IL.Types is
       --  End of concrete entity types.
 
      ); -- Type_Enum
+
+   subtype Type_Enum is Opt_Type_Enum
+     range Opt_Type_Enum'Succ (No_Type) .. Opt_Type_Enum'Last;
+   --  Enumeration of types -- Opt_Type_Enum without the special null value
+   --  No_Type.
+
+   subtype Node_Or_Entity_Type is
+     Type_Enum range
+       Type_Enum'Succ (Between_Special_And_Abstract_Node_Types) ..
+         Type_Enum'Last;
+
+   subtype Abstract_Type is
+     Type_Enum range
+       Type_Enum'Succ (Between_Special_And_Abstract_Node_Types) ..
+         Type_Enum'Pred (Between_Abstract_Entity_And_Concrete_Node_Types);
+   subtype Abstract_Node is
+     Abstract_Type range
+       Type_Enum'Succ (Between_Special_And_Abstract_Node_Types) ..
+         Type_Enum'Pred (Between_Abstract_Node_And_Abstract_Entity_Types);
+   subtype Abstract_Entity is
+     Abstract_Type range
+       Type_Enum'Succ (Between_Abstract_Node_And_Abstract_Entity_Types) ..
+         Type_Enum'Pred (Between_Abstract_Entity_And_Concrete_Node_Types);
+
+   subtype Concrete_Type is
+     Type_Enum range
+       Type_Enum'Succ (Between_Abstract_Entity_And_Concrete_Node_Types) ..
+         Type_Enum'Last;
+   subtype Concrete_Node is
+     Concrete_Type range
+       Type_Enum'Succ (Between_Abstract_Entity_And_Concrete_Node_Types) ..
+         Type_Enum'Pred (Between_Concrete_Node_And_Concrete_Entity_Types);
+   subtype Concrete_Entity is
+     Concrete_Type range
+       Type_Enum'Succ (Between_Concrete_Node_And_Concrete_Entity_Types) ..
+         Type_Enum'Last;
+
+   subtype Root_Type is Abstract_Type with
+        Predicate => Root_Type in Node_Kind | Entity_Kind;
+
+   subtype Node_Type is Node_Or_Entity_Type with
+        Predicate => Node_Type in Abstract_Node | Concrete_Node;
+   subtype Entity_Type is Node_Or_Entity_Type with
+        Predicate => Entity_Type in Abstract_Entity | Concrete_Entity;
+
+   subtype Special_Type is Type_Enum range
+     Flag .. Type_Enum'Pred (Between_Special_And_Abstract_Node_Types);
+
+   subtype Traversed_Field_Type is Type_Enum with Predicate =>
+     Traversed_Field_Type in Node_Id | List_Id | Node_Type;
+   --  These are the types of fields traversed by Traverse_Func
+
+   subtype Entity_Node is Node_Type with
+     Predicate => Entity_Node in
+        N_Defining_Character_Literal
+      | N_Defining_Identifier
+      | N_Defining_Operator_Symbol;
+
+   subtype Opt_Abstract_Type is Opt_Type_Enum with
+     Predicate => Opt_Abstract_Type in No_Type | Abstract_Type;
+
+   subtype Type_Boundaries is Type_Enum with
+     Predicate => Type_Boundaries in
+       Between_Abstract_Node_And_Abstract_Entity_Types |
+       Between_Abstract_Entity_And_Concrete_Node_Types |
+       Between_Concrete_Node_And_Concrete_Entity_Types;
+   --  These are not used, other than to separate the various subranges.
+
+   subtype Uint_Subtype is Type_Enum with
+     Predicate => Uint_Subtype in Valid_Uint | Unat | Upos | Nonzero_Uint;
+   --  These are the subtypes of Uint that have predicates restricting their
+   --  values.
 
 end Gen_IL.Types;

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -145,7 +145,7 @@ package body Exp_Ch9 is
 
    function Build_Corresponding_Record
      (N    : Node_Id;
-      Ctyp : Node_Id;
+      Ctyp : Entity_Id;
       Loc  : Source_Ptr) return Node_Id;
    --  Common to tasks and protected types. Copy discriminant specifications,
    --  build record declaration. N is the type declaration, Ctyp is the
@@ -282,7 +282,11 @@ package body Exp_Ch9 is
       Concval : Node_Id;
       Ename   : Node_Id;
       Index   : Node_Id);
-   --  Some comments here would be useful ???
+   --  Build the call corresponding to the task entry call. N is the task entry
+   --  call, Concval is the concurrent object, Ename is the entry name and
+   --  Index is the entry family index.
+   --  Note that N might be expanded into an N_Block_Statement if it gets
+   --  inlined.
 
    function Build_Task_Proc_Specification (T : Entity_Id) return Node_Id;
    --  This routine constructs a specification for the procedure that we will
@@ -841,7 +845,7 @@ package body Exp_Ch9 is
       Insert_Before (Last (Statements (Stats)), Call);
       Analyze (Call);
 
-      --  Ada 2020 (AI12-0279)
+      --  Ada 2022 (AI12-0279)
 
       if Has_Yield_Aspect (Entity (Entry_Direct_Name (Astat)))
         and then RTE_Available (RE_Yield)
@@ -864,7 +868,7 @@ package body Exp_Ch9 is
             Append (Call, Statements (Hand));
             Analyze (Call);
 
-            --  Ada 2020 (AI12-0279)
+            --  Ada 2022 (AI12-0279)
 
             if Has_Yield_Aspect (Entity (Entry_Direct_Name (Astat)))
               and then RTE_Available (RE_Yield)
@@ -917,7 +921,7 @@ package body Exp_Ch9 is
 
             Statements => New_List (Call))));
 
-      --  Ada 2020 (AI12-0279)
+      --  Ada 2022 (AI12-0279)
 
       if Has_Yield_Aspect (Entity (Entry_Direct_Name (Astat)))
         and then RTE_Available (RE_Yield)
@@ -1579,9 +1583,9 @@ package body Exp_Ch9 is
    --------------------------------
 
    function Build_Corresponding_Record
-    (N    : Node_Id;
-     Ctyp : Entity_Id;
-     Loc  : Source_Ptr) return Node_Id
+     (N    : Node_Id;
+      Ctyp : Entity_Id;
+      Loc  : Source_Ptr) return Node_Id
    is
       Rec_Ent  : constant Entity_Id :=
                    Make_Defining_Identifier
@@ -1756,34 +1760,21 @@ package body Exp_Ch9 is
       --  Generate a dummy master if tasks or tasking hierarchies are
       --  prohibited.
 
-      --    _Master : constant Master_Id := 3;
+      --    _Master : constant Integer := Library_Task_Level;
 
       if not Tasking_Allowed
         or else Restrictions.Set (No_Task_Hierarchy)
         or else not RTE_Available (RE_Current_Master)
       then
-         declare
-            Expr : Node_Id;
-
-         begin
-            --  RE_Library_Task_Level is not always available in configurable
-            --  RunTime
-
-            if not RTE_Available (RE_Library_Task_Level) then
-               Expr := Make_Integer_Literal (Loc, Uint_3);
-            else
-               Expr := New_Occurrence_Of (RTE (RE_Library_Task_Level), Loc);
-            end if;
-
-            Master_Decl :=
-              Make_Object_Declaration (Loc,
-                Defining_Identifier =>
-                  Make_Defining_Identifier (Loc, Name_uMaster),
-                Constant_Present    => True,
-                Object_Definition   =>
-                  New_Occurrence_Of (Standard_Integer, Loc),
-                Expression          => Expr);
-         end;
+         Master_Decl :=
+           Make_Object_Declaration (Loc,
+             Defining_Identifier =>
+               Make_Defining_Identifier (Loc, Name_uMaster),
+             Constant_Present    => True,
+             Object_Definition   =>
+               New_Occurrence_Of (Standard_Integer, Loc),
+             Expression          =>
+               Make_Integer_Literal (Loc, Library_Task_Level));
 
       --  Generate:
       --    _master : constant Integer := Current_Master.all;
@@ -2946,7 +2937,7 @@ package body Exp_Ch9 is
    --             Desired_Comp : Comp_Type := Expected_Comp;
    --             Comp         : Comp_Type renames Desired_Comp;
    --
-   --             <original delarations after the object renaming declaration
+   --             <original declarations after the object renaming declaration
    --              of Comp>
    --
    --          begin
@@ -2986,7 +2977,7 @@ package body Exp_Ch9 is
    --                              (_Object.Comp'Address));
    --       Comp          : Comp_Type renames Expected_Comp;
    --
-   --       <original delarations after the object renaming declaration of
+   --       <original declarations after the object renaming declaration of
    --        Comp>
    --
    --    begin
@@ -3628,7 +3619,8 @@ package body Exp_Ch9 is
       Master_Decl :=
         Make_Object_Renaming_Declaration (Loc,
           Defining_Identifier => Master_Id,
-          Subtype_Mark        => New_Occurrence_Of (RTE (RE_Master_Id), Loc),
+          Subtype_Mark        =>
+            New_Occurrence_Of (Standard_Integer, Loc),
           Name                => Make_Identifier (Loc, Name_uMaster));
 
       Insert_Action (Context, Master_Decl);
@@ -4402,7 +4394,7 @@ package body Exp_Ch9 is
       --  It would be better to encapsulate this as a routine in Exp_Dbug ???
 
       if Append_Char /= ' ' then
-         if Append_Char = 'P' or Append_Char = 'N' then
+         if Append_Char in 'P' | 'N' then
             Add_Char_To_Name_Buffer (Append_Char);
             return Name_Find;
          else
@@ -6209,11 +6201,11 @@ package body Exp_Ch9 is
       begin
          if Is_Static_Expression (N) then
             return True;
-         elsif Ada_Version >= Ada_2020
+         elsif Ada_Version >= Ada_2022
            and then Nkind (N) in N_Selected_Component | N_Indexed_Component
            and then Statically_Names_Object (N)
          then
-            --  Restriction relaxed in Ada2020 to allow statically named
+            --  Restriction relaxed in Ada 2022 to allow statically named
             --  subcomponents.
             return Is_Simple_Barrier (Prefix (N));
          end if;
@@ -6518,14 +6510,12 @@ package body Exp_Ch9 is
 
                   --  Task_Id (Tasknm._disp_get_task_id)
 
-                  Make_Unchecked_Type_Conversion (Loc,
-                    Subtype_Mark =>
-                      New_Occurrence_Of (RTE (RO_ST_Task_Id), Loc),
-                    Expression   =>
-                      Make_Selected_Component (Loc,
-                        Prefix        => New_Copy_Tree (Tasknm),
-                        Selector_Name =>
-                          Make_Identifier (Loc, Name_uDisp_Get_Task_Id)))));
+                  Unchecked_Convert_To
+                    (RTE (RO_ST_Task_Id),
+                     Make_Selected_Component (Loc,
+                       Prefix        => New_Copy_Tree (Tasknm),
+                       Selector_Name =>
+                         Make_Identifier (Loc, Name_uDisp_Get_Task_Id)))));
 
          else
             Append_To (Component_Associations (Aggr),
@@ -6668,7 +6658,7 @@ package body Exp_Ch9 is
 
          Analyze (N);
 
-         --  Ada 2020 (AI12-0279)
+         --  Ada 2022 (AI12-0279)
 
          if Has_Yield_Aspect (Eent)
            and then RTE_Available (RE_Yield)
@@ -7250,10 +7240,9 @@ package body Exp_Ch9 is
               Make_Assignment_Statement (Loc,
                 Name       => New_Occurrence_Of (Bnn, Loc),
                 Expression =>
-                  Make_Unchecked_Type_Conversion (Loc,
-                    Subtype_Mark =>
-                      New_Occurrence_Of (RTE (RE_Communication_Block), Loc),
-                    Expression   => Make_Identifier (Loc, Name_uD))));
+                  Unchecked_Convert_To
+                    (RTE (RE_Communication_Block),
+                     Make_Identifier (Loc, Name_uD))));
 
             --  Generate:
             --    _Disp_Asynchronous_Select (<object>, S, P'Address, D, B);
@@ -7369,10 +7358,9 @@ package body Exp_Ch9 is
                 Name =>
                   New_Occurrence_Of (Bnn, Loc),
                 Expression =>
-                  Make_Unchecked_Type_Conversion (Loc,
-                    Subtype_Mark =>
-                      New_Occurrence_Of (RTE (RE_Communication_Block), Loc),
-                    Expression   => Make_Identifier (Loc, Name_uD))));
+                  Unchecked_Convert_To
+                    (RTE (RE_Communication_Block),
+                     Make_Identifier (Loc, Name_uD))));
 
             --  Generate:
             --    _Disp_Asynchronous_Select (<object>, S, P'Address, D, B);
@@ -11005,7 +10993,7 @@ package body Exp_Ch9 is
                Entry_Id : constant Entity_Id :=
                            Entity (Entry_Direct_Name (Accept_Statement (Alt)));
             begin
-               --  Ada 2020 (AI12-0279)
+               --  Ada 2022 (AI12-0279)
 
                if Has_Yield_Aspect (Entry_Id)
                  and then RTE_Available (RE_Yield)
@@ -12528,13 +12516,7 @@ package body Exp_Ch9 is
          --  procedure for this corresponding record type and we won't get it
          --  in time if we don't freeze now.
 
-         declare
-            L : constant List_Id := Freeze_Entity (Rec_Ent, N);
-         begin
-            if Is_Non_Empty_List (L) then
-               Insert_List_After (Body_Decl, L);
-            end if;
-         end;
+         Insert_List_After (Body_Decl, List => Freeze_Entity (Rec_Ent, N));
       end if;
 
       --  Complete the expansion of access types to the current task type, if
@@ -13808,14 +13790,15 @@ package body Exp_Ch9 is
                Comp    : Node_Id;
                Comp_Id : Entity_Id;
                Decl_Id : Entity_Id;
+               Nam     : Name_Id;
 
             begin
                Comp := First (Private_Declarations (Def));
                while Present (Comp) loop
                   if Nkind (Comp) = N_Component_Declaration then
                      Comp_Id := Defining_Identifier (Comp);
-                     Decl_Id :=
-                       Make_Defining_Identifier (Loc, Chars (Comp_Id));
+                     Nam     := Chars (Comp_Id);
+                     Decl_Id := Make_Defining_Identifier (Sloc (Comp_Id), Nam);
 
                      --  Minimal decoration
 
@@ -13830,6 +13813,14 @@ package body Exp_Ch9 is
                      Set_Is_Aliased     (Decl_Id, Is_Aliased     (Comp_Id));
                      Set_Is_Independent (Decl_Id, Is_Independent (Comp_Id));
 
+                     --  Copy the Comes_From_Source flag of the component, as
+                     --  the renaming may be the only entity directly seen by
+                     --  the user in the context, but do not warn for it.
+
+                     Set_Comes_From_Source
+                       (Decl_Id, Comes_From_Source (Comp_Id));
+                     Set_Warnings_Off (Decl_Id);
+
                      --  Generate:
                      --    comp_name : comp_typ renames _object.comp_name;
 
@@ -13840,10 +13831,8 @@ package body Exp_Ch9 is
                            New_Occurrence_Of (Etype (Comp_Id), Loc),
                          Name =>
                            Make_Selected_Component (Loc,
-                             Prefix =>
-                               New_Occurrence_Of (Obj_Ent, Loc),
-                             Selector_Name =>
-                               Make_Identifier (Loc, Chars (Comp_Id))));
+                             Prefix => New_Occurrence_Of (Obj_Ent, Loc),
+                             Selector_Name => Make_Identifier (Loc, Nam)));
                      Add (Decl);
                   end if;
 
@@ -14710,8 +14699,7 @@ package body Exp_Ch9 is
          if Restriction_Active (No_Task_Hierarchy) = False then
             Append_To (Args, Make_Identifier (Loc, Name_uMaster));
          else
-            Append_To (Args,
-              New_Occurrence_Of (RTE (RE_Library_Task_Level), Loc));
+            Append_To (Args, Make_Integer_Literal (Loc, Library_Task_Level));
          end if;
       end if;
 
@@ -14880,7 +14868,7 @@ package body Exp_Ch9 is
       Actuals : List_Id;
       Formals : List_Id;
       Decls   : List_Id;
-      Stmts   : List_Id) return Node_Id
+      Stmts   : List_Id) return Entity_Id
    is
       Actual    : Entity_Id;
       Expr      : Node_Id := Empty;

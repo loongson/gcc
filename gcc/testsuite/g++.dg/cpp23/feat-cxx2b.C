@@ -134,8 +134,8 @@
 
 #ifndef __cpp_constexpr
 #  error "__cpp_constexpr"
-#elif __cpp_constexpr != 201907
-#  error "__cpp_constexpr != 201907"
+#elif __cpp_constexpr != 202110
+#  error "__cpp_constexpr != 202110"
 #endif
 
 #ifndef __cpp_decltype_auto
@@ -520,13 +520,11 @@
 #  error "__cpp_constexpr_in_decltype != 201711"
 #endif
 
-/* Not supported fully yet:
 #ifndef __cpp_consteval
 #  error "__cpp_consteval"
 #elif __cpp_consteval != 201811
 #  error "__cpp_consteval != 201811"
 #endif
-*/
 
 #ifndef __cpp_concepts
 #  error "__cpp_concepts"
@@ -546,4 +544,16 @@
 #  error "__cpp_size_t_suffix"
 #elif __cpp_size_t_suffix != 202011
 #  error "__cpp_size_t_suffix != 202011"
+#endif
+
+#ifndef __cpp_if_consteval
+#  error "__cpp_if_consteval"
+#elif __cpp_if_consteval != 202106
+#  error "__cpp_if_consteval != 202106"
+#endif
+
+#ifndef __cpp_multidimensional_subscript
+#  error "__cpp_multidimensional_subscript"
+#elif __cpp_multidimensional_subscript != 202110
+#  error "__cpp_multidimensional_subscript != 202110"
 #endif

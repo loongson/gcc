@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -235,10 +235,6 @@ package body Ch5 is
                    and then Statement_Seen)
                 or else All_Pragmas)
             then
-               --  This Ada 2012 construct not allowed in a compiler unit
-
-               Check_Compiler_Unit ("null statement list", Token_Ptr);
-
                declare
                   Null_Stm : constant Node_Id :=
                                Make_Null_Statement (Token_Ptr);
@@ -1714,7 +1710,7 @@ package body Ch5 is
         (Loop_Param_Specification_Node, P_Discrete_Subtype_Definition);
 
       if Token = Tok_When then
-         Error_Msg_Ada_2020_Feature ("iterator filter", Token_Ptr);
+         Error_Msg_Ada_2022_Feature ("iterator filter", Token_Ptr);
 
          Scan; -- past WHEN
          Set_Iterator_Filter
@@ -1741,7 +1737,15 @@ package body Ch5 is
 
       if Token = Tok_Colon then
          Scan;  --  past :
-         Set_Subtype_Indication (Node1, P_Subtype_Indication);
+
+         if Token = Tok_Access then
+            Error_Msg_Ada_2022_Feature
+              ("access definition in loop parameter", Token_Ptr);
+            Set_Subtype_Indication (Node1, P_Access_Definition (False));
+
+         else
+            Set_Subtype_Indication (Node1, P_Subtype_Indication);
+         end if;
       end if;
 
       if Token = Tok_Of then
@@ -1761,7 +1765,7 @@ package body Ch5 is
          Set_Of_Present (Node1);
          Error_Msg_N
            ("subtype indication is only legal on an element iterator",
-              Subtype_Indication (Node1));
+            Subtype_Indication (Node1));
 
       else
          return Error;
@@ -1775,7 +1779,7 @@ package body Ch5 is
       Set_Name (Node1, P_Name);
 
       if Token = Tok_When then
-         Error_Msg_Ada_2020_Feature ("iterator filter", Token_Ptr);
+         Error_Msg_Ada_2022_Feature ("iterator filter", Token_Ptr);
 
          Scan; -- past WHEN
          Set_Iterator_Filter
@@ -1905,47 +1909,6 @@ package body Ch5 is
    function P_Exit_Statement return Node_Id is
       Exit_Node : Node_Id;
 
-      function Missing_Semicolon_On_Exit return Boolean;
-      --  This function deals with the following specialized situation
-      --
-      --    when 'x' =>
-      --       exit [identifier]
-      --    when 'y' =>
-      --
-      --  This looks like a messed up EXIT WHEN, when in fact the problem
-      --  is a missing semicolon. It is called with Token pointing to the
-      --  WHEN token, and returns True if a semicolon is missing before
-      --  the WHEN as in the above example.
-
-      -------------------------------
-      -- Missing_Semicolon_On_Exit --
-      -------------------------------
-
-      function Missing_Semicolon_On_Exit return Boolean is
-         State : Saved_Scan_State;
-
-      begin
-         if not Token_Is_At_Start_Of_Line then
-            return False;
-
-         elsif Scopes (Scope.Last).Etyp /= E_Case then
-            return False;
-
-         else
-            Save_Scan_State (State);
-            Scan; -- past WHEN
-            Scan; -- past token after WHEN
-
-            if Token = Tok_Arrow then
-               Restore_Scan_State (State);
-               return True;
-            else
-               Restore_Scan_State (State);
-               return False;
-            end if;
-         end if;
-      end Missing_Semicolon_On_Exit;
-
    --  Start of processing for P_Exit_Statement
 
    begin
@@ -1975,7 +1938,7 @@ package body Ch5 is
          end loop Check_No_Exit_Name;
       end if;
 
-      if Token = Tok_When and then not Missing_Semicolon_On_Exit then
+      if Token = Tok_When and then not Missing_Semicolon_On_When then
          Scan; -- past WHEN
          Set_Condition (Exit_Node, P_Condition);
 
@@ -2010,7 +1973,15 @@ package body Ch5 is
       Scan; -- past GOTO (or TO)
       Set_Name (Goto_Node, P_Qualified_Simple_Name_Resync);
       Append_Elmt (Goto_Node, Goto_List);
-      No_Constraint;
+
+      if Token = Tok_When then
+         Error_Msg_GNAT_Extension ("goto when statement");
+
+         Scan; -- past WHEN
+         Mutate_Nkind (Goto_Node, N_Goto_When_Statement);
+         Set_Condition (Goto_Node, P_Expression_No_Right_Paren);
+      end if;
+
       TF_Semicolon;
       return Goto_Node;
    end P_Goto_Statement;

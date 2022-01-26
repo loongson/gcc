@@ -1,5 +1,5 @@
 ;; Matrix-Multiply Assist (MMA) patterns.
-;; Copyright (C) 2020-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2020-2022 Free Software Foundation, Inc.
 ;; Contributed by Peter Bergner <bergner@linux.ibm.com> and
 ;;		  Michael Meissner <meissner@linux.ibm.com>
 ;;
@@ -29,7 +29,7 @@
 ;; Constants for creating unspecs
 
 (define_c_enum "unspec"
-  [UNSPEC_MMA_ASSEMBLE
+  [UNSPEC_VSX_ASSEMBLE
    UNSPEC_MMA_EXTRACT
    UNSPEC_MMA_PMXVBF16GER2
    UNSPEC_MMA_PMXVBF16GER2NN
@@ -91,7 +91,11 @@
    UNSPEC_MMA_XVI8GER4SPP
    UNSPEC_MMA_XXMFACC
    UNSPEC_MMA_XXMTACC
-   UNSPEC_MMA_XXSETACCZ
+  ])
+
+(define_c_enum "unspecv"
+  [UNSPECV_MMA_ASSEMBLE
+   UNSPECV_MMA_XXSETACCZ
   ])
 
 ;; MMA instructions with 1 accumulator argument
@@ -330,16 +334,19 @@
 {
   rtx src = gen_rtx_UNSPEC (OOmode,
 			    gen_rtvec (2, operands[1], operands[2]),
-			    UNSPEC_MMA_ASSEMBLE);
+			    UNSPEC_VSX_ASSEMBLE);
   emit_move_insn (operands[0], src);
   DONE;
 })
 
+;; We cannot update the two output registers atomically, so mark the output
+;; as an early clobber so we don't accidentally clobber the input operands.  */
+
 (define_insn_and_split "*vsx_assemble_pair"
-  [(set (match_operand:OO 0 "vsx_register_operand" "=wa")
+  [(set (match_operand:OO 0 "vsx_register_operand" "=&wa")
 	(unspec:OO [(match_operand:V16QI 1 "mma_assemble_input_operand" "mwa")
 		    (match_operand:V16QI 2 "mma_assemble_input_operand" "mwa")]
-		    UNSPEC_MMA_ASSEMBLE))]
+		   UNSPEC_VSX_ASSEMBLE))]
   "TARGET_MMA"
   "#"
   "&& reload_completed"
@@ -347,7 +354,7 @@
 {
   rtx src = gen_rtx_UNSPEC (OOmode,
 			    gen_rtvec (2, operands[1], operands[2]),
-			    UNSPEC_MMA_ASSEMBLE);
+			    UNSPEC_VSX_ASSEMBLE);
   rs6000_split_multireg_move (operands[0], src);
   DONE;
 })
@@ -393,31 +400,35 @@
    (match_operand:V16QI 4 "mma_assemble_input_operand")]
   "TARGET_MMA"
 {
-  rtx src = gen_rtx_UNSPEC (XOmode,
-			    gen_rtvec (4, operands[1], operands[2],
-				       operands[3], operands[4]),
-			    UNSPEC_MMA_ASSEMBLE);
+  rtx src = gen_rtx_UNSPEC_VOLATILE (XOmode,
+			    	     gen_rtvec (4, operands[1], operands[2],
+				       		operands[3], operands[4]),
+			    	     UNSPECV_MMA_ASSEMBLE);
   emit_move_insn (operands[0], src);
   DONE;
 })
 
+;; We cannot update the four output registers atomically, so mark the output
+;; as an early clobber so we don't accidentally clobber the input operands.  */
+
 (define_insn_and_split "*mma_assemble_acc"
-  [(set (match_operand:XO 0 "fpr_reg_operand" "=d")
-	(unspec:XO [(match_operand:V16QI 1 "mma_assemble_input_operand" "mwa")
-		    (match_operand:V16QI 2 "mma_assemble_input_operand" "mwa")
-		    (match_operand:V16QI 3 "mma_assemble_input_operand" "mwa")
-		    (match_operand:V16QI 4 "mma_assemble_input_operand" "mwa")]
-		    UNSPEC_MMA_ASSEMBLE))]
+  [(set (match_operand:XO 0 "fpr_reg_operand" "=&d")
+	(unspec_volatile:XO
+	  [(match_operand:V16QI 1 "mma_assemble_input_operand" "mwa")
+	   (match_operand:V16QI 2 "mma_assemble_input_operand" "mwa")
+	   (match_operand:V16QI 3 "mma_assemble_input_operand" "mwa")
+	   (match_operand:V16QI 4 "mma_assemble_input_operand" "mwa")]
+	  UNSPECV_MMA_ASSEMBLE))]
   "TARGET_MMA
    && fpr_reg_operand (operands[0], XOmode)"
   "#"
   "&& reload_completed"
   [(const_int 0)]
 {
-  rtx src = gen_rtx_UNSPEC (XOmode,
-			    gen_rtvec (4, operands[1], operands[2],
-				       operands[3], operands[4]),
-			    UNSPEC_MMA_ASSEMBLE);
+  rtx src = gen_rtx_UNSPEC_VOLATILE (XOmode,
+			    	     gen_rtvec (4, operands[1], operands[2],
+				       		operands[3], operands[4]),
+			    	     UNSPECV_MMA_ASSEMBLE);
   rs6000_split_multireg_move (operands[0], src);
   DONE;
 })
@@ -467,30 +478,16 @@
   "<acc> %A0"
   [(set_attr "type" "mma")])
 
-;; We can't have integer constants in XOmode so we wrap this in an UNSPEC.
+;; We can't have integer constants in XOmode so we wrap this in an
+;; UNSPEC_VOLATILE.
 
-(define_expand "mma_xxsetaccz"
-  [(set (match_operand:XO 0 "fpr_reg_operand")
-	(const_int 0))]
-  "TARGET_MMA"
-{
-  rtx xo0 = gen_rtx_UNSPEC (XOmode, gen_rtvec (1, const0_rtx),
-			    UNSPEC_MMA_XXSETACCZ);
-  emit_insn (gen_rtx_SET (operands[0], xo0));
-  DONE;
-})
-
-(define_insn_and_split "*mma_xxsetaccz"
+(define_insn "mma_xxsetaccz"
   [(set (match_operand:XO 0 "fpr_reg_operand" "=d")
-	(unspec:XO [(match_operand 1 "const_0_to_1_operand" "O")]
-	 UNSPEC_MMA_XXSETACCZ))]
+	(unspec_volatile:XO [(const_int 0)]
+			    UNSPECV_MMA_XXSETACCZ))]
   "TARGET_MMA"
   "xxsetaccz %A0"
-  "&& reload_completed"
-  [(set (match_dup 0) (unspec:XO [(match_dup 1)] UNSPEC_MMA_XXSETACCZ))]
-  ""
-  [(set_attr "type" "mma")
-   (set_attr "length" "4")])
+  [(set_attr "type" "mma")])
 
 (define_insn "mma_<vv>"
   [(set (match_operand:XO 0 "fpr_reg_operand" "=&d")

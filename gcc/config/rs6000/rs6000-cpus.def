@@ -1,5 +1,5 @@
 /* IBM RS/6000 CPU names..
-   Copyright (C) 1991-2021 Free Software Foundation, Inc.
+   Copyright (C) 1991-2022 Free Software Foundation, Inc.
    Contributed by Richard Kenner (kenner@vlsi1.ultra.nyu.edu)
 
    This file is part of GCC.
@@ -44,7 +44,7 @@
 				 | OPTION_MASK_VSX)
 
 /* For now, don't provide an embedded version of ISA 2.07.  Do not set power8
-   fusion here, instead set it in rs6000.c if we are tuning for a power8
+   fusion here, instead set it in rs6000.cc if we are tuning for a power8
    system.  */
 #define ISA_2_7_MASKS_SERVER	(ISA_2_6_MASKS_SERVER			\
 				 | OPTION_MASK_P8_VECTOR		\
@@ -75,9 +75,11 @@
 				 | OPTION_MASK_P9_VECTOR)
 
 /* Flags that need to be turned off if -mno-power10.  */
+/* We comment out PCREL_OPT here to disable it by default because SPEC2017
+   performance was degraded by it.  */
 #define OTHER_POWER10_MASKS	(OPTION_MASK_MMA			\
 				 | OPTION_MASK_PCREL			\
-				 | OPTION_MASK_PCREL_OPT		\
+				 /* | OPTION_MASK_PCREL_OPT */		\
 				 | OPTION_MASK_PREFIXED)
 
 #define ISA_3_1_MASKS_SERVER	(ISA_3_0_MASKS_SERVER			\
@@ -88,7 +90,8 @@
 				 | OPTION_MASK_P10_FUSION_2LOGICAL	\
 				 | OPTION_MASK_P10_FUSION_LOGADD 	\
 				 | OPTION_MASK_P10_FUSION_ADDLOG	\
-				 | OPTION_MASK_P10_FUSION_2ADD)
+				 | OPTION_MASK_P10_FUSION_2ADD		\
+				 | OPTION_MASK_P10_FUSION_2STORE)
 
 /* Flags that need to be turned off if -mno-power9-vector.  */
 #define OTHER_P9_VECTOR_MASKS	(OPTION_MASK_FLOAT128_HW		\
@@ -141,6 +144,7 @@
 				 | OPTION_MASK_P10_FUSION_LOGADD 	\
 				 | OPTION_MASK_P10_FUSION_ADDLOG	\
 				 | OPTION_MASK_P10_FUSION_2ADD    	\
+				 | OPTION_MASK_P10_FUSION_2STORE	\
 				 | OPTION_MASK_HTM			\
 				 | OPTION_MASK_ISEL			\
 				 | OPTION_MASK_MFCRF			\

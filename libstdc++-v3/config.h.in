@@ -9,6 +9,9 @@
 /* Define to 1 if you have the `aligned_alloc' function. */
 #undef HAVE_ALIGNED_ALLOC
 
+/* Define if arc4random is available in <stdlib.h>. */
+#undef HAVE_ARC4RANDOM
+
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #undef HAVE_ARPA_INET_H
 
@@ -63,6 +66,10 @@
 /* Define to 1 if you have the `cosl' function. */
 #undef HAVE_COSL
 
+/* Define to 1 if you have the declaration of `strnlen', and to 0 if you
+   don't. */
+#undef HAVE_DECL_STRNLEN
+
 /* Define to 1 if you have the <dirent.h> header file. */
 #undef HAVE_DIRENT_H
 
@@ -92,6 +99,9 @@
 
 /* Define to 1 if you have the <fcntl.h> header file. */
 #undef HAVE_FCNTL_H
+
+/* Define if fdopendir is available in <dirent.h>. */
+#undef HAVE_FDOPENDIR
 
 /* Define to 1 if you have the <fenv.h> header file. */
 #undef HAVE_FENV_H
@@ -131,6 +141,9 @@
 
 /* Define to 1 if you have the `frexpl' function. */
 #undef HAVE_FREXPL
+
+/* Define if getentropy is available in <unistd.h>. */
+#undef HAVE_GETENTROPY
 
 /* Define if _Unwind_GetIPInfo is available. */
 #undef HAVE_GETIPINFO
@@ -206,6 +219,9 @@
 
 /* Define if link is available in <unistd.h>. */
 #undef HAVE_LINK
+
+/* Define to 1 if you have the <link.h> header file. */
+#undef HAVE_LINK_H
 
 /* Define if futex syscall is available. */
 #undef HAVE_LINUX_FUTEX
@@ -301,6 +317,9 @@
 /* Define if readlink is available in <unistd.h>. */
 #undef HAVE_READLINK
 
+/* Define to 1 if you have the `secure_getenv' function. */
+#undef HAVE_SECURE_GETENV
+
 /* Define to 1 if you have the `setenv' function. */
 #undef HAVE_SETENV
 
@@ -336,6 +355,9 @@
 
 /* Define to 1 if you have the `sqrtl' function. */
 #undef HAVE_SQRTL
+
+/* Define if the <stacktrace> header is supported. */
+#undef HAVE_STACKTRACE
 
 /* Define to 1 if you have the <stdalign.h> header file. */
 #undef HAVE_STDALIGN_H
@@ -705,9 +727,6 @@
    */
 #undef LT_OBJDIR
 
-/* Defined if no way to sleep is available. */
-#undef NO_SLEEP
-
 /* Name of package */
 #undef PACKAGE
 
@@ -828,6 +847,9 @@
 
 /* Define if C99 llrint and llround functions are missing from <math.h>. */
 #undef _GLIBCXX_NO_C99_ROUNDING_FUNCS
+
+/* Defined if no way to sleep is available. */
+#undef _GLIBCXX_NO_SLEEP
 
 /* Define if ptrdiff_t is int. */
 #undef _GLIBCXX_PTRDIFF_T_IS_INT
@@ -990,6 +1012,14 @@
 
 /* Define if obsolescent tmpnam is available in <stdio.h>. */
 #undef _GLIBCXX_USE_TMPNAM
+
+/* Define if c8rtomb and mbrtoc8 functions in <uchar.h> should be imported
+   into namespace std in <cuchar> for C++20. */
+#undef _GLIBCXX_USE_UCHAR_C8RTOMB_MBRTOC8_CXX20
+
+/* Define if c8rtomb and mbrtoc8 functions in <uchar.h> should be imported
+   into namespace std in <cuchar> for -fchar8_t. */
+#undef _GLIBCXX_USE_UCHAR_C8RTOMB_MBRTOC8_FCHAR8_T
 
 /* Define if utime is available in <utime.h>. */
 #undef _GLIBCXX_USE_UTIME

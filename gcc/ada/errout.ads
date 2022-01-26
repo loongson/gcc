@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -60,13 +60,13 @@ package Errout is
    --  Exception raised if Raise_Exception_On_Error is true
 
    Warning_Doc_Switch : Boolean renames Err_Vars.Warning_Doc_Switch;
-   --  If this is set True, then the ??/?*?/?$?/?x?/?X? insertion sequences in
-   --  error messages generate appropriate tags for the output error messages.
-   --  If this switch is False, then these sequences are still recognized (for
-   --  the purposes of implementing the pattern matching in pragmas Warnings
-   --  (Off,..) and Warning_As_Pragma(...) but do not result in adding the
-   --  error message tag. The -gnatw.d switch sets this flag True, -gnatw.D
-   --  sets this flag False.
+   --  If this is set True, then the ??/?*?/?$?/?x?/?.x?/?_x? insertion
+   --  sequences in error messages generate appropriate tags for the output
+   --  error messages. If this switch is False, then these sequences are still
+   --  recognized (for the purposes of implementing the pattern matching in
+   --  pragmas Warnings (Off,..) and Warning_As_Pragma(...) but do not result
+   --  in adding the error message tag. The -gnatw.d switch sets this flag
+   --  True, -gnatw.D sets this flag False.
 
    Current_Node : Node_Id := Empty;
    --  Used by Error_Msg as a default Node_Id.
@@ -272,14 +272,13 @@ package Errout is
    --      avoided. This is currently used by the Compile_Time_Warning pragma
    --      to ensure the message for a with'ed unit is output, and for warnings
    --      on ineffective back-end inlining, which is detected in units that
-   --      contain subprograms to be inlined in the main program. It is also
-   --      used by the Compiler_Unit_Warning pragma for similar reasons.
+   --      contain subprograms to be inlined in the main program.
 
-   --    Insertion character ? (Question: warning message)
+   --    Insertion character ? (Question: warning message -- OBSOLETE)
    --      The character ? appearing anywhere in a message makes the message
    --      warning instead of a normal error message, and the text of the
    --      message will be preceded by "warning:" in the normal case. The
-   --      handling of warnings if further controlled by the Warning_Mode
+   --      handling of warnings is further controlled by the Warning_Mode
    --      option (-w switch), see package Opt for further details, and also by
    --      the current setting from pragma Warnings. This pragma applies only
    --      to warnings issued from the semantic phase (not the parser), but
@@ -302,28 +301,23 @@ package Errout is
    --      clear that the continuation is part of a warning message, but it is
    --      not necessary to go through any computational effort to include it.
    --
-   --      Note: this usage is obsolete, use ?? ?*? ?$? ?x? ?X? to specify
-   --      the string to be added when Warn_Doc_Switch is set to True. If this
-   --      switch is True, then for simple ? messages it has no effect. This
-   --      simple form is to ease transition and may be removed later except
-   --      for GNATprove-specific messages (info and warnings) which are not
-   --      subject to the same GNAT warning switches.
+   --      Note: this usage is obsolete; use ?? ?*? ?$? ?x? ?.x? ?_x? to
+   --      specify the string to be added when Warn_Doc_Switch is set to True.
+   --      If this switch is True, then for simple ? messages it has no effect.
+   --      This simple form is to ease transition and may be removed later
+   --      except for GNATprove-specific messages (info and warnings) which are
+   --      not subject to the same GNAT warning switches.
 
    --    Insertion character ?? (Two question marks: default warning)
    --      Like ?, but if the flag Warn_Doc_Switch is True, adds the string
    --      "[enabled by default]" at the end of the warning message. For
    --      continuations, use this in each continuation message.
 
-   --    Insertion character ?x? (warning with switch)
+   --    Insertion character ?x? ?.x? ?_x? (warning with switch)
    --      Like ?, but if the flag Warn_Doc_Switch is True, adds the string
-   --      "[-gnatwx]" at the end of the warning message. x is a lower case
-   --      letter. For continuations, use this on each continuation message.
-
-   --    Insertion character ?X? (warning with dot switch)
-   --      Like ?, but if the flag Warn_Doc_Switch is True, adds the string
-   --      "[-gnatw.x]" at the end of the warning message. X is an upper case
-   --      letter corresponding to the lower case letter x in the message.
-   --      For continuations, use this on each continuation message.
+   --      "[-gnatwx]", "[-gnatw.x]", or "[-gnatw_x]", at the end of the
+   --      warning message. x must be lower case. For continuations, use this
+   --      on each continuation message.
 
    --    Insertion character ?*? (restriction warning)
    --      Like ?, but if the flag Warn_Doc_Switch is True, adds the string
@@ -339,8 +333,8 @@ package Errout is
    --    Insertion character < (Less Than: conditional warning message)
    --      The character < appearing anywhere in a message is used for a
    --      conditional error message. If Error_Msg_Warn is True, then the
-   --      effect is the same as ? described above, and in particular << <X<
-   --      <x< <$< <*< have the effect of ?? ?X? ?x? ?$? ?*? respectively. If
+   --      effect is the same as ? described above, and in particular << <x<
+   --      <$< <*< have the effect of ?? ?x? ?$? ?*? respectively. If
    --      Error_Msg_Warn is False, then the < << or <X< sequence is ignored
    --      and the message is treated as a error rather than a warning.
 
@@ -519,7 +513,7 @@ package Errout is
    --  The prefixes error and warning are supplied automatically (depending
    --  on the use of the ? insertion character), and the call to the error
    --  message routine supplies the text. The "error: " prefix is omitted
-   --  in brief error message formats.
+   --  if -gnatd_U is among the options given to gnat.
 
    --  Reserved Ada keywords in the message are in the default keyword case
    --  (determined from the given source program), surrounded by quotation
@@ -939,8 +933,13 @@ package Errout is
    --  contain error message insertion characters in the normal manner, and in
    --  particular may start with | to flag a non-serious error.
 
-   procedure Error_Msg_Ada_2020_Feature (Feature : String; Loc : Source_Ptr);
-   --  Analogous to Error_Msg_Ada_2012_Feature
+   procedure Error_Msg_Ada_2022_Feature (Feature : String; Loc : Source_Ptr);
+   --  Analogous to Error_Msg_Ada_2012_Feature, for Ada 2022
+
+   procedure Error_Msg_GNAT_Extension (Extension : String);
+   --  If not operating with extensions allowed, posts errors complaining
+   --  that Extension is only supported when the -gnatX switch is enabled,
+   --  with appropriate suggestions to fix it.
 
    procedure dmsg (Id : Error_Msg_Id) renames Erroutc.dmsg;
    --  Debugging routine to dump an error message
@@ -979,10 +978,6 @@ package Errout is
    --  source position, and if we can find a match between the name in Buf and
    --  the name at that source location, we copy the casing from the source,
    --  otherwise we set appropriate default casing.
-
-   procedure Adjust_Name_Case (Loc : Source_Ptr);
-   --  Uses Buf => Global_Name_Buffer. There are no calls to this in the
-   --  compiler, but it is called in SPARK 2014.
 
    procedure Set_Identifier_Casing
      (Identifier_Name : System.Address;

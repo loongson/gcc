@@ -1,6 +1,6 @@
 // Definition of the public simd interfaces -*- C++ -*-
 
-// Copyright (C) 2020-2021 Free Software Foundation, Inc.
+// Copyright (C) 2020-2022 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -35,6 +35,7 @@
 #include <cstdio> // for stderr
 #endif
 #include <cstring>
+#include <cmath>
 #include <functional>
 #include <iosfwd>
 #include <utility>
@@ -45,6 +46,9 @@
 #include <arm_neon.h>
 #endif
 
+/** @ingroup ts_simd
+ * @{
+ */
 /* There are several closely related types, with the following naming
  * convention:
  * _Tp: vectorizable (arithmetic) type (or any type)
@@ -203,9 +207,193 @@ template <size_t _Np>
 // }}}
 template <size_t _Xp>
   using _SizeConstant = integral_constant<size_t, _Xp>;
+// constexpr feature detection{{{
+constexpr inline bool __have_mmx = _GLIBCXX_SIMD_HAVE_MMX;
+constexpr inline bool __have_sse = _GLIBCXX_SIMD_HAVE_SSE;
+constexpr inline bool __have_sse2 = _GLIBCXX_SIMD_HAVE_SSE2;
+constexpr inline bool __have_sse3 = _GLIBCXX_SIMD_HAVE_SSE3;
+constexpr inline bool __have_ssse3 = _GLIBCXX_SIMD_HAVE_SSSE3;
+constexpr inline bool __have_sse4_1 = _GLIBCXX_SIMD_HAVE_SSE4_1;
+constexpr inline bool __have_sse4_2 = _GLIBCXX_SIMD_HAVE_SSE4_2;
+constexpr inline bool __have_xop = _GLIBCXX_SIMD_HAVE_XOP;
+constexpr inline bool __have_avx = _GLIBCXX_SIMD_HAVE_AVX;
+constexpr inline bool __have_avx2 = _GLIBCXX_SIMD_HAVE_AVX2;
+constexpr inline bool __have_bmi = _GLIBCXX_SIMD_HAVE_BMI1;
+constexpr inline bool __have_bmi2 = _GLIBCXX_SIMD_HAVE_BMI2;
+constexpr inline bool __have_lzcnt = _GLIBCXX_SIMD_HAVE_LZCNT;
+constexpr inline bool __have_sse4a = _GLIBCXX_SIMD_HAVE_SSE4A;
+constexpr inline bool __have_fma = _GLIBCXX_SIMD_HAVE_FMA;
+constexpr inline bool __have_fma4 = _GLIBCXX_SIMD_HAVE_FMA4;
+constexpr inline bool __have_f16c = _GLIBCXX_SIMD_HAVE_F16C;
+constexpr inline bool __have_popcnt = _GLIBCXX_SIMD_HAVE_POPCNT;
+constexpr inline bool __have_avx512f = _GLIBCXX_SIMD_HAVE_AVX512F;
+constexpr inline bool __have_avx512dq = _GLIBCXX_SIMD_HAVE_AVX512DQ;
+constexpr inline bool __have_avx512vl = _GLIBCXX_SIMD_HAVE_AVX512VL;
+constexpr inline bool __have_avx512bw = _GLIBCXX_SIMD_HAVE_AVX512BW;
+constexpr inline bool __have_avx512dq_vl = __have_avx512dq && __have_avx512vl;
+constexpr inline bool __have_avx512bw_vl = __have_avx512bw && __have_avx512vl;
+constexpr inline bool __have_avx512bitalg = _GLIBCXX_SIMD_HAVE_AVX512BITALG;
+constexpr inline bool __have_avx512vbmi2 = _GLIBCXX_SIMD_HAVE_AVX512VBMI2;
+constexpr inline bool __have_avx512vbmi = _GLIBCXX_SIMD_HAVE_AVX512VBMI;
+constexpr inline bool __have_avx512ifma = _GLIBCXX_SIMD_HAVE_AVX512IFMA;
+constexpr inline bool __have_avx512cd = _GLIBCXX_SIMD_HAVE_AVX512CD;
+constexpr inline bool __have_avx512vnni = _GLIBCXX_SIMD_HAVE_AVX512VNNI;
+constexpr inline bool __have_avx512vpopcntdq = _GLIBCXX_SIMD_HAVE_AVX512VPOPCNTDQ;
+constexpr inline bool __have_avx512vp2intersect = _GLIBCXX_SIMD_HAVE_AVX512VP2INTERSECT;
+
+constexpr inline bool __have_neon = _GLIBCXX_SIMD_HAVE_NEON;
+constexpr inline bool __have_neon_a32 = _GLIBCXX_SIMD_HAVE_NEON_A32;
+constexpr inline bool __have_neon_a64 = _GLIBCXX_SIMD_HAVE_NEON_A64;
+constexpr inline bool __support_neon_float =
+#if defined __GCC_IEC_559
+  __GCC_IEC_559 == 0;
+#elif defined __FAST_MATH__
+  true;
+#else
+  false;
+#endif
+
+#ifdef _ARCH_PWR10
+constexpr inline bool __have_power10vec = true;
+#else
+constexpr inline bool __have_power10vec = false;
+#endif
+#ifdef __POWER9_VECTOR__
+constexpr inline bool __have_power9vec = true;
+#else
+constexpr inline bool __have_power9vec = false;
+#endif
+#if defined __POWER8_VECTOR__
+constexpr inline bool __have_power8vec = true;
+#else
+constexpr inline bool __have_power8vec = __have_power9vec;
+#endif
+#if defined __VSX__
+constexpr inline bool __have_power_vsx = true;
+#else
+constexpr inline bool __have_power_vsx = __have_power8vec;
+#endif
+#if defined __ALTIVEC__
+constexpr inline bool __have_power_vmx = true;
+#else
+constexpr inline bool __have_power_vmx = __have_power_vsx;
+#endif
+
+// }}}
 
 namespace __detail
 {
+#ifdef math_errhandling
+  // Determines _S_handle_fpexcept from math_errhandling if it is defined and expands to a constant
+  // expression. math_errhandling may expand to an extern symbol, in which case a constexpr value
+  // must be guessed.
+  template <int = math_errhandling>
+    constexpr bool __handle_fpexcept_impl(int)
+    { return math_errhandling & MATH_ERREXCEPT; }
+#endif
+
+  // Fallback if math_errhandling doesn't work: with fast-math assume floating-point exceptions are
+  // ignored, otherwise implement correct exception behavior.
+  constexpr bool __handle_fpexcept_impl(float)
+  {
+#if defined __FAST_MATH__
+    return false;
+#else
+    return true;
+#endif
+  }
+
+  /// True if math functions must raise floating-point exceptions as specified by C17.
+  static constexpr bool _S_handle_fpexcept = __handle_fpexcept_impl(0);
+
+  constexpr std::uint_least64_t
+  __floating_point_flags()
+  {
+    std::uint_least64_t __flags = 0;
+    if constexpr (_S_handle_fpexcept)
+      __flags |= 1;
+#ifdef __FAST_MATH__
+    __flags |= 1 << 1;
+#elif __FINITE_MATH_ONLY__
+    __flags |= 2 << 1;
+#elif __GCC_IEC_559 < 2
+    __flags |= 3 << 1;
+#endif
+    __flags |= (__FLT_EVAL_METHOD__ + 1) << 3;
+    return __flags;
+  }
+
+  constexpr std::uint_least64_t
+  __machine_flags()
+  {
+    if constexpr (__have_mmx || __have_sse)
+      return __have_mmx
+		 | (__have_sse                << 1)
+		 | (__have_sse2               << 2)
+		 | (__have_sse3               << 3)
+		 | (__have_ssse3              << 4)
+		 | (__have_sse4_1             << 5)
+		 | (__have_sse4_2             << 6)
+		 | (__have_xop                << 7)
+		 | (__have_avx                << 8)
+		 | (__have_avx2               << 9)
+		 | (__have_bmi                << 10)
+		 | (__have_bmi2               << 11)
+		 | (__have_lzcnt              << 12)
+		 | (__have_sse4a              << 13)
+		 | (__have_fma                << 14)
+		 | (__have_fma4               << 15)
+		 | (__have_f16c               << 16)
+		 | (__have_popcnt             << 17)
+		 | (__have_avx512f            << 18)
+		 | (__have_avx512dq           << 19)
+		 | (__have_avx512vl           << 20)
+		 | (__have_avx512bw           << 21)
+		 | (__have_avx512bitalg       << 22)
+		 | (__have_avx512vbmi2        << 23)
+		 | (__have_avx512vbmi         << 24)
+		 | (__have_avx512ifma         << 25)
+		 | (__have_avx512cd           << 26)
+		 | (__have_avx512vnni         << 27)
+		 | (__have_avx512vpopcntdq    << 28)
+		 | (__have_avx512vp2intersect << 29);
+    else if constexpr (__have_neon)
+      return __have_neon
+	       | (__have_neon_a32 << 1)
+	       | (__have_neon_a64 << 2)
+	       | (__have_neon_a64 << 2)
+	       | (__support_neon_float << 3);
+    else if constexpr (__have_power_vmx)
+      return __have_power_vmx
+	       | (__have_power_vsx  << 1)
+	       | (__have_power8vec  << 2)
+	       | (__have_power9vec  << 3)
+	       | (__have_power10vec << 4);
+    else
+      return 0;
+  }
+
+  namespace
+  {
+    struct _OdrEnforcer {};
+  }
+
+  template <std::uint_least64_t...>
+    struct _MachineFlagsTemplate {};
+
+  /**@internal
+   * Use this type as default template argument to all function templates that
+   * are not declared always_inline. It ensures, that a function
+   * specialization, which the compiler decides not to inline, has a unique symbol
+   * (_OdrEnforcer) or a symbol matching the machine/architecture flags
+   * (_MachineFlagsTemplate). This helps to avoid ODR violations in cases where
+   * users link TUs compiled with different flags. This is especially important
+   * for using simd in libraries.
+   */
+  using __odr_helper
+    = conditional_t<__machine_flags() == 0, _OdrEnforcer,
+		    _MachineFlagsTemplate<__machine_flags(), __floating_point_flags()>>;
+
   struct _Minimum
   {
     template <typename _Tp>
@@ -234,7 +422,8 @@ namespace __detail
 // unrolled/pack execution helpers
 // __execute_n_times{{{
 template <typename _Fp, size_t... _I>
-  _GLIBCXX_SIMD_INTRINSIC constexpr void
+  [[__gnu__::__flatten__]] _GLIBCXX_SIMD_INTRINSIC constexpr
+  void
   __execute_on_index_sequence(_Fp&& __f, index_sequence<_I...>)
   { ((void)__f(_SizeConstant<_I>()), ...); }
 
@@ -254,7 +443,8 @@ template <size_t _Np, typename _Fp>
 // }}}
 // __generate_from_n_evaluations{{{
 template <typename _R, typename _Fp, size_t... _I>
-  _GLIBCXX_SIMD_INTRINSIC constexpr _R
+  [[__gnu__::__flatten__]] _GLIBCXX_SIMD_INTRINSIC constexpr
+  _R
   __execute_on_index_sequence_with_return(_Fp&& __f, index_sequence<_I...>)
   { return _R{__f(_SizeConstant<_I>())...}; }
 
@@ -269,7 +459,8 @@ template <size_t _Np, typename _R, typename _Fp>
 // }}}
 // __call_with_n_evaluations{{{
 template <size_t... _I, typename _F0, typename _FArgs>
-  _GLIBCXX_SIMD_INTRINSIC constexpr auto
+  [[__gnu__::__flatten__]] _GLIBCXX_SIMD_INTRINSIC constexpr
+  auto
   __call_with_n_evaluations(index_sequence<_I...>, _F0&& __f0, _FArgs&& __fargs)
   { return __f0(__fargs(_SizeConstant<_I>())...); }
 
@@ -285,7 +476,8 @@ template <size_t _Np, typename _F0, typename _FArgs>
 // }}}
 // __call_with_subscripts{{{
 template <size_t _First = 0, size_t... _It, typename _Tp, typename _Fp>
-  _GLIBCXX_SIMD_INTRINSIC constexpr auto
+  [[__gnu__::__flatten__]] _GLIBCXX_SIMD_INTRINSIC constexpr
+  auto
   __call_with_subscripts(_Tp&& __x, index_sequence<_It...>, _Fp&& __fun)
   { return __fun(__x[_First + _It]...); }
 
@@ -464,71 +656,6 @@ template <int _Np>
 
 template <typename _Tp>
   inline constexpr bool __is_fixed_size_abi_v = __is_fixed_size_abi<_Tp>::value;
-
-// }}}
-// constexpr feature detection{{{
-constexpr inline bool __have_mmx = _GLIBCXX_SIMD_HAVE_MMX;
-constexpr inline bool __have_sse = _GLIBCXX_SIMD_HAVE_SSE;
-constexpr inline bool __have_sse2 = _GLIBCXX_SIMD_HAVE_SSE2;
-constexpr inline bool __have_sse3 = _GLIBCXX_SIMD_HAVE_SSE3;
-constexpr inline bool __have_ssse3 = _GLIBCXX_SIMD_HAVE_SSSE3;
-constexpr inline bool __have_sse4_1 = _GLIBCXX_SIMD_HAVE_SSE4_1;
-constexpr inline bool __have_sse4_2 = _GLIBCXX_SIMD_HAVE_SSE4_2;
-constexpr inline bool __have_xop = _GLIBCXX_SIMD_HAVE_XOP;
-constexpr inline bool __have_avx = _GLIBCXX_SIMD_HAVE_AVX;
-constexpr inline bool __have_avx2 = _GLIBCXX_SIMD_HAVE_AVX2;
-constexpr inline bool __have_bmi = _GLIBCXX_SIMD_HAVE_BMI1;
-constexpr inline bool __have_bmi2 = _GLIBCXX_SIMD_HAVE_BMI2;
-constexpr inline bool __have_lzcnt = _GLIBCXX_SIMD_HAVE_LZCNT;
-constexpr inline bool __have_sse4a = _GLIBCXX_SIMD_HAVE_SSE4A;
-constexpr inline bool __have_fma = _GLIBCXX_SIMD_HAVE_FMA;
-constexpr inline bool __have_fma4 = _GLIBCXX_SIMD_HAVE_FMA4;
-constexpr inline bool __have_f16c = _GLIBCXX_SIMD_HAVE_F16C;
-constexpr inline bool __have_popcnt = _GLIBCXX_SIMD_HAVE_POPCNT;
-constexpr inline bool __have_avx512f = _GLIBCXX_SIMD_HAVE_AVX512F;
-constexpr inline bool __have_avx512dq = _GLIBCXX_SIMD_HAVE_AVX512DQ;
-constexpr inline bool __have_avx512vl = _GLIBCXX_SIMD_HAVE_AVX512VL;
-constexpr inline bool __have_avx512bw = _GLIBCXX_SIMD_HAVE_AVX512BW;
-constexpr inline bool __have_avx512dq_vl = __have_avx512dq && __have_avx512vl;
-constexpr inline bool __have_avx512bw_vl = __have_avx512bw && __have_avx512vl;
-
-constexpr inline bool __have_neon = _GLIBCXX_SIMD_HAVE_NEON;
-constexpr inline bool __have_neon_a32 = _GLIBCXX_SIMD_HAVE_NEON_A32;
-constexpr inline bool __have_neon_a64 = _GLIBCXX_SIMD_HAVE_NEON_A64;
-constexpr inline bool __support_neon_float =
-#if defined __GCC_IEC_559
-  __GCC_IEC_559 == 0;
-#elif defined __FAST_MATH__
-  true;
-#else
-  false;
-#endif
-
-#ifdef _ARCH_PWR10
-constexpr inline bool __have_power10vec = true;
-#else
-constexpr inline bool __have_power10vec = false;
-#endif
-#ifdef __POWER9_VECTOR__
-constexpr inline bool __have_power9vec = true;
-#else
-constexpr inline bool __have_power9vec = false;
-#endif
-#if defined __POWER8_VECTOR__
-constexpr inline bool __have_power8vec = true;
-#else
-constexpr inline bool __have_power8vec = __have_power9vec;
-#endif
-#if defined __VSX__
-constexpr inline bool __have_power_vsx = true;
-#else
-constexpr inline bool __have_power_vsx = __have_power8vec;
-#endif
-#if defined __ALTIVEC__
-constexpr inline bool __have_power_vmx = true;
-#else
-constexpr inline bool __have_power_vmx = __have_power_vsx;
-#endif
 
 // }}}
 // __is_scalar_abi {{{
@@ -1598,7 +1725,9 @@ template <typename _To, typename _From>
   _GLIBCXX_SIMD_INTRINSIC constexpr _To
   __bit_cast(const _From __x)
   {
-    // TODO: implement with / replace by __builtin_bit_cast ASAP
+#if __has_builtin(__builtin_bit_cast)
+    return __builtin_bit_cast(_To, __x);
+#else
     static_assert(sizeof(_To) == sizeof(_From));
     constexpr bool __to_is_vectorizable
       = is_arithmetic_v<_To> || is_enum_v<_To>;
@@ -1629,6 +1758,7 @@ template <typename _To, typename _From>
 			 reinterpret_cast<const char*>(&__x), sizeof(_To));
 	return __r;
       }
+#endif
   }
 
 // }}}
@@ -2900,6 +3030,58 @@ template <typename _Tp, typename _Up, typename _Ap,
     return {__private_init, _RM::abi_type::_MaskImpl::template _S_convert<
 			      typename _RM::simd_type::value_type>(__x)};
   }
+
+template <typename _To, typename _Up, typename _Abi>
+  _GLIBCXX_SIMD_INTRINSIC _GLIBCXX_SIMD_CONSTEXPR
+  _To
+  simd_bit_cast(const simd<_Up, _Abi>& __x)
+  {
+    using _Tp = typename _To::value_type;
+    using _ToMember = typename _SimdTraits<_Tp, typename _To::abi_type>::_SimdMember;
+    using _From = simd<_Up, _Abi>;
+    using _FromMember = typename _SimdTraits<_Up, _Abi>::_SimdMember;
+    // with concepts, the following should be constraints
+    static_assert(sizeof(_To) == sizeof(_From));
+    static_assert(is_trivially_copyable_v<_Tp> && is_trivially_copyable_v<_Up>);
+    static_assert(is_trivially_copyable_v<_ToMember> && is_trivially_copyable_v<_FromMember>);
+#if __has_builtin(__builtin_bit_cast)
+    return {__private_init, __builtin_bit_cast(_ToMember, __data(__x))};
+#else
+    return {__private_init, __bit_cast<_ToMember>(__data(__x))};
+#endif
+  }
+
+template <typename _To, typename _Up, typename _Abi>
+  _GLIBCXX_SIMD_INTRINSIC _GLIBCXX_SIMD_CONSTEXPR
+  _To
+  simd_bit_cast(const simd_mask<_Up, _Abi>& __x)
+  {
+    using _From = simd_mask<_Up, _Abi>;
+    static_assert(sizeof(_To) == sizeof(_From));
+    static_assert(is_trivially_copyable_v<_From>);
+    // _To can be simd<T, A>, specifically simd<T, fixed_size<N>> in which case _To is not trivially
+    // copyable.
+    if constexpr (is_simd_v<_To>)
+      {
+	using _Tp = typename _To::value_type;
+	using _ToMember = typename _SimdTraits<_Tp, typename _To::abi_type>::_SimdMember;
+	static_assert(is_trivially_copyable_v<_ToMember>);
+#if __has_builtin(__builtin_bit_cast)
+	return {__private_init, __builtin_bit_cast(_ToMember, __x)};
+#else
+	return {__private_init, __bit_cast<_ToMember>(__x)};
+#endif
+      }
+    else
+      {
+	static_assert(is_trivially_copyable_v<_To>);
+#if __has_builtin(__builtin_bit_cast)
+	return __builtin_bit_cast(_To, __x);
+#else
+	return __bit_cast<_To>(__x);
+#endif
+      }
+  }
 } // namespace __proposed
 
 // simd_cast {{{2
@@ -3942,7 +4124,7 @@ template <typename _Tp, typename _A0, typename... _As>
 
 // }}}
 // concat(simd...) {{{
-template <typename _Tp, typename... _As>
+template <typename _Tp, typename... _As, typename = __detail::__odr_helper>
   inline _GLIBCXX_SIMD_CONSTEXPR
   simd<_Tp, simd_abi::deduce_t<_Tp, (simd_size_v<_Tp, _As> + ...)>>
   concat(const simd<_Tp, _As>&... __xs)
@@ -3976,6 +4158,7 @@ template <typename _Tp, typename _Abi, size_t _Np>
 
 // }}}
 
+/// @cond undocumented
 // _SmartReference {{{
 template <typename _Up, typename _Accessor = _Up,
 	  typename _ValueType = typename _Up::value_type>
@@ -4257,6 +4440,7 @@ template <typename _Tp, size_t _Np, typename>
   struct __deduce_impl : public __deduce_fixed_size_fallback<_Tp, _Np> {};
 
 //}}}1
+/// @endcond
 
 // simd_mask {{{
 template <typename _Tp, typename _Abi>
@@ -4525,6 +4709,7 @@ template <typename _Tp, typename _Abi>
       template <typename _Up, typename _A2,
 		typename
 		= enable_if_t<simd_size_v<_Up, _A2> == simd_size_v<_Tp, _Abi>>>
+	_GLIBCXX_SIMD_ALWAYS_INLINE
 	operator simd_mask<_Up, _A2>() &&
 	{
 	  using namespace std::experimental::__proposed;
@@ -4604,6 +4789,7 @@ template <typename _Tp, typename _Abi>
 
 // }}}
 
+/// @cond undocumented
 // __data(simd_mask) {{{
 template <typename _Tp, typename _Ap>
   _GLIBCXX_SIMD_INTRINSIC constexpr const auto&
@@ -4616,6 +4802,7 @@ template <typename _Tp, typename _Ap>
   { return __x._M_data; }
 
 // }}}
+/// @endcond
 
 // simd_mask reductions [simd_mask.reductions] {{{
 template <typename _Tp, typename _Abi>
@@ -4758,131 +4945,165 @@ find_last_set(_ExactBool)
 
 // }}}
 
+/// @cond undocumented
 // _SimdIntOperators{{{1
-template <typename _V, typename _Impl, bool>
+template <typename _V, typename _Tp, typename _Abi, bool>
   class _SimdIntOperators {};
 
-template <typename _V, typename _Impl>
-  class _SimdIntOperators<_V, _Impl, true>
+template <typename _V, typename _Tp, typename _Abi>
+  class _SimdIntOperators<_V, _Tp, _Abi, true>
   {
+    using _Impl = typename _SimdTraits<_Tp, _Abi>::_SimdImpl;
+
     _GLIBCXX_SIMD_INTRINSIC const _V& __derived() const
     { return *static_cast<const _V*>(this); }
 
-    template <typename _Tp>
+    template <typename _Up>
       _GLIBCXX_SIMD_INTRINSIC static _GLIBCXX_SIMD_CONSTEXPR _V
-      _S_make_derived(_Tp&& __d)
-      { return {__private_init, static_cast<_Tp&&>(__d)}; }
+      _S_make_derived(_Up&& __d)
+      { return {__private_init, static_cast<_Up&&>(__d)}; }
 
   public:
-    _GLIBCXX_SIMD_CONSTEXPR friend _V& operator%=(_V& __lhs, const _V& __x)
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V&
+    operator%=(_V& __lhs, const _V& __x)
     { return __lhs = __lhs % __x; }
 
-    _GLIBCXX_SIMD_CONSTEXPR friend _V& operator&=(_V& __lhs, const _V& __x)
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V&
+    operator&=(_V& __lhs, const _V& __x)
     { return __lhs = __lhs & __x; }
 
-    _GLIBCXX_SIMD_CONSTEXPR friend _V& operator|=(_V& __lhs, const _V& __x)
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V&
+    operator|=(_V& __lhs, const _V& __x)
     { return __lhs = __lhs | __x; }
 
-    _GLIBCXX_SIMD_CONSTEXPR friend _V& operator^=(_V& __lhs, const _V& __x)
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V&
+    operator^=(_V& __lhs, const _V& __x)
     { return __lhs = __lhs ^ __x; }
 
-    _GLIBCXX_SIMD_CONSTEXPR friend _V& operator<<=(_V& __lhs, const _V& __x)
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V&
+    operator<<=(_V& __lhs, const _V& __x)
     { return __lhs = __lhs << __x; }
 
-    _GLIBCXX_SIMD_CONSTEXPR friend _V& operator>>=(_V& __lhs, const _V& __x)
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V&
+    operator>>=(_V& __lhs, const _V& __x)
     { return __lhs = __lhs >> __x; }
 
-    _GLIBCXX_SIMD_CONSTEXPR friend _V& operator<<=(_V& __lhs, int __x)
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V&
+    operator<<=(_V& __lhs, int __x)
     { return __lhs = __lhs << __x; }
 
-    _GLIBCXX_SIMD_CONSTEXPR friend _V& operator>>=(_V& __lhs, int __x)
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V&
+    operator>>=(_V& __lhs, int __x)
     { return __lhs = __lhs >> __x; }
 
-    _GLIBCXX_SIMD_CONSTEXPR friend _V operator%(const _V& __x, const _V& __y)
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V
+    operator%(const _V& __x, const _V& __y)
     {
       return _SimdIntOperators::_S_make_derived(
 	_Impl::_S_modulus(__data(__x), __data(__y)));
     }
 
-    _GLIBCXX_SIMD_CONSTEXPR friend _V operator&(const _V& __x, const _V& __y)
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V
+    operator&(const _V& __x, const _V& __y)
     {
       return _SimdIntOperators::_S_make_derived(
 	_Impl::_S_bit_and(__data(__x), __data(__y)));
     }
 
-    _GLIBCXX_SIMD_CONSTEXPR friend _V operator|(const _V& __x, const _V& __y)
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V
+    operator|(const _V& __x, const _V& __y)
     {
       return _SimdIntOperators::_S_make_derived(
 	_Impl::_S_bit_or(__data(__x), __data(__y)));
     }
 
-    _GLIBCXX_SIMD_CONSTEXPR friend _V operator^(const _V& __x, const _V& __y)
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V
+    operator^(const _V& __x, const _V& __y)
     {
       return _SimdIntOperators::_S_make_derived(
 	_Impl::_S_bit_xor(__data(__x), __data(__y)));
     }
 
-    _GLIBCXX_SIMD_CONSTEXPR friend _V operator<<(const _V& __x, const _V& __y)
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V
+    operator<<(const _V& __x, const _V& __y)
     {
       return _SimdIntOperators::_S_make_derived(
 	_Impl::_S_bit_shift_left(__data(__x), __data(__y)));
     }
 
-    _GLIBCXX_SIMD_CONSTEXPR friend _V operator>>(const _V& __x, const _V& __y)
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V
+    operator>>(const _V& __x, const _V& __y)
     {
       return _SimdIntOperators::_S_make_derived(
 	_Impl::_S_bit_shift_right(__data(__x), __data(__y)));
     }
 
-    template <typename _VV = _V>
-      _GLIBCXX_SIMD_CONSTEXPR friend _V operator<<(const _V& __x, int __y)
-      {
-	using _Tp = typename _VV::value_type;
-	if (__y < 0)
-	  __invoke_ub("The behavior is undefined if the right operand of a "
-		      "shift operation is negative. [expr.shift]\nA shift by "
-		      "%d was requested",
-		      __y);
-	if (size_t(__y) >= sizeof(declval<_Tp>() << __y) * __CHAR_BIT__)
-	  __invoke_ub(
-	    "The behavior is undefined if the right operand of a "
-	    "shift operation is greater than or equal to the width of the "
-	    "promoted left operand. [expr.shift]\nA shift by %d was requested",
-	    __y);
-	return _SimdIntOperators::_S_make_derived(
-	  _Impl::_S_bit_shift_left(__data(__x), __y));
-      }
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V
+    operator<<(const _V& __x, int __y)
+    {
+      if (__y < 0)
+	__invoke_ub("The behavior is undefined if the right operand of a "
+		    "shift operation is negative. [expr.shift]\nA shift by "
+		    "%d was requested",
+		    __y);
+      if (size_t(__y) >= sizeof(declval<_Tp>() << __y) * __CHAR_BIT__)
+	__invoke_ub(
+	  "The behavior is undefined if the right operand of a "
+	  "shift operation is greater than or equal to the width of the "
+	  "promoted left operand. [expr.shift]\nA shift by %d was requested",
+	  __y);
+      return _SimdIntOperators::_S_make_derived(
+	_Impl::_S_bit_shift_left(__data(__x), __y));
+    }
 
-    template <typename _VV = _V>
-      _GLIBCXX_SIMD_CONSTEXPR friend _V operator>>(const _V& __x, int __y)
-      {
-	using _Tp = typename _VV::value_type;
-	if (__y < 0)
-	  __invoke_ub(
-	    "The behavior is undefined if the right operand of a shift "
-	    "operation is negative. [expr.shift]\nA shift by %d was requested",
-	    __y);
-	if (size_t(__y) >= sizeof(declval<_Tp>() << __y) * __CHAR_BIT__)
-	  __invoke_ub(
-	    "The behavior is undefined if the right operand of a shift "
-	    "operation is greater than or equal to the width of the promoted "
-	    "left operand. [expr.shift]\nA shift by %d was requested",
-	    __y);
-	return _SimdIntOperators::_S_make_derived(
-	  _Impl::_S_bit_shift_right(__data(__x), __y));
-      }
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR friend
+    _V
+    operator>>(const _V& __x, int __y)
+    {
+      if (__y < 0)
+	__invoke_ub(
+	  "The behavior is undefined if the right operand of a shift "
+	  "operation is negative. [expr.shift]\nA shift by %d was requested",
+	  __y);
+      if (size_t(__y) >= sizeof(declval<_Tp>() << __y) * __CHAR_BIT__)
+	__invoke_ub(
+	  "The behavior is undefined if the right operand of a shift "
+	  "operation is greater than or equal to the width of the promoted "
+	  "left operand. [expr.shift]\nA shift by %d was requested",
+	  __y);
+      return _SimdIntOperators::_S_make_derived(
+	_Impl::_S_bit_shift_right(__data(__x), __y));
+    }
 
     // unary operators (for integral _Tp)
-    _GLIBCXX_SIMD_CONSTEXPR _V operator~() const
+    _GLIBCXX_SIMD_ALWAYS_INLINE _GLIBCXX_SIMD_CONSTEXPR
+    _V
+    operator~() const
     { return {__private_init, _Impl::_S_complement(__derived()._M_data)}; }
   };
 
 //}}}1
+/// @endcond
 
 // simd {{{
 template <typename _Tp, typename _Abi>
   class simd : public _SimdIntOperators<
-		 simd<_Tp, _Abi>, typename _SimdTraits<_Tp, _Abi>::_SimdImpl,
+		 simd<_Tp, _Abi>, _Tp, _Abi,
 		 conjunction<is_integral<_Tp>,
 			     typename _SimdTraits<_Tp, _Abi>::_IsValid>::value>,
 	       public _SimdTraits<_Tp, _Abi>::_SimdBase
@@ -4896,7 +5117,7 @@ template <typename _Tp, typename _Abi>
   public:
     using _Impl = typename _Traits::_SimdImpl;
     friend _Impl;
-    friend _SimdIntOperators<simd, _Impl, true>;
+    friend _SimdIntOperators<simd, _Tp, _Abi, true>;
 
     using value_type = _Tp;
     using reference = _SmartReference<_MemberType, _Impl, value_type>;
@@ -5153,6 +5374,7 @@ template <typename _Tp, typename _Abi>
   };
 
 // }}}
+/// @cond undocumented
 // __data {{{
 template <typename _Tp, typename _Ap>
   _GLIBCXX_SIMD_INTRINSIC constexpr const auto&
@@ -5189,8 +5411,16 @@ template <typename _Tp, typename _Ap>
     return {__private_init,
 	    _Ap::_SimdImpl::_S_bit_and(__data(__a), __data(__b))};
   }
-} // namespace __float_bitwise_operators }}}
 
+template <typename _Tp, typename _Ap>
+  _GLIBCXX_SIMD_INTRINSIC _GLIBCXX_SIMD_CONSTEXPR
+  enable_if_t<is_floating_point_v<_Tp>, simd<_Tp, _Ap>>
+  operator~(const simd<_Tp, _Ap>& __a)
+  { return {__private_init, _Ap::_SimdImpl::_S_complement(__data(__a))}; }
+} // namespace __float_bitwise_operators }}}
+/// @endcond
+
+/// @}
 _GLIBCXX_SIMD_END_NAMESPACE
 
 #endif // __cplusplus >= 201703L

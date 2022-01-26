@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007-2021 Free Software Foundation, Inc.
+ * Copyright (C) 2007-2022 Free Software Foundation, Inc.
  *
  * This file is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -126,6 +126,7 @@
 #define bit_AVX5124VNNIW (1 << 2)
 #define bit_AVX5124FMAPS (1 << 3)
 #define bit_AVX512VP2INTERSECT	(1 << 8)
+#define bit_AVX512FP16   (1 << 23)
 #define bit_IBT	(1 << 20)
 #define bit_UINTR (1 << 5)
 #define bit_PCONFIG	(1 << 18)

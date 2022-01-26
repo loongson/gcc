@@ -1,6 +1,6 @@
 // Debugging mode support code -*- C++ -*-
 
-// Copyright (C) 2003-2021 Free Software Foundation, Inc.
+// Copyright (C) 2003-2022 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,7 +33,8 @@
 #include <debug/vector>
 
 #include <cassert>
-#include <cstdio>
+#include <cstdio>	// for std::fprintf, stderr
+#include <cstdlib>	// for std::abort
 #include <cctype>	// for std::isspace.
 #include <cstring>	// for std::strstr.
 
@@ -42,6 +43,21 @@
 #include <cxxabi.h>	// for __cxa_demangle.
 
 #include "mutex_pool.h"
+
+#ifdef _GLIBCXX_VERBOSE_ASSERT
+namespace std
+{
+  [[__noreturn__]]
+  void
+  __glibcxx_assert_fail(const char* file, int line,
+			const char* function, const char* condition) noexcept
+  {
+    fprintf(stderr, "%s:%d: %s: Assertion '%s' failed.\n",
+		      file, line, function, condition);
+    abort();
+  }
+}
+#endif
 
 using namespace std;
 
@@ -573,8 +589,8 @@ namespace
     : _M_max_length(78), _M_column(1), _M_first_line(true), _M_wordwrap(false)
     { get_max_length(_M_max_length); }
 
+    static constexpr int _S_indent = 4;
     std::size_t	_M_max_length;
-    enum { _M_indent = 4 } ;
     std::size_t	_M_column;
     bool	_M_first_line;
     bool	_M_wordwrap;
@@ -603,7 +619,7 @@ namespace
     if (length == 0)
       return;
 
-    // Consider first '\n' at begining cause it impacts column.
+    // First consider '\n' at the beginning because it impacts the column.
     if (word[0] == '\n')
       {
 	fprintf(stderr, "\n");
@@ -625,8 +641,8 @@ namespace
 	// If this isn't the first line, indent
 	if (ctx._M_column == 1 && !ctx._M_first_line)
 	  {
-	    const char spacing[ctx._M_indent + 1] = "    ";
-	    print_raw(ctx, spacing, ctx._M_indent);
+	    const char spacing[PrintContext::_S_indent + 1] = "    ";
+	    print_raw(ctx, spacing, PrintContext::_S_indent);
 	  }
 
 	int written = fprintf(stderr, "%.*s", (int)length, word);

@@ -1,5 +1,5 @@
 /* File format for coverage information
-   Copyright (C) 1996-2021 Free Software Foundation, Inc.
+   Copyright (C) 1996-2022 Free Software Foundation, Inc.
    Contributed by Bob Manson <manson@cygnus.com>.
    Completely remangled by Nathan Sidwell <nathan@codesourcery.com>.
 
@@ -42,16 +42,14 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
    Numbers are recorded in the 32 bit unsigned binary form of the
    endianness of the machine generating the file. 64 bit numbers are
-   stored as two 32 bit numbers, the low part first.  Strings are
-   padded with 1 to 4 NUL bytes, to bring the length up to a multiple
-   of 4. The number of 4 bytes is stored, followed by the padded
+   stored as two 32 bit numbers, the low part first.
+   The number of bytes is stored, followed by the
    string. Zero length and NULL strings are simply stored as a length
-   of zero (they have no trailing NUL or padding).
+   of zero (they have no trailing NUL).
 
    	int32:  byte3 byte2 byte1 byte0 | byte0 byte1 byte2 byte3
 	int64:  int32:low int32:high
-	string: int32:0 | int32:length char* char:0 padding
-	padding: | char:0 | char:0 char:0 | char:0 char:0 char:0
+	string: int32:0 | int32:length char* char:0
 	item: int32 | int64 | string
 
    The basic format of the notes file is
@@ -369,6 +367,7 @@ char *mangle_path (char const *base);
 
 #if !IN_GCOV
 /* Available outside gcov */
+GCOV_LINKAGE void gcov_write (const void *, unsigned) ATTRIBUTE_HIDDEN;
 GCOV_LINKAGE void gcov_write_unsigned (gcov_unsigned_t) ATTRIBUTE_HIDDEN;
 #endif
 

@@ -1,6 +1,6 @@
 // Simd fixed_size ABI specific implementations -*- C++ -*-
 
-// Copyright (C) 2020-2021 Free Software Foundation, Inc.
+// Copyright (C) 2020-2022 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -201,6 +201,7 @@ template <typename _Tp, typename _Abi, size_t _Offset>
   };
 
 template <size_t _Offset, typename _Tp, typename _Abi, typename... _As>
+  _GLIBCXX_SIMD_INTRINSIC
   __tuple_element_meta<_Tp, _Abi, _Offset>
   __make_meta(const _SimdTuple<_Tp, _Abi, _As...>&)
   { return {}; }
@@ -230,11 +231,13 @@ template <size_t _O0, size_t _O1, typename _Base>
   struct _WithOffset<_O0, _WithOffset<_O1, _Base>> {};
 
 template <size_t _Offset, typename _Tp>
+  _GLIBCXX_SIMD_INTRINSIC
   decltype(auto)
   __add_offset(_Tp& __base)
   { return static_cast<_WithOffset<_Offset, __remove_cvref_t<_Tp>>&>(__base); }
 
 template <size_t _Offset, typename _Tp>
+  _GLIBCXX_SIMD_INTRINSIC
   decltype(auto)
   __add_offset(const _Tp& __base)
   {
@@ -243,6 +246,7 @@ template <size_t _Offset, typename _Tp>
   }
 
 template <size_t _Offset, size_t _ExistingOffset, typename _Tp>
+  _GLIBCXX_SIMD_INTRINSIC
   decltype(auto)
   __add_offset(_WithOffset<_ExistingOffset, _Tp>& __base)
   {
@@ -251,6 +255,7 @@ template <size_t _Offset, size_t _ExistingOffset, typename _Tp>
   }
 
 template <size_t _Offset, size_t _ExistingOffset, typename _Tp>
+  _GLIBCXX_SIMD_INTRINSIC
   decltype(auto)
   __add_offset(const _WithOffset<_ExistingOffset, _Tp>& __base)
   {
@@ -586,6 +591,7 @@ template <typename _Tp, typename _Abi0, typename... _Abis>
 	  return second[integral_constant<_Up, _I - simd_size_v<_Tp, _Abi0>>()];
       }
 
+    _GLIBCXX_SIMD_INTRINSIC
     _Tp operator[](size_t __i) const noexcept
     {
       if constexpr (_S_tuple_size == 1)
@@ -608,6 +614,7 @@ template <typename _Tp, typename _Abi0, typename... _Abis>
 	}
     }
 
+    _GLIBCXX_SIMD_INTRINSIC
     void _M_set(size_t __i, _Tp __val) noexcept
     {
       if constexpr (_S_tuple_size == 1)
@@ -627,6 +634,7 @@ template <typename _Tp, typename _Abi0, typename... _Abis>
 
   private:
     // _M_subscript_read/_write {{{
+    _GLIBCXX_SIMD_INTRINSIC
     _Tp _M_subscript_read([[maybe_unused]] size_t __i) const noexcept
     {
       if constexpr (__is_vectorizable_v<_FirstType>)
@@ -635,6 +643,7 @@ template <typename _Tp, typename _Abi0, typename... _Abis>
 	return first[__i];
     }
 
+    _GLIBCXX_SIMD_INTRINSIC
     void _M_subscript_write([[maybe_unused]] size_t __i, _Tp __y) noexcept
     {
       if constexpr (__is_vectorizable_v<_FirstType>)
@@ -1026,55 +1035,6 @@ template <typename _Tp, int _Np, typename... _As, typename _Next, int _Remain>
   };
 
 // }}}
-// _AbisInSimdTuple {{{
-template <typename _Tp>
-  struct _SeqOp;
-
-template <size_t _I0, size_t... _Is>
-  struct _SeqOp<index_sequence<_I0, _Is...>>
-  {
-    using _FirstPlusOne = index_sequence<_I0 + 1, _Is...>;
-    using _NotFirstPlusOne = index_sequence<_I0, (_Is + 1)...>;
-    template <size_t _First, size_t _Add>
-    using _Prepend = index_sequence<_First, _I0 + _Add, (_Is + _Add)...>;
-  };
-
-template <typename _Tp>
-  struct _AbisInSimdTuple;
-
-template <typename _Tp>
-  struct _AbisInSimdTuple<_SimdTuple<_Tp>>
-  {
-    using _Counts = index_sequence<0>;
-    using _Begins = index_sequence<0>;
-  };
-
-template <typename _Tp, typename _Ap>
-  struct _AbisInSimdTuple<_SimdTuple<_Tp, _Ap>>
-  {
-    using _Counts = index_sequence<1>;
-    using _Begins = index_sequence<0>;
-  };
-
-template <typename _Tp, typename _A0, typename... _As>
-  struct _AbisInSimdTuple<_SimdTuple<_Tp, _A0, _A0, _As...>>
-  {
-    using _Counts = typename _SeqOp<typename _AbisInSimdTuple<
-      _SimdTuple<_Tp, _A0, _As...>>::_Counts>::_FirstPlusOne;
-    using _Begins = typename _SeqOp<typename _AbisInSimdTuple<
-      _SimdTuple<_Tp, _A0, _As...>>::_Begins>::_NotFirstPlusOne;
-  };
-
-template <typename _Tp, typename _A0, typename _A1, typename... _As>
-  struct _AbisInSimdTuple<_SimdTuple<_Tp, _A0, _A1, _As...>>
-  {
-    using _Counts = typename _SeqOp<typename _AbisInSimdTuple<
-      _SimdTuple<_Tp, _A1, _As...>>::_Counts>::template _Prepend<1, 0>;
-    using _Begins = typename _SeqOp<typename _AbisInSimdTuple<
-      _SimdTuple<_Tp, _A1, _As...>>::_Begins>::template _Prepend<0, 1>;
-  };
-
-// }}}
 // __autocvt_to_simd {{{
 template <typename _Tp, bool = is_arithmetic_v<__remove_cvref_t<_Tp>>>
   struct __autocvt_to_simd
@@ -1082,9 +1042,11 @@ template <typename _Tp, bool = is_arithmetic_v<__remove_cvref_t<_Tp>>>
     _Tp _M_data;
     using _TT = __remove_cvref_t<_Tp>;
 
+    _GLIBCXX_SIMD_INTRINSIC
     operator _TT()
     { return _M_data; }
 
+    _GLIBCXX_SIMD_INTRINSIC
     operator _TT&()
     {
       static_assert(is_lvalue_reference<_Tp>::value, "");
@@ -1092,6 +1054,7 @@ template <typename _Tp, bool = is_arithmetic_v<__remove_cvref_t<_Tp>>>
       return _M_data;
     }
 
+    _GLIBCXX_SIMD_INTRINSIC
     operator _TT*()
     {
       static_assert(is_lvalue_reference<_Tp>::value, "");
@@ -1099,13 +1062,16 @@ template <typename _Tp, bool = is_arithmetic_v<__remove_cvref_t<_Tp>>>
       return &_M_data;
     }
 
-    constexpr inline __autocvt_to_simd(_Tp dd) : _M_data(dd) {}
+    _GLIBCXX_SIMD_INTRINSIC
+    constexpr __autocvt_to_simd(_Tp dd) : _M_data(dd) {}
 
     template <typename _Abi>
+      _GLIBCXX_SIMD_INTRINSIC
       operator simd<typename _TT::value_type, _Abi>()
       { return {__private_init, _M_data}; }
 
     template <typename _Abi>
+      _GLIBCXX_SIMD_INTRINSIC
       operator simd<typename _TT::value_type, _Abi>&()
       {
 	return *reinterpret_cast<simd<typename _TT::value_type, _Abi>*>(
@@ -1113,6 +1079,7 @@ template <typename _Tp, bool = is_arithmetic_v<__remove_cvref_t<_Tp>>>
       }
 
     template <typename _Abi>
+      _GLIBCXX_SIMD_INTRINSIC
       operator simd<typename _TT::value_type, _Abi>*()
       {
 	return reinterpret_cast<simd<typename _TT::value_type, _Abi>*>(
@@ -1130,14 +1097,18 @@ template <typename _Tp>
     _Tp _M_data;
     fixed_size_simd<_TT, 1> _M_fd;
 
-    constexpr inline __autocvt_to_simd(_Tp dd) : _M_data(dd), _M_fd(_M_data) {}
+    _GLIBCXX_SIMD_INTRINSIC
+    constexpr __autocvt_to_simd(_Tp dd) : _M_data(dd), _M_fd(_M_data) {}
 
+    _GLIBCXX_SIMD_INTRINSIC
     ~__autocvt_to_simd()
     { _M_data = __data(_M_fd).first; }
 
+    _GLIBCXX_SIMD_INTRINSIC
     operator fixed_size_simd<_TT, 1>()
     { return _M_fd; }
 
+    _GLIBCXX_SIMD_INTRINSIC
     operator fixed_size_simd<_TT, 1> &()
     {
       static_assert(is_lvalue_reference<_Tp>::value, "");
@@ -1145,6 +1116,7 @@ template <typename _Tp>
       return _M_fd;
     }
 
+    _GLIBCXX_SIMD_INTRINSIC
     operator fixed_size_simd<_TT, 1> *()
     {
       static_assert(is_lvalue_reference<_Tp>::value, "");
@@ -1156,8 +1128,8 @@ template <typename _Tp>
 // }}}
 
 struct _CommonImplFixedSize;
-template <int _Np> struct _SimdImplFixedSize;
-template <int _Np> struct _MaskImplFixedSize;
+template <int _Np, typename = __detail::__odr_helper> struct _SimdImplFixedSize;
+template <int _Np, typename = __detail::__odr_helper> struct _MaskImplFixedSize;
 // simd_abi::_Fixed {{{
 template <int _Np>
   struct simd_abi::_Fixed
@@ -1221,12 +1193,15 @@ template <int _Np>
 	{
 	  // The following ensures, function arguments are passed via the stack.
 	  // This is important for ABI compatibility across TU boundaries
+	  _GLIBCXX_SIMD_ALWAYS_INLINE
 	  _SimdBase(const _SimdBase&) {}
 	  _SimdBase() = default;
 
+	  _GLIBCXX_SIMD_ALWAYS_INLINE
 	  explicit operator const _SimdMember &() const
 	  { return static_cast<const simd<_Tp, _Fixed>*>(this)->_M_data; }
 
+	  _GLIBCXX_SIMD_ALWAYS_INLINE
 	  explicit operator array<_Tp, _Np>() const
 	  {
 	    array<_Tp, _Np> __r;
@@ -1247,8 +1222,11 @@ template <int _Np>
 	// _SimdCastType {{{
 	struct _SimdCastType
 	{
+	  _GLIBCXX_SIMD_ALWAYS_INLINE
 	  _SimdCastType(const array<_Tp, _Np>&);
+	  _GLIBCXX_SIMD_ALWAYS_INLINE
 	  _SimdCastType(const _SimdMember& dd) : _M_data(dd) {}
+	  _GLIBCXX_SIMD_ALWAYS_INLINE
 	  explicit operator const _SimdMember &() const { return _M_data; }
 
 	private:
@@ -1286,7 +1264,7 @@ struct _CommonImplFixedSize
 // _SimdImplFixedSize {{{1
 // fixed_size should not inherit from _SimdMathFallback in order for
 // specializations in the used _SimdTuple Abis to get used
-template <int _Np>
+template <int _Np, typename>
   struct _SimdImplFixedSize
   {
     // member types {{{2
@@ -1529,7 +1507,7 @@ template <int _Np>
 #define _GLIBCXX_SIMD_FIXED_OP(name_, op_)                                     \
     template <typename _Tp, typename... _As>                                   \
       static inline constexpr _SimdTuple<_Tp, _As...> name_(                   \
-	const _SimdTuple<_Tp, _As...> __x, const _SimdTuple<_Tp, _As...> __y)  \
+	const _SimdTuple<_Tp, _As...>& __x, const _SimdTuple<_Tp, _As...>& __y)\
       {                                                                        \
 	return __x._M_apply_per_chunk(                                         \
 	  [](auto __impl, auto __xx, auto __yy) constexpr {                    \
@@ -1663,7 +1641,7 @@ template <int _Np>
     _GLIBCXX_SIMD_APPLY_ON_TUPLE(_Tp, ldexp)
     _GLIBCXX_SIMD_APPLY_ON_TUPLE(_Tp, fmod)
     _GLIBCXX_SIMD_APPLY_ON_TUPLE(_Tp, remainder)
-    // copysign in simd_math.h
+    _GLIBCXX_SIMD_APPLY_ON_TUPLE(_Tp, copysign)
     _GLIBCXX_SIMD_APPLY_ON_TUPLE(_Tp, nextafter)
     _GLIBCXX_SIMD_APPLY_ON_TUPLE(_Tp, fdim)
     _GLIBCXX_SIMD_APPLY_ON_TUPLE(_Tp, fmax)
@@ -1829,8 +1807,7 @@ template <int _Np>
     // _S_masked_unary {{{2
     template <template <typename> class _Op, typename _Tp, typename... _As>
       static inline _SimdTuple<_Tp, _As...>
-      _S_masked_unary(const _MaskMember __bits,
-		      const _SimdTuple<_Tp, _As...> __v) // TODO: const-ref __v?
+      _S_masked_unary(const _MaskMember __bits, const _SimdTuple<_Tp, _As...>& __v)
       {
 	return __v._M_apply_wrapped([&__bits](auto __meta,
 					      auto __native) constexpr {
@@ -1844,7 +1821,7 @@ template <int _Np>
   };
 
 // _MaskImplFixedSize {{{1
-template <int _Np>
+template <int _Np, typename>
   struct _MaskImplFixedSize
   {
     static_assert(

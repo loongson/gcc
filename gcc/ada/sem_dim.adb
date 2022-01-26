@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2011-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 2011-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -318,7 +318,7 @@ package body Sem_Dim is
       (N                  : Node_Id;
        Description_Needed : Boolean := False) return String;
    --  Given a node N, return the dimension symbols of N, preceded by "has
-   --  dimension" if Description_Needed. if N is dimensionless, return "'[']",
+   --  dimension" if Description_Needed. If N is dimensionless, return "'[']",
    --  or "is dimensionless" if Description_Needed.
 
    function Dimension_System_Root (T : Entity_Id) return Entity_Id;
@@ -2759,7 +2759,7 @@ package body Sem_Dim is
 
       --  Insert a blank between the literal and the symbol
 
-      Add_Str_To_Name_Buffer (" ");
+      Add_Char_To_Name_Buffer (' ');
       Append (Global_Name_Buffer, Symbol_Of (Typ));
 
       Error_Msg_Name_1 := Name_Find;
@@ -3032,12 +3032,12 @@ package body Sem_Dim is
    --                  symbol is not empty, then the symbol appears as a
    --                  suffix. Otherwise, a new string is created and appears
    --                  as a suffix of Item. This string results in the
-   --                  successive concatanations between each unit symbol
+   --                  successive concatenations between each unit symbol
    --                  raised by its corresponding dimension power from the
    --                  dimensions of Item.
 
    --   * Put_Dim_Of : The output is a new string resulting in the successive
-   --                  concatanations between each dimension symbol raised by
+   --                  concatenations between each dimension symbol raised by
    --                  its corresponding dimension power from the dimensions of
    --                  Item.
 
@@ -3322,13 +3322,13 @@ package body Sem_Dim is
             if Chars (Name_Call) = Name_Image then
                Rewrite (N,
                  Make_Function_Call (Loc,
-                   Name =>                   New_Copy (Name_Call),
+                   Name                   => New_Copy (Name_Call),
                    Parameter_Associations => New_Actuals));
                Analyze_And_Resolve (N);
             else
                Rewrite (N,
                  Make_Procedure_Call_Statement (Loc,
-                   Name =>                   New_Copy (Name_Call),
+                   Name                   => New_Copy (Name_Call),
                    Parameter_Associations => New_Actuals));
                Analyze (N);
             end if;
@@ -3665,7 +3665,7 @@ package body Sem_Dim is
       declare
          G : constant Int := GCD (X.Numerator, X.Denominator);
       begin
-         return Rational'(Numerator =>   Whole (Int (X.Numerator)   / G),
+         return Rational'(Numerator   => Whole (Int (X.Numerator)   / G),
                           Denominator => Whole (Int (X.Denominator) / G));
       end;
    end Reduce;
@@ -3765,16 +3765,20 @@ package body Sem_Dim is
    ---------------
 
    function System_Of (E : Entity_Id) return System_Type is
-      Type_Decl : constant Node_Id := Parent (E);
-
    begin
-      --  Look for Type_Decl in System_Table
+      if Present (E) then
+         declare
+            Type_Decl : constant Node_Id := Parent (E);
+         begin
+            --  Look for Type_Decl in System_Table
 
-      for Dim_Sys in 1 .. System_Table.Last loop
-         if Type_Decl = System_Table.Table (Dim_Sys).Type_Decl then
-            return System_Table.Table (Dim_Sys);
-         end if;
-      end loop;
+            for Dim_Sys in 1 .. System_Table.Last loop
+               if Type_Decl = System_Table.Table (Dim_Sys).Type_Decl then
+                  return System_Table.Table (Dim_Sys);
+               end if;
+            end loop;
+         end;
+      end if;
 
       return Null_System;
    end System_Of;

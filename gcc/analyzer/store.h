@@ -1,5 +1,5 @@
 /* Classes for modeling the state of memory.
-   Copyright (C) 2020-2021 Free Software Foundation, Inc.
+   Copyright (C) 2020-2022 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -196,30 +196,9 @@ private:
   hash_set<const svalue *> m_mutable_at_unknown_call_svals;
 };
 
+class byte_range;
 class concrete_binding;
-
-/* An enum for discriminating between "direct" vs "default" levels of
-   mapping.  */
-
-enum binding_kind
-{
-  /* Special-case value for hash support.
-     This is the initial entry, so that hash traits can have
-     empty_zero_p = true.  */
-  BK_empty = 0,
-
-  /* Special-case value for hash support.  */
-  BK_deleted,
-
-  /* The normal kind of mapping.  */
-  BK_direct,
-
-  /* A lower-priority kind of mapping, for use when inheriting
-     default values from a parent region.  */
-  BK_default
-};
-
-extern const char *binding_kind_to_string (enum binding_kind kind);
+class symbolic_binding;
 
 /* Abstract base class for describing ranges of bits within a binding_map
    that can have svalues bound to them.  */
@@ -231,10 +210,9 @@ public:
   virtual bool concrete_p () const = 0;
   bool symbolic_p () const { return !concrete_p (); }
 
-  static const binding_key *make (store_manager *mgr, const region *r,
-				   enum binding_kind kind);
+  static const binding_key *make (store_manager *mgr, const region *r);
 
-  virtual void dump_to_pp (pretty_printer *pp, bool simple) const;
+  virtual void dump_to_pp (pretty_printer *pp, bool simple) const = 0;
   void dump (bool simple) const;
   label_text get_desc (bool simple=true) const;
 
@@ -243,28 +221,118 @@ public:
 
   virtual const concrete_binding *dyn_cast_concrete_binding () const
   { return NULL; }
+  virtual const symbolic_binding *dyn_cast_symbolic_binding () const
+  { return NULL; }
+};
 
-  enum binding_kind get_kind () const { return m_kind; }
+/* A concrete range of bits.  */
 
-  void mark_deleted () { m_kind = BK_deleted; }
-  void mark_empty () { m_kind = BK_empty; }
-  bool is_deleted () const { return m_kind == BK_deleted; }
-  bool is_empty () const { return m_kind == BK_empty; }
+struct bit_range
+{
+  bit_range (bit_offset_t start_bit_offset, bit_size_t size_in_bits)
+  : m_start_bit_offset (start_bit_offset),
+    m_size_in_bits (size_in_bits)
+  {}
 
-protected:
-  binding_key (enum binding_kind kind) : m_kind (kind) {}
+  void dump_to_pp (pretty_printer *pp) const;
+  void dump () const;
 
-  hashval_t impl_hash () const
+  bit_offset_t get_start_bit_offset () const
   {
-    return m_kind;
+    return m_start_bit_offset;
   }
-  bool impl_eq (const binding_key &other) const
+  bit_offset_t get_next_bit_offset () const
   {
-    return m_kind == other.m_kind;
+    return m_start_bit_offset + m_size_in_bits;
+  }
+  bit_offset_t get_last_bit_offset () const
+  {
+    return get_next_bit_offset () - 1;
   }
 
-private:
-  enum binding_kind m_kind;
+  bool contains_p (bit_offset_t offset) const
+  {
+    return (offset >= get_start_bit_offset ()
+	    && offset < get_next_bit_offset ());
+  }
+
+  bool contains_p (const bit_range &other, bit_range *out) const;
+
+  bool operator== (const bit_range &other) const
+  {
+    return (m_start_bit_offset == other.m_start_bit_offset
+	    && m_size_in_bits == other.m_size_in_bits);
+  }
+
+  bool intersects_p (const bit_range &other) const
+  {
+    return (get_start_bit_offset () < other.get_next_bit_offset ()
+	    && other.get_start_bit_offset () < get_next_bit_offset ());
+  }
+  bool intersects_p (const bit_range &other,
+		     bit_range *out_this,
+		     bit_range *out_other) const;
+
+  static int cmp (const bit_range &br1, const bit_range &br2);
+
+  bit_range operator- (bit_offset_t offset) const;
+
+  static bool from_mask (unsigned HOST_WIDE_INT mask, bit_range *out);
+
+  bool as_byte_range (byte_range *out) const;
+
+  bit_offset_t m_start_bit_offset;
+  bit_size_t m_size_in_bits;
+};
+
+/* A concrete range of bytes.  */
+
+struct byte_range
+{
+  byte_range (byte_offset_t start_byte_offset, byte_size_t size_in_bytes)
+  : m_start_byte_offset (start_byte_offset),
+    m_size_in_bytes (size_in_bytes)
+  {}
+
+  void dump_to_pp (pretty_printer *pp) const;
+  void dump () const;
+
+  bool contains_p (byte_offset_t offset) const
+  {
+    return (offset >= get_start_byte_offset ()
+	    && offset < get_next_byte_offset ());
+  }
+  bool contains_p (const byte_range &other, byte_range *out) const;
+
+  bool operator== (const byte_range &other) const
+  {
+    return (m_start_byte_offset == other.m_start_byte_offset
+	    && m_size_in_bytes == other.m_size_in_bytes);
+  }
+
+  byte_offset_t get_start_byte_offset () const
+  {
+    return m_start_byte_offset;
+  }
+  byte_offset_t get_next_byte_offset () const
+  {
+    return m_start_byte_offset + m_size_in_bytes;
+  }
+  byte_offset_t get_last_byte_offset () const
+  {
+    return m_start_byte_offset + m_size_in_bytes - 1;
+  }
+
+  bit_range as_bit_range () const
+  {
+    return bit_range (m_start_byte_offset * BITS_PER_UNIT,
+		      m_size_in_bytes * BITS_PER_UNIT);
+  }
+
+  static int cmp (const byte_range &br1, const byte_range &br2);
+
+  byte_offset_t m_start_byte_offset;
+  byte_size_t m_size_in_bytes;
 };
 
 /* Concrete subclass of binding_key, for describing a concrete range of
@@ -276,27 +344,21 @@ public:
   /* This class is its own key for the purposes of consolidation.  */
   typedef concrete_binding key_t;
 
-  concrete_binding (bit_offset_t start_bit_offset, bit_size_t size_in_bits,
-		    enum binding_kind kind)
-  : binding_key (kind),
-    m_start_bit_offset (start_bit_offset),
-    m_size_in_bits (size_in_bits)
+  concrete_binding (bit_offset_t start_bit_offset, bit_size_t size_in_bits)
+  : m_bit_range (start_bit_offset, size_in_bits)
   {}
   bool concrete_p () const FINAL OVERRIDE { return true; }
 
   hashval_t hash () const
   {
     inchash::hash hstate;
-    hstate.add_wide_int (m_start_bit_offset);
-    hstate.add_wide_int (m_size_in_bits);
-    return hstate.end () ^ binding_key::impl_hash ();
+    hstate.add_wide_int (m_bit_range.m_start_bit_offset);
+    hstate.add_wide_int (m_bit_range.m_size_in_bits);
+    return hstate.end ();
   }
   bool operator== (const concrete_binding &other) const
   {
-    if (!binding_key::impl_eq (other))
-      return false;
-    return (m_start_bit_offset == other.m_start_bit_offset
-	    && m_size_in_bits == other.m_size_in_bits);
+    return m_bit_range == other.m_bit_range;
   }
 
   void dump_to_pp (pretty_printer *pp, bool simple) const FINAL OVERRIDE;
@@ -304,21 +366,33 @@ public:
   const concrete_binding *dyn_cast_concrete_binding () const FINAL OVERRIDE
   { return this; }
 
-  bit_offset_t get_start_bit_offset () const { return m_start_bit_offset; }
-  bit_size_t get_size_in_bits () const { return m_size_in_bits; }
+  const bit_range &get_bit_range () const { return m_bit_range; }
+
+  bit_offset_t get_start_bit_offset () const
+  {
+    return m_bit_range.m_start_bit_offset;
+  }
+  bit_size_t get_size_in_bits () const
+  {
+    return m_bit_range.m_size_in_bits;
+  }
   /* Return the next bit offset after the end of this binding.  */
   bit_offset_t get_next_bit_offset () const
   {
-    return m_start_bit_offset + m_size_in_bits;
+    return m_bit_range.get_next_bit_offset ();
   }
 
   bool overlaps_p (const concrete_binding &other) const;
 
   static int cmp_ptr_ptr (const void *, const void *);
 
+  void mark_deleted () { m_bit_range.m_start_bit_offset = -1; }
+  void mark_empty () { m_bit_range.m_start_bit_offset = -2; }
+  bool is_deleted () const { return m_bit_range.m_start_bit_offset == -1; }
+  bool is_empty () const { return m_bit_range.m_start_bit_offset == -2; }
+
 private:
-  bit_offset_t m_start_bit_offset;
-  bit_size_t m_size_in_bits;
+  bit_range m_bit_range;
 };
 
 } // namespace ana
@@ -326,7 +400,7 @@ private:
 template <> struct default_hash_traits<ana::concrete_binding>
 : public member_function_hash_traits<ana::concrete_binding>
 {
-  static const bool empty_zero_p = true;
+  static const bool empty_zero_p = false;
 };
 
 namespace ana {
@@ -340,28 +414,32 @@ public:
   /* This class is its own key for the purposes of consolidation.  */
   typedef symbolic_binding key_t;
 
-  symbolic_binding (const region *region, enum binding_kind kind)
-  : binding_key (kind),
-    m_region (region)
-  {}
+  symbolic_binding (const region *region) : m_region (region) {}
   bool concrete_p () const FINAL OVERRIDE { return false; }
 
   hashval_t hash () const
   {
-    return (binding_key::impl_hash () ^ (intptr_t)m_region);
+    return (intptr_t)m_region;
   }
   bool operator== (const symbolic_binding &other) const
   {
-    if (!binding_key::impl_eq (other))
-      return false;
-    return (m_region == other.m_region);
+    return m_region == other.m_region;
   }
 
   void dump_to_pp (pretty_printer *pp, bool simple) const FINAL OVERRIDE;
 
+  const symbolic_binding *dyn_cast_symbolic_binding () const FINAL OVERRIDE
+  { return this; }
+
   const region *get_region () const { return m_region; }
 
   static int cmp_ptr_ptr (const void *, const void *);
+
+  void mark_deleted () { m_region = reinterpret_cast<const region *> (1); }
+  void mark_empty () { m_region = NULL; }
+  bool is_deleted () const
+  { return m_region == reinterpret_cast<const region *> (1); }
+  bool is_empty () const { return m_region == NULL; }
 
 private:
   const region *m_region;
@@ -429,7 +507,13 @@ public:
 
   static int cmp (const binding_map &map1, const binding_map &map2);
 
+  void remove_overlapping_bindings (store_manager *mgr,
+				    const binding_key *drop_key,
+				    uncertainty_t *uncertainty);
+
 private:
+  void get_overlapping_bindings (const binding_key *key,
+				 auto_vec<const binding_key *> *out);
   bool apply_ctor_val_to_range (const region *parent_reg,
 				region_model_manager *mgr,
 				tree min_index, tree max_index,
@@ -475,25 +559,29 @@ public:
 
   bool symbolic_p () const;
 
+  const region *get_base_region () const { return m_base_region; }
+
   void dump_to_pp (pretty_printer *pp, bool simple, bool multiline) const;
   void dump (bool simple) const;
 
+  void validate () const;
+
   json::object *to_json () const;
 
-  void bind (store_manager *mgr, const region *, const svalue *,
-	     binding_kind kind);
+  void bind (store_manager *mgr, const region *, const svalue *);
 
   void clobber_region (store_manager *mgr, const region *reg);
   void purge_region (store_manager *mgr, const region *reg);
+  void fill_region (store_manager *mgr, const region *reg, const svalue *sval);
   void zero_fill_region (store_manager *mgr, const region *reg);
   void mark_region_as_unknown (store_manager *mgr, const region *reg,
 			       uncertainty_t *uncertainty);
+  void purge_state_involving (const svalue *sval,
+			      region_model_manager *sval_mgr);
 
-  const svalue *get_binding (store_manager *mgr, const region *reg,
-			      binding_kind kind) const;
+  const svalue *get_binding (store_manager *mgr, const region *reg) const;
   const svalue *get_binding_recursive (store_manager *mgr,
-					const region *reg,
-					enum binding_kind kind) const;
+					const region *reg) const;
   const svalue *get_any_binding (store_manager *mgr,
 				  const region *reg) const;
   const svalue *maybe_get_compound_binding (store_manager *mgr,
@@ -522,6 +610,7 @@ public:
 
   void mark_as_escaped ();
   void on_unknown_fncall (const gcall *call, store_manager *mgr);
+  void on_asm (const gasm *stmt, store_manager *mgr);
 
   bool escaped_p () const { return m_escaped; }
   bool touched_p () const { return m_touched; }
@@ -555,8 +644,6 @@ public:
 
 private:
   const svalue *get_any_value (const binding_key *key) const;
-  void get_overlapping_bindings (store_manager *mgr, const region *reg,
-				 auto_vec<const binding_key *> *out);
   void bind_compound_sval (store_manager *mgr,
 			   const region *reg,
 			   const compound_svalue *compound_sval);
@@ -609,22 +696,25 @@ public:
   void dump (bool simple) const;
   void summarize_to_pp (pretty_printer *pp, bool simple) const;
 
+  void validate () const;
+
   json::object *to_json () const;
 
-  const svalue *get_direct_binding (store_manager *mgr, const region *reg);
-  const svalue *get_default_binding (store_manager *mgr, const region *reg);
   const svalue *get_any_binding (store_manager *mgr, const region *reg) const;
 
   bool called_unknown_fn_p () const { return m_called_unknown_fn; }
 
   void set_value (store_manager *mgr, const region *lhs_reg,
-		  const svalue *rhs_sval, enum binding_kind kind,
+		  const svalue *rhs_sval,
 		  uncertainty_t *uncertainty);
   void clobber_region (store_manager *mgr, const region *reg);
   void purge_region (store_manager *mgr, const region *reg);
+  void fill_region (store_manager *mgr, const region *reg, const svalue *sval);
   void zero_fill_region (store_manager *mgr, const region *reg);
   void mark_region_as_unknown (store_manager *mgr, const region *reg,
 			       uncertainty_t *uncertainty);
+  void purge_state_involving (const svalue *sval,
+			      region_model_manager *sval_mgr);
 
   const binding_cluster *get_cluster (const region *base_reg) const;
   binding_cluster *get_cluster (const region *base_reg);
@@ -697,14 +787,20 @@ class store_manager
 public:
   store_manager (region_model_manager *mgr) : m_mgr (mgr) {}
 
+  logger *get_logger () const;
+
   /* binding consolidation.  */
   const concrete_binding *
   get_concrete_binding (bit_offset_t start_bit_offset,
-			bit_offset_t size_in_bits,
-			enum binding_kind kind);
+			bit_offset_t size_in_bits);
+  const concrete_binding *
+  get_concrete_binding (const bit_range &bits)
+  {
+    return get_concrete_binding (bits.get_start_bit_offset (),
+				 bits.m_size_in_bits);
+  }
   const symbolic_binding *
-  get_symbolic_binding (const region *region,
-			enum binding_kind kind);
+  get_symbolic_binding (const region *region);
 
   region_model_manager *get_svalue_manager () const
   {

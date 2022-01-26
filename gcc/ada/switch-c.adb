@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -112,7 +112,7 @@ package body Switch.C is
 
          when '3' =>
             if Standard_Long_Long_Integer_Size /= 64 then
-               Bad_Switch ("-gnato3 not implemented for this configuration");
+               Bad_Switch ("-gnato3 requires Long_Long_Integer'Size = 64");
             else
                return Eliminated;
             end if;
@@ -451,7 +451,6 @@ package body Switch.C is
 
                Debug_Generated_Code := True;
                Xref_Active := False;
-               Set_Debug_Flag ('g');
 
             --  -gnate? (extended switches)
 
@@ -1286,7 +1285,7 @@ package body Switch.C is
 
                else
                   declare
-                     OK  : Boolean;
+                     OK : Boolean;
 
                   begin
                      Set_Validity_Check_Options
@@ -1392,9 +1391,8 @@ package body Switch.C is
 
             when 'X' =>
                Ptr := Ptr + 1;
-               Extensions_Allowed   := True;
-               Ada_Version          := Ada_Version_Type'Last;
-               Ada_Version_Explicit := Ada_Version_Type'Last;
+               Ada_Version          := Ada_With_Extensions;
+               Ada_Version_Explicit := Ada_With_Extensions;
                Ada_Version_Pragma   := Empty;
 
             --  -gnaty (style checks)
@@ -1410,7 +1408,7 @@ package body Switch.C is
                   Store_Switch := False;
 
                   declare
-                     OK  : Boolean;
+                     OK : Boolean;
 
                   begin
                      Set_Style_Check_Options
@@ -1581,8 +1579,10 @@ package body Switch.C is
                elsif Switch_Chars (Ptr .. Ptr + 3) = "2012" then
                   Ada_Version := Ada_2012;
 
-               elsif Switch_Chars (Ptr .. Ptr + 3) = "2020" then
-                  Ada_Version := Ada_2020;
+               elsif Switch_Chars (Ptr .. Ptr + 3) = "2020"
+                 or else Switch_Chars (Ptr .. Ptr + 3) = "2022"
+               then
+                  Ada_Version := Ada_2022;
 
                else
                   Bad_Switch ("-gnat" & Switch_Chars (Ptr .. Ptr + 3));

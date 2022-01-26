@@ -4,7 +4,7 @@
 // { dg-require-gthreads "" }
 // { dg-add-options libatomic }
 
-// Copyright (C) 2020-2021 Free Software Foundation, Inc.
+// Copyright (C) 2020-2022 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,22 +26,36 @@
 
 #include <testsuite_hooks.h>
 
+template<typename S>
+  void
+  test (S va, S vb)
+  {
+    if constexpr (std::atomic_ref<S>::is_always_lock_free)
+    {
+      S aa{ va };
+      std::atomic_ref<S> a{ aa };
+      a.wait(vb);
+      std::thread t([&]
+        {
+	  a.store(vb);
+	  a.notify_one();
+        });
+      a.wait(va);
+      t.join();
+    }
+  }
+
 int
 main ()
 {
-  struct S{ int i; };
-  S aa{ 0 };
-  S bb{ 42 };
+  test<int>(0, 42);
+  test<long>(0, 42);
+  test<unsigned>(0u, 42u);
+  test<float>(0.0f, 42.0f);
+  test<double>(0.0, 42.0);
+  test<void*>(nullptr, reinterpret_cast<void*>(42));
 
-  std::atomic_ref<S> a{ aa };
-  VERIFY( a.load().i == aa.i );
-  a.wait(bb);
-  std::thread t([&]
-    {
-      a.store(bb);
-      a.notify_one();
-    });
-  a.wait(aa);
-  t.join();
+  struct S{ int i; };
+  test<S>(S{ 0 }, S{ 42 });
   return 0;
 }

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -125,7 +125,7 @@ package body Exp_Prag is
 
    begin
       --  Suppress the expansion of an ignored assertion pragma. Such a pragma
-      --  should not be transformed into a null statment because:
+      --  should not be transformed into a null statement because:
       --
       --    * The pragma may be part of the rep item chain of a type, in which
       --      case rewriting it will destroy the chain.
@@ -563,9 +563,9 @@ package body Exp_Prag is
             null;
 
          elsif Nam = Name_Assert then
-            Error_Msg_N ("?A?assertion will fail at run time", N);
+            Error_Msg_N ("?.a?assertion will fail at run time", N);
          else
-            Error_Msg_N ("?A?check will fail at run time", N);
+            Error_Msg_N ("?.a?check will fail at run time", N);
          end if;
       end if;
    end Expand_Pragma_Check;
@@ -752,10 +752,10 @@ package body Exp_Prag is
       --  value of which is Init_Val if present or null if not.
 
       function Build_Simple_Declaration_With_Default
-         (Decl_Id     : Entity_Id;
-          Init_Val    : Entity_Id;
-          Typ         : Entity_Id;
-          Default_Val : Entity_Id) return Node_Id;
+        (Decl_Id     : Entity_Id;
+         Init_Val    : Node_Id;
+         Typ         : Node_Id;
+         Default_Val : Node_Id) return Node_Id;
       --  Build a declaration the Defining_Identifier of which is Decl_Id, the
       --  Object_Definition of which is Typ, the value of which is Init_Val if
       --  present or Default otherwise.
@@ -983,7 +983,7 @@ package body Exp_Prag is
       function Build_Simple_Declaration_With_Default
         (Decl_Id     : Entity_Id;
          Init_Val    : Node_Id;
-         Typ         : Entity_Id;
+         Typ         : Node_Id;
          Default_Val : Node_Id) return Node_Id
       is
          Value : Node_Id := Init_Val;
@@ -1525,9 +1525,7 @@ package body Exp_Prag is
          begin
             --  Attribute 'Old
 
-            if Nkind (N) = N_Attribute_Reference
-              and then Attribute_Name (N) = Name_Old
-            then
+            if Is_Attribute_Old (N) then
                Pref := Prefix (N);
 
                Indirect := Indirect_Temp_Needed (Etype (Pref));
@@ -2356,10 +2354,12 @@ package body Exp_Prag is
 
    procedure Expand_Pragma_Inspection_Point (N : Node_Id) is
       Loc : constant Source_Ptr := Sloc (N);
+
       A     : List_Id;
       Assoc : Node_Id;
-      S     : Entity_Id;
       E     : Entity_Id;
+      Rip   : Boolean;
+      S     : Entity_Id;
 
    begin
       if No (Pragma_Argument_Associations (N)) then
@@ -2390,16 +2390,48 @@ package body Exp_Prag is
          Set_Pragma_Argument_Associations (N, A);
       end if;
 
-      --  Expand the arguments of the pragma. Expanding an entity reference
-      --  is a noop, except in a protected operation, where a reference may
-      --  have to be transformed into a reference to the corresponding prival.
-      --  Are there other pragmas that may require this ???
+      --  Process the arguments of the pragma and expand them. Expanding an
+      --  entity reference is a noop, except in a protected operation, where
+      --  a reference may have to be transformed into a reference to the
+      --  corresponding prival. Are there other pragmas that require this ???
 
+      Rip := False;
       Assoc := First (Pragma_Argument_Associations (N));
       while Present (Assoc) loop
+         --  The back end may need to take the address of the object
+
+         Set_Address_Taken (Entity (Expression (Assoc)));
+
          Expand (Expression (Assoc));
+
+         --  If any of the objects have a freeze node, it must appear before
+         --  pragma Inspection_Point, otherwise the entity won't be elaborated
+         --  when Gigi processes the pragma.
+
+         if Has_Delayed_Freeze (Entity (Expression (Assoc)))
+           and then not Is_Frozen (Entity (Expression (Assoc)))
+         then
+            Error_Msg_NE
+              ("??inspection point references unfrozen object &",
+               Assoc,
+               Entity (Expression (Assoc)));
+            Rip := True;
+         end if;
+
          Next (Assoc);
       end loop;
+
+      --  When the above requirement isn't met, turn the pragma into a no-op
+
+      if Rip then
+         Error_Msg_N ("\pragma will be ignored", N);
+
+         --  We can't just remove the pragma from the tree as it might be
+         --  iterated over by the caller. Turn it into a null statement
+         --  instead.
+
+         Rewrite (N, Make_Null_Statement (Loc));
+      end if;
    end Expand_Pragma_Inspection_Point;
 
    --------------------------------------
@@ -2660,8 +2692,11 @@ package body Exp_Prag is
    begin
       --  If pragma is not enabled, rewrite as Null statement. If pragma is
       --  disabled, it has already been rewritten as a Null statement.
+      --
+      --  Likewise, do this in CodePeer mode, because the expanded code is too
+      --  complicated for CodePeer to analyse.
 
-      if Is_Ignored (N) then
+      if Is_Ignored (N) or else CodePeer_Mode then
          Rewrite (N, Make_Null_Statement (Loc));
          Analyze (N);
          return;
@@ -2831,7 +2866,7 @@ package body Exp_Prag is
 
    procedure Expand_Pragma_Subprogram_Variant
      (Prag       : Node_Id;
-      Subp_Id    : Node_Id;
+      Subp_Id    : Entity_Id;
       Body_Decls : List_Id)
    is
       Curr_Decls : List_Id;

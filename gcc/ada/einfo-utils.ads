@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---           Copyright (C) 2020-2021, Free Software Foundation, Inc.        --
+--           Copyright (C) 2020-2022, Free Software Foundation, Inc.        --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -27,48 +27,53 @@ with Einfo.Entities; use Einfo.Entities;
 
 package Einfo.Utils is
 
-   -----------------------------------
-   -- Renamings of Renamed_Or_Alias --
-   -----------------------------------
+   -------------------------------------------
+   -- Aliases/Renamings of Renamed_Or_Alias --
+   -------------------------------------------
 
    --  See the comment in einfo.ads, "Renaming and Aliasing", which is somewhat
-   --  incorrect. In fact, the compiler uses Alias, Renamed_Entity, and
-   --  Renamed_Object more-or-less interchangeably, so we rename them here.
-   --  ????Should add preconditions.
+   --  incorrect. Each of the following calls [Set_]Renamed_Or_Alias. Alias and
+   --  Renamed_Entity are fields of nonobject Entity_Ids, and the value of the
+   --  field is Entity_Id. Alias is only for callable entities and subprogram
+   --  types. We sometimes call Set_Renamed_Entity and then expect Alias to
+   --  return the value set. Renamed_Object is a field of Entity_Ids that are
+   --  objects, and it returns an expression, because you can rename things
+   --  like "X.all(J).Y". Renamings of entries and subprograms can also be
+   --  expressions, but those use different mechanisms; the fields here are not
+   --  used.
 
-   function Alias
-     (N : Entity_Id) return Node_Id renames Renamed_Or_Alias;
-   procedure Set_Alias
-     (N : Entity_Id; Val : Node_Id) renames Set_Renamed_Or_Alias;
-   function Renamed_Entity
-     (N : Entity_Id) return Node_Id renames Renamed_Or_Alias;
-   procedure Set_Renamed_Entity
-     (N : Entity_Id; Val : Node_Id) renames Set_Renamed_Or_Alias;
-   function Renamed_Object
-     (N : Entity_Id) return Node_Id renames Renamed_Or_Alias;
-   procedure Set_Renamed_Object
-     (N : Entity_Id; Val : Node_Id) renames Set_Renamed_Or_Alias;
+   function Alias (N : Entity_Id) return Entity_Id;
+   procedure Set_Alias (N : Entity_Id; Val : Entity_Id);
+   function Renamed_Entity (N : Entity_Id) return Entity_Id;
+   procedure Set_Renamed_Entity (N : Entity_Id; Val : Entity_Id);
+   function Renamed_Object (N : Entity_Id) return Node_Id;
+   procedure Set_Renamed_Object (N : Entity_Id; Val : Node_Id);
 
-   --------------------------
-   -- Subtype Declarations --
-   --------------------------
+   function Renamed_Entity_Or_Object (N : Entity_Id) return Node_Id;
+   --  This getter is used when we don't know statically whether we want to
+   --  call Renamed_Entity or Renamed_Object.
 
-   --  ????
-   --  The above entities are arranged so that they can be conveniently grouped
-   --  into subtype ranges. Note that for each of the xxx_Kind ranges defined
-   --  below, there is a corresponding Is_xxx (or for types, Is_xxx_Type)
-   --  predicate which is to be used in preference to direct range tests using
-   --  the subtype name. However, the subtype names are available for direct
-   --  use, e.g. as choices in case statements.
+   procedure Set_Renamed_Object_Of_Possibly_Void
+     (N : Entity_Id; Val : Node_Id);
+   --  Set_Renamed_Object doesn't allow Void; this is used in the rare cases
+   --  where we set the field of an entity that might be Void. It might be a
+   --  good idea to get rid of calls to this.
+
+   pragma Inline (Alias);
+   pragma Inline (Set_Alias);
+   pragma Inline (Renamed_Entity);
+   pragma Inline (Set_Renamed_Entity);
+   pragma Inline (Renamed_Object);
+   pragma Inline (Set_Renamed_Object);
+   pragma Inline (Renamed_Entity_Or_Object);
+   pragma Inline (Set_Renamed_Object_Of_Possibly_Void);
 
    -------------------
    -- Type Synonyms --
    -------------------
 
    --  The following type synonyms are used to tidy up the function and
-   --  procedure declarations that follow, and also to make it possible to meet
-   --  the requirement for the XEINFO utility that all function specs must fit
-   --  on a single source line.????
+   --  procedure declarations that follow.
 
    subtype B is Boolean;
    subtype C is Component_Alignment_Kind;
@@ -91,7 +96,6 @@ package Einfo.Utils is
    --  In some cases, the test is of an entity attribute (e.g. in the case of
    --  Is_Generic_Type where the Ekind does not provide the needed
    --  information).
-   --  ????Could automatically generate some of these?
 
    function Is_Access_Object_Type               (Id : E) return B;
    function Is_Access_Type                      (Id : E) return B;
@@ -206,6 +210,16 @@ package Einfo.Utils is
    function First_Component_Or_Discriminant     (Id : E) return E;
    function First_Formal                        (Id : E) return E;
    function First_Formal_With_Extras            (Id : E) return E;
+
+   function Float_Rep
+     (N : Entity_Id) return F with Inline, Pre =>
+      N in E_Void_Id
+         | Float_Kind_Id;
+   procedure Set_Float_Rep
+     (Ignore_N : Entity_Id; Ignore_Val : F) with Inline, Pre =>
+      Ignore_N in E_Void_Id
+         | Float_Kind_Id;
+
    function Has_Attach_Handler                  (Id : E) return B;
    function Has_DIC                             (Id : E) return B;
    function Has_Entries                         (Id : E) return B;
@@ -220,6 +234,7 @@ package Einfo.Utils is
    function Has_Null_Visible_Refinement         (Id : E) return B;
    function Implementation_Base_Type            (Id : E) return E;
    function Is_Base_Type                        (Id : E) return B;
+   --  Note that Is_Base_Type returns True for nontypes
    function Is_Boolean_Type                     (Id : E) return B;
    function Is_Constant_Object                  (Id : E) return B;
    function Is_Controlled                       (Id : E) return B;
@@ -273,13 +288,20 @@ package Einfo.Utils is
    function Safe_Emax_Value                     (Id : E) return U;
    function Safe_First_Value                    (Id : E) return R;
    function Safe_Last_Value                     (Id : E) return R;
-   function Scope_Depth                         (Id : E) return U;
-   function Scope_Depth_Set                     (Id : E) return B;
    function Size_Clause                         (Id : E) return N;
    function Stream_Size_Clause                  (Id : E) return N;
    function Type_High_Bound                     (Id : E) return N;
    function Type_Low_Bound                      (Id : E) return N;
    function Underlying_Type                     (Id : E) return E;
+
+   function Scope_Depth                         (Id : E) return U;
+   function Scope_Depth_Set                     (Id : E) return B;
+
+   function Scope_Depth_Default_0               (Id : E) return U;
+   --  In rare cases, the Scope_Depth_Value (queried by Scope_Depth) is
+   --  not correctly set before querying it; this may be used instead of
+   --  Scope_Depth in such cases. It returns Uint_0 if the Scope_Depth_Value
+   --  has not been set. See documentation in Einfo.
 
    pragma Inline (Address_Clause);
    pragma Inline (Alignment_Clause);
@@ -309,100 +331,106 @@ package Einfo.Utils is
    pragma Inline (Type_High_Bound);
    pragma Inline (Type_Low_Bound);
 
-   ----------------------------------------------
-   -- Type Representation Attribute Predicates --
-   ----------------------------------------------
+   ------------------------------------------
+   -- Type Representation Attribute Fields --
+   ------------------------------------------
 
-   --  These predicates test the setting of the indicated attribute. If the
-   --  value has been set, then Known is True, and Unknown is False. If no
-   --  value is set, then Known is False and Unknown is True. The Known_Static
-   --  predicate is true only if the value is set (Known) and is set to a
-   --  compile time known value. Note that in the case of Alignment and
-   --  Normalized_First_Bit, dynamic values are not possible, so we do not
-   --  need a separate Known_Static calls in these cases. The not set (unknown)
-   --  values are as follows:
+   function Known_Alignment (E : Entity_Id) return B with Inline;
+   procedure Reinit_Alignment (Id : E) with Inline;
+   procedure Copy_Alignment (To, From : E);
 
-   --    Alignment               Uint_0 or No_Uint
-   --    Component_Size          Uint_0 or No_Uint
-   --    Component_Bit_Offset    No_Uint
-   --    Digits_Value            Uint_0 or No_Uint
-   --    Esize                   Uint_0 or No_Uint
-   --    Normalized_First_Bit    No_Uint
-   --    Normalized_Position     No_Uint
-   --    Normalized_Position_Max No_Uint
-   --    RM_Size                 Uint_0 or No_Uint
+   function Known_Component_Bit_Offset (E : Entity_Id) return B with Inline;
+   function Known_Static_Component_Bit_Offset (E : Entity_Id) return B
+     with Inline;
 
-   --  It would be cleaner to use No_Uint in all these cases, but historically
-   --  we chose to use Uint_0 at first, and the change over will take time ???
-   --  This is particularly true for the RM_Size field, where a value of zero
-   --  is legitimate. We deal with this by a considering that the value is
-   --  always known static for discrete types (and no other types can have
-   --  an RM_Size value of zero).
+   function Known_Component_Size (E : Entity_Id) return B with Inline;
+   function Known_Static_Component_Size (E : Entity_Id) return B with Inline;
 
+   function Known_Esize (E : Entity_Id) return B with Inline;
+   function Known_Static_Esize (E : Entity_Id) return B with Inline;
+   procedure Reinit_Esize (Id : E) with Inline;
+   procedure Copy_Esize (To, From : E);
+
+   function Known_Normalized_First_Bit (E : Entity_Id) return B with Inline;
+   function Known_Static_Normalized_First_Bit (E : Entity_Id) return B
+     with Inline;
+
+   function Known_Normalized_Position (E : Entity_Id) return B with Inline;
+   function Known_Static_Normalized_Position (E : Entity_Id) return B
+     with Inline;
+
+   function Known_RM_Size (E : Entity_Id) return B with Inline;
+   function Known_Static_RM_Size (E : Entity_Id) return B with Inline;
+   procedure Reinit_RM_Size (Id : E) with Inline;
+   procedure Copy_RM_Size (To, From : E);
+
+   --  NOTE: "known" here does not mean "known at compile time". It means that
+   --  the compiler has computed the value of the field (either by default, or
+   --  by noting some representation clauses), and the field has not been
+   --  reinitialized.
+   --
+   --  We document the Esize functions here; the others above are analogous:
+   --
+   --     Known_Esize: True if Set_Esize has been called without a subsequent
+   --     Reinit_Esize.
+   --
+   --     Known_Static_Esize: True if Known_Esize and the Esize is known at
+   --     compile time. (We're not using "static" in the Ada RM sense here. We
+   --     are using it to mean "known at compile time".)
+   --
+   --     Reinit_Esize: Set the Esize field to its initial unknown state.
+   --
+   --     Copy_Esize: Copies the Esize from From to To; Known_Esize (From) may
+   --     be False, in which case Known_Esize (To) becomes False.
+   --
+   --     Esize: This is the normal automatically-generated getter for Esize,
+   --     declared elsewhere. Returns No_Uint if not Known_Esize.
+   --
+   --     Set_Esize: This is the normal automatically-generated setter for
+   --     Esize. After a call to this, Known_Esize is True. It is an error
+   --     to call this with a No_Uint value.
+   --
+   --  Normally, we call Set_Esize first, and then query Esize (and similarly
+   --  for other fields). However in some cases, we need to check Known_Esize
+   --  before calling Esize, because the code is written in such a way that we
+   --  don't know whether Set_Esize has already been called.
+   --
    --  In two cases, Known_Static_Esize and Known_Static_RM_Size, there is one
    --  more consideration, which is that we always return False for generic
-   --  types. Within a template, the size can look known, because of the fake
-   --  size values we put in template types, but they are not really known and
-   --  anyone testing if they are known within the template should get False as
-   --  a result to prevent incorrect assumptions.
+   --  types. Within a template, the size can look Known_Static, because of the
+   --  fake size values we put in template types, but they are not really
+   --  Known_Static and anyone testing if they are Known_Static within the
+   --  template should get False as a result to prevent incorrect assumptions.
 
-   function Known_Alignment                       (E : Entity_Id) return B;
-   function Known_Component_Bit_Offset            (E : Entity_Id) return B;
-   function Known_Component_Size                  (E : Entity_Id) return B;
-   function Known_Esize                           (E : Entity_Id) return B;
-   function Known_Normalized_First_Bit            (E : Entity_Id) return B;
-   function Known_Normalized_Position             (E : Entity_Id) return B;
-   function Known_Normalized_Position_Max         (E : Entity_Id) return B;
-   function Known_RM_Size                         (E : Entity_Id) return B;
+   ---------------------------------------------------------
+   -- Procedures for setting multiple of the above fields --
+   ---------------------------------------------------------
 
-   function Known_Static_Component_Bit_Offset     (E : Entity_Id) return B;
-   function Known_Static_Component_Size           (E : Entity_Id) return B;
-   function Known_Static_Esize                    (E : Entity_Id) return B;
-   function Known_Static_Normalized_First_Bit     (E : Entity_Id) return B;
-   function Known_Static_Normalized_Position      (E : Entity_Id) return B;
-   function Known_Static_Normalized_Position_Max  (E : Entity_Id) return B;
-   function Known_Static_RM_Size                  (E : Entity_Id) return B;
+   procedure Reinit_Component_Location (Id : E);
+   --  Initializes all fields describing the location of a component
+   --  (Normalized_Position, Component_Bit_Offset, Normalized_First_Bit,
+   --  Esize) to all be Unknown.
 
-   function Unknown_Alignment                     (E : Entity_Id) return B;
-   function Unknown_Component_Bit_Offset          (E : Entity_Id) return B;
-   function Unknown_Component_Size                (E : Entity_Id) return B;
-   function Unknown_Esize                         (E : Entity_Id) return B;
-   function Unknown_Normalized_First_Bit          (E : Entity_Id) return B;
-   function Unknown_Normalized_Position           (E : Entity_Id) return B;
-   function Unknown_Normalized_Position_Max       (E : Entity_Id) return B;
-   function Unknown_RM_Size                       (E : Entity_Id) return B;
+   procedure Init_Size (Id : E; V : Int);
+   --  Initialize both the Esize and RM_Size fields of E to V
 
-   pragma Inline (Known_Alignment);
-   pragma Inline (Known_Component_Bit_Offset);
-   pragma Inline (Known_Component_Size);
-   pragma Inline (Known_Esize);
-   pragma Inline (Known_Normalized_First_Bit);
-   pragma Inline (Known_Normalized_Position);
-   pragma Inline (Known_Normalized_Position_Max);
-   pragma Inline (Known_RM_Size);
+   procedure Reinit_Size_Align (Id : E);
+   --  This procedure initializes both size fields and the alignment
+   --  field to all be Unknown.
 
-   pragma Inline (Known_Static_Component_Bit_Offset);
-   pragma Inline (Known_Static_Component_Size);
-   pragma Inline (Known_Static_Esize);
-   pragma Inline (Known_Static_Normalized_First_Bit);
-   pragma Inline (Known_Static_Normalized_Position);
-   pragma Inline (Known_Static_Normalized_Position_Max);
-   pragma Inline (Known_Static_RM_Size);
-
-   pragma Inline (Unknown_Alignment);
-   pragma Inline (Unknown_Component_Bit_Offset);
-   pragma Inline (Unknown_Component_Size);
-   pragma Inline (Unknown_Esize);
-   pragma Inline (Unknown_Normalized_First_Bit);
-   pragma Inline (Unknown_Normalized_Position);
-   pragma Inline (Unknown_Normalized_Position_Max);
-   pragma Inline (Unknown_RM_Size);
+   procedure Reinit_Object_Size_Align (Id : E);
+   --  Same as Reinit_Size_Align except RM_Size field (which is only for types)
+   --  is unaffected.
 
    ---------------------------------------------------
    -- Access to Subprograms in Subprograms_For_Type --
    ---------------------------------------------------
 
-   function Is_Partial_DIC_Procedure            (Id : E) return B;
+   --  Now that we have variable-sized nodes, it might be possible to replace
+   --  the following with regular fields, and get rid of the flags used to mark
+   --  these kinds of subprograms.
+
+   function Is_Partial_DIC_Procedure             (Id : E) return B;
 
    function DIC_Procedure                        (Id : E) return E;
    function Partial_DIC_Procedure                (Id : E) return E;
@@ -417,82 +445,6 @@ package Einfo.Utils is
    procedure Set_Partial_Invariant_Procedure     (Id : E; V : E);
    procedure Set_Predicate_Function              (Id : E; V : E);
    procedure Set_Predicate_Function_M            (Id : E; V : E);
-
-   -----------------------------------
-   -- Field Initialization Routines --
-   -----------------------------------
-
-   --  These routines are overloadings of some of the above Set procedures
-   --  where the argument is normally a Uint. The overloadings take an Int
-   --  parameter instead, and appropriately convert it. There are also
-   --  versions that implicitly initialize to the appropriate "not set"
-   --  value. The not set (unknown) values are as follows:
-
-   --    Alignment                 Uint_0
-   --    Component_Size            Uint_0
-   --    Component_Bit_Offset      No_Uint
-   --    Digits_Value              Uint_0
-   --    Esize                     Uint_0
-   --    Normalized_First_Bit      No_Uint
-   --    Normalized_Position       No_Uint
-   --    Normalized_Position_Max   No_Uint
-   --    RM_Size                   Uint_0
-
-   --  It would be cleaner to use No_Uint in all these cases, but historically
-   --  we chose to use Uint_0 at first, and the change over will take time ???
-   --  This is particularly true for the RM_Size field, where a value of zero
-   --  is legitimate and causes some special tests around the code.
-
-   --  Contrary to the corresponding Set procedures above, these routines
-   --  do NOT check the entity kind of their argument, instead they set the
-   --  underlying Uint fields directly (this allows them to be used for
-   --  entities whose Ekind has not been set yet).
-
-   procedure Init_Alignment                (Id : E; V : Int);
-   procedure Init_Component_Bit_Offset     (Id : E; V : Int);
-   procedure Init_Component_Size           (Id : E; V : Int);
-   procedure Init_Digits_Value             (Id : E; V : Int);
-   procedure Init_Esize                    (Id : E; V : Int);
-   procedure Init_Normalized_First_Bit     (Id : E; V : Int);
-   procedure Init_Normalized_Position      (Id : E; V : Int);
-   procedure Init_Normalized_Position_Max  (Id : E; V : Int);
-   procedure Init_RM_Size                  (Id : E; V : Int);
-
-   procedure Init_Alignment                (Id : E);
-   procedure Init_Component_Bit_Offset     (Id : E);
-   procedure Init_Component_Size           (Id : E);
-   procedure Init_Digits_Value             (Id : E);
-   procedure Init_Esize                    (Id : E);
-   procedure Init_Normalized_First_Bit     (Id : E);
-   procedure Init_Normalized_Position      (Id : E);
-   procedure Init_Normalized_Position_Max  (Id : E);
-   procedure Init_RM_Size                  (Id : E);
-
-   pragma Inline (Init_Alignment);
-   pragma Inline (Init_Component_Bit_Offset);
-   pragma Inline (Init_Component_Size);
-   pragma Inline (Init_Digits_Value);
-   pragma Inline (Init_Esize);
-   pragma Inline (Init_Normalized_First_Bit);
-   pragma Inline (Init_Normalized_Position);
-   pragma Inline (Init_Normalized_Position_Max);
-   pragma Inline (Init_RM_Size);
-
-   procedure Init_Component_Location (Id : E);
-   --  Initializes all fields describing the location of a component
-   --  (Normalized_Position, Component_Bit_Offset, Normalized_First_Bit,
-   --  Normalized_Position_Max, Esize) to all be Unknown.
-
-   procedure Init_Size (Id : E; V : Int);
-   --  Initialize both the Esize and RM_Size fields of E to V
-
-   procedure Init_Size_Align (Id : E);
-   --  This procedure initializes both size fields and the alignment
-   --  field to all be Unknown.
-
-   procedure Init_Object_Size_Align (Id : E);
-   --  Same as Init_Size_Align except RM_Size field (which is only for types)
-   --  is unaffected.
 
    ---------------
    -- Iterators --
@@ -675,7 +627,7 @@ package Einfo.Utils is
 
    --  WARNING: There is a matching C declaration of this subprogram in fe.h
 
-   procedure Link_Entities (First : Entity_Id; Second : Entity_Id);
+   procedure Link_Entities (First, Second : Entity_Id);
    --  Link entities First and Second in one entity chain.
    --
    --  NOTE: No updates are done to the First_Entity and Last_Entity fields

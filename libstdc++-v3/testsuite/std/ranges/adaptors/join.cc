@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2021 Free Software Foundation, Inc.
+// Copyright (C) 2020-2022 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -93,7 +93,7 @@ test05()
 {
   using namespace std::literals;
   std::vector<std::string> x = {"the", " ", "quick", " ", "brown", " ", "fox"};
-  auto v = x | views::join | views::split(' ');
+  auto v = x | views::join | views::lazy_split(' ');
   auto i = v.begin();
   VERIFY( ranges::equal(*i++, "the"sv) );
   VERIFY( ranges::equal(*i++, "quick"sv) );
@@ -193,6 +193,18 @@ test11()
     ;
 }
 
+void
+test12()
+{
+  // PR libstdc++/101263
+  constexpr auto b = [] {
+    auto r = std::views::iota(0, 5)
+      | std::views::lazy_split(0)
+      | std::views::join;
+    return r.begin() != r.end();
+  }();
+}
+
 int
 main()
 {
@@ -207,4 +219,5 @@ main()
   test09();
   test10();
   test11();
+  test12();
 }

@@ -1,6 +1,6 @@
 // std::this_thread::sleep_for/until declarations -*- C++ -*-
 
-// Copyright (C) 2008-2021 Free Software Foundation, Inc.
+// Copyright (C) 2008-2022 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,7 +22,7 @@
 // see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 // <http://www.gnu.org/licenses/>.
 
-/** @file bits/std_thread_sleep.h
+/** @file bits/this_thread_sleep.h
  *  This is an internal header file, included by other library headers.
  *  Do not attempt to use it directly. @headername{thread}
  */
@@ -33,9 +33,7 @@
 #pragma GCC system_header
 
 #if __cplusplus >= 201103L
-#include <bits/c++config.h>
-
-#include <chrono> // std::chrono::*
+#include <bits/chrono.h> // std::chrono::*
 
 #ifdef _GLIBCXX_USE_NANOSLEEP
 # include <cerrno>  // errno, EINTR

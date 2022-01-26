@@ -1,6 +1,6 @@
 # Handlers for additional dg-xxx keywords in tests.
 
-# Copyright (C) 2004-2021 Free Software Foundation, Inc.
+# Copyright (C) 2004-2022 Free Software Foundation, Inc.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -314,6 +314,11 @@ proc add_options_for_libatomic { flags } {
 	return "$flags $link_flags"
     }
     return $flags
+}
+
+# Add options to enable use of deprecated features.
+proc add_options_for_using-deprecated { flags } {
+    return "$flags -U_GLIBCXX_USE_DEPRECATED -D_GLIBCXX_USE_DEPRECATED=1"
 }
 
 # Like dg-options, but adds to the default options rather than replacing them.

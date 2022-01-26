@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1955,9 +1955,7 @@ package body Sem_Ch9 is
       Tasking_Used := True;
       Analyze_Declarations (Visible_Declarations (N));
 
-      if Present (Private_Declarations (N))
-        and then not Is_Empty_List (Private_Declarations (N))
-      then
+      if not Is_Empty_List (Private_Declarations (N)) then
          Last_Id := Last_Entity (Prot_Typ);
          Analyze_Declarations (Private_Declarations (N));
 
@@ -2026,10 +2024,16 @@ package body Sem_Ch9 is
 
       Mutate_Ekind           (T, E_Protected_Type);
       Set_Is_First_Subtype   (T);
-      Init_Size_Align        (T);
+      Reinit_Size_Align      (T);
       Set_Etype              (T, T);
       Set_Has_Delayed_Freeze (T);
       Set_Stored_Constraint  (T, No_Elist);
+
+      --  Initialize type's primitive operations list, for possible use when
+      --  the extension of prefixed call notation for untagged types is enabled
+      --  (such as by use of -gnatX).
+
+      Set_Direct_Primitive_Operations (T, New_Elmt_List);
 
       --  Mark this type as a protected type for the sake of restrictions,
       --  unless the protected type is declared in a private part of a package
@@ -2139,7 +2143,7 @@ package body Sem_Ch9 is
       while Present (E) loop
          if Ekind (E) = E_Void then
             Mutate_Ekind (E, E_Component);
-            Init_Component_Location (E);
+            Reinit_Component_Location (E);
          end if;
 
          Next_Entity (E);
@@ -3147,10 +3151,16 @@ package body Sem_Ch9 is
       Mutate_Ekind           (T, E_Task_Type);
       Set_Is_First_Subtype   (T, True);
       Set_Has_Task           (T, True);
-      Init_Size_Align        (T);
+      Reinit_Size_Align      (T);
       Set_Etype              (T, T);
       Set_Has_Delayed_Freeze (T, True);
       Set_Stored_Constraint  (T, No_Elist);
+
+      --  Initialize type's primitive operations list, for possible use when
+      --  the extension of prefixed call notation for untagged types is enabled
+      --  (such as by use of -gnatX).
+
+      Set_Direct_Primitive_Operations (T, New_Elmt_List);
 
       --  Set the SPARK_Mode from the current context (may be overwritten later
       --  with an explicit pragma).

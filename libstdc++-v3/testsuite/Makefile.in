@@ -144,6 +144,7 @@ ABI_TWEAKS_SRCDIR = @ABI_TWEAKS_SRCDIR@
 ACLOCAL = @ACLOCAL@
 ALLOCATOR_H = @ALLOCATOR_H@
 ALLOCATOR_NAME = @ALLOCATOR_NAME@
+ALLOC_FILE = @ALLOC_FILE@
 AMTAR = @AMTAR@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AR = @AR@
@@ -155,6 +156,10 @@ AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
+BACKTRACE_CPPFLAGS = @BACKTRACE_CPPFLAGS@
+BACKTRACE_SUPPORTED = @BACKTRACE_SUPPORTED@
+BACKTRACE_SUPPORTS_THREADS = @BACKTRACE_SUPPORTS_THREADS@
+BACKTRACE_USES_MALLOC = @BACKTRACE_USES_MALLOC@
 BASIC_FILE_CC = @BASIC_FILE_CC@
 BASIC_FILE_H = @BASIC_FILE_H@
 CC = @CC@
@@ -199,6 +204,8 @@ EXEEXT = @EXEEXT@
 EXTRA_CFLAGS = @EXTRA_CFLAGS@
 EXTRA_CXX_FLAGS = @EXTRA_CXX_FLAGS@
 FGREP = @FGREP@
+FORMAT_FILE = @FORMAT_FILE@
+FREESTANDING_FLAGS = @FREESTANDING_FLAGS@
 GLIBCXX_INCLUDES = @GLIBCXX_INCLUDES@
 GLIBCXX_LIBS = @GLIBCXX_LIBS@
 GREP = @GREP@
@@ -253,6 +260,7 @@ SYMVER_FILE = @SYMVER_FILE@
 TOPLEVEL_INCLUDES = @TOPLEVEL_INCLUDES@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
+VIEW_FILE = @VIEW_FILE@
 VTV_CXXFLAGS = @VTV_CXXFLAGS@
 VTV_CXXLINKFLAGS = @VTV_CXXLINKFLAGS@
 VTV_PCH_CXXFLAGS = @VTV_PCH_CXXFLAGS@
@@ -716,10 +724,9 @@ check-simd: $(srcdir)/experimental/simd/generate_makefile.sh \
 	    ${glibcxx_srcdir}/scripts/check_simd \
 	    testsuite_files_simd \
 	    ${glibcxx_builddir}/scripts/testsuite_flags
-	@echo "WARNING: Adding -fno-tree-vrp to CXXFLAGS to work around PR98834."
 	@rm -f .simd.summary
 	@echo "Generating simd testsuite subdirs and Makefiles ..."
-	@${glibcxx_srcdir}/scripts/check_simd "${glibcxx_srcdir}" "${glibcxx_builddir}" "$(CXXFLAGS) -fno-tree-vrp" | \
+	@${glibcxx_srcdir}/scripts/check_simd "${glibcxx_srcdir}" "${glibcxx_builddir}" "$(CXXFLAGS)" | \
 	  while read subdir; do \
 	    $(MAKE) -C "$${subdir}"; \
 	    tail -n20 $${subdir}/simd_testsuite.sum | \

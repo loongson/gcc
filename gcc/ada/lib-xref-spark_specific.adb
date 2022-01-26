@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2011-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 2011-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -187,6 +187,10 @@ package body SPARK_Specific is
                             | Generic_Subprogram_Kind
                             | Subprogram_Kind
       then
+         if No (Unit_Declaration_Node (N)) then
+            return Empty;
+         end if;
+
          Context := Parent (Unit_Declaration_Node (N));
 
          --  If this was a library-level subprogram then replace Context with

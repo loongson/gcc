@@ -1,4 +1,4 @@
-/* Copyright (C) 2016-2021 Free Software Foundation, Inc.
+/* Copyright (C) 2016-2022 Free Software Foundation, Inc.
 
    This file is free software; you can redistribute it and/or modify it under
    the terms of the GNU General Public License as published by the Free
@@ -33,5 +33,12 @@ extern int gcn_isa;
 #define TARGET_GCN3_PLUS (gcn_isa >= 3)
 #define TARGET_GCN5 (gcn_isa == 5)
 #define TARGET_GCN5_PLUS (gcn_isa >= 5)
+
+enum sram_ecc_type
+{
+  SRAM_ECC_OFF,
+  SRAM_ECC_ON,
+  SRAM_ECC_ANY
+};
 
 #endif

@@ -1,5 +1,5 @@
 /* Fold a constant sub-tree into a single node for C-compiler
-   Copyright (C) 1987-2021 Free Software Foundation, Inc.
+   Copyright (C) 1987-2022 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -44,6 +44,7 @@ extern void shift_bytes_in_array_right (unsigned char *, unsigned int,
    subexpressions are not changed.  */
 
 extern tree fold (tree);
+extern tree fold_init (tree);
 #define fold_unary(CODE,T1,T2)\
    fold_unary_loc (UNKNOWN_LOCATION, CODE, T1, T2)
 extern tree fold_unary_loc (location_t, enum tree_code, tree, tree);
@@ -76,6 +77,7 @@ extern tree fold_build_call_array_loc (location_t, tree, tree, int, tree *);
 #define fold_build_call_array_initializer(T1,T2,N,T4)\
    fold_build_call_array_initializer_loc (UNKNOWN_LOCATION, T1, T2, N, T4)
 extern tree fold_build_call_array_initializer_loc (location_t, tree, tree, int, tree *);
+extern tree fold_binary_initializer_loc (location_t, tree_code, tree, tree, tree);
 extern tree get_array_ctor_element_at_index (tree, offset_int,
 					     unsigned * = NULL);
 extern bool fold_convertible_p (const_tree, const_tree);
@@ -164,7 +166,8 @@ extern bool integer_valued_real_call_p (combined_fn, tree, tree, int);
 extern bool integer_valued_real_single_p (tree, int);
 extern bool integer_valued_real_p (tree, int = 0);
 
-extern bool fold_real_zero_addition_p (const_tree, const_tree, int);
+extern bool fold_real_zero_addition_p (const_tree, const_tree, const_tree,
+				       int);
 extern tree combine_comparisons (location_t, enum tree_code, enum tree_code,
 				 enum tree_code, tree, tree, tree);
 extern void debug_fold_checksum (const_tree);
@@ -195,6 +198,7 @@ extern bool tree_expr_signaling_nan_p (const_tree);
 extern bool tree_expr_maybe_signaling_nan_p (const_tree);
 extern bool tree_expr_nan_p (const_tree);
 extern bool tree_expr_maybe_nan_p (const_tree);
+extern bool tree_expr_maybe_real_minus_zero_p (const_tree);
 extern tree make_range (tree, int *, tree *, tree *, bool *);
 extern tree make_range_step (location_t, enum tree_code, tree, tree, tree,
 			     tree *, tree *, int *, bool *);
@@ -211,6 +215,8 @@ extern bool negate_mathfn_p (combined_fn);
 extern const char *getbyterep (tree, unsigned HOST_WIDE_INT *);
 extern const char *c_getstr (tree);
 extern wide_int tree_nonzero_bits (const_tree);
+extern int address_compare (tree_code, tree, tree, tree, tree &, tree &,
+			    poly_int64 &, poly_int64 &, bool);
 
 /* Return OFF converted to a pointer offset type suitable as offset for
    POINTER_PLUS_EXPR.  Use location LOC for this conversion.  */

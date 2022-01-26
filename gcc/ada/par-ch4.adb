@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1194,7 +1194,7 @@ package body Ch4 is
      (Prefix_Node : Node_Id)
       return        Node_Id
    is
-      Attr_Node  : Node_Id;
+      Attr_Node : Node_Id;
 
    begin
       Attr_Node := New_Node (N_Attribute_Reference, Token_Ptr);
@@ -1280,7 +1280,7 @@ package body Ch4 is
       if Nkind (Aggr_Node) /= N_Aggregate
            and then
          Nkind (Aggr_Node) /= N_Extension_Aggregate
-         and then Ada_Version < Ada_2020
+         and then Ada_Version < Ada_2022
       then
          Error_Msg
            ("aggregate may not have single positional component", Aggr_Sloc);
@@ -1399,7 +1399,7 @@ package body Ch4 is
       if Token = Tok_Left_Bracket then
          Scan;
 
-         --  Special case for null aggregate in Ada 2020
+         --  Special case for null aggregate in Ada 2022
 
          if Token = Tok_Right_Bracket then
             Scan;   --  past ]
@@ -1601,7 +1601,7 @@ package body Ch4 is
          --  identifier or OTHERS follows (the latter cases are missing
          --  comma cases). Also assume positional if a semicolon follows,
          --  which can happen if there are missing parens.
-         --  In Ada_2012 and Ada_2020 an iterated association can appear.
+         --  In Ada 2012 and 2022 an iterated association can appear.
 
          elsif Nkind (Expr_Node) in
            N_Iterated_Component_Association | N_Iterated_Element_Association
@@ -1694,6 +1694,10 @@ package body Ch4 is
                end if;
             end if;
          when Tok_Left_Paren =>
+            if Nkind (Aggregate_Node) = N_Aggregate then
+               Set_Is_Parenthesis_Aggregate (Aggregate_Node);
+            end if;
+
             T_Right_Paren;
          when others => raise Program_Error;
       end case;
@@ -1734,8 +1738,9 @@ package body Ch4 is
    --        aggregates (AI-287)
 
    function P_Record_Or_Array_Component_Association return Node_Id is
-      Assoc_Node : Node_Id;
-
+      Assoc_Node                  : Node_Id;
+      Box_Present                 : Boolean := False;
+      Box_With_Identifier_Present : Boolean := False;
    begin
       --  A loop indicates an iterated_component_association
 
@@ -1744,6 +1749,8 @@ package body Ch4 is
       end if;
 
       Assoc_Node := New_Node (N_Component_Association, Token_Ptr);
+      Set_Binding_Chars (Assoc_Node, No_Name);
+
       Set_Choices (Assoc_Node, P_Discrete_Choice_List);
       Set_Sloc (Assoc_Node, Token_Ptr);
       TF_Arrow;
@@ -1755,10 +1762,76 @@ package body Ch4 is
 
          Error_Msg_Ada_2005_Extension ("component association with '<'>");
 
+         Box_Present := True;
          Set_Box_Present (Assoc_Node);
-         Scan; -- Past box
-      else
+         Scan; -- past box
+      elsif Token = Tok_Less then
+         declare
+            Scan_State : Saved_Scan_State;
+            Id         : Node_Id;
+         begin
+            Save_Scan_State (Scan_State);
+            Scan; -- past "<"
+            if Token = Tok_Identifier then
+               Id := P_Defining_Identifier;
+               if Token = Tok_Greater then
+                  if Extensions_Allowed then
+                     Set_Box_Present (Assoc_Node);
+                     Set_Binding_Chars (Assoc_Node, Chars (Id));
+                     Box_Present := True;
+                     Box_With_Identifier_Present := True;
+                     Scan; -- past ">"
+                  else
+                     Error_Msg
+                       ("Identifier within box only supported under -gnatX",
+                        Token_Ptr);
+                     Box_Present := True;
+                     --  Avoid cascading errors by ignoring the identifier
+                  end if;
+               end if;
+            end if;
+            if not Box_Present then
+               --  it wasn't an "is <identifier>", so restore.
+               Restore_Scan_State (Scan_State);
+            end if;
+         end;
+      end if;
+
+      if not Box_Present then
          Set_Expression (Assoc_Node, P_Expression);
+      end if;
+
+      --  Check for "is <identifier>" for aggregate that is part of
+      --  a pattern for a general case statement.
+
+      if Token = Tok_Is then
+         declare
+            Scan_State : Saved_Scan_State;
+            Id         : Node_Id;
+         begin
+            Save_Scan_State (Scan_State);
+            Scan; -- past "is"
+            if Token = Tok_Identifier then
+               Id := P_Defining_Identifier;
+
+               if not Extensions_Allowed then
+                  Error_Msg
+                    ("IS following component association"
+                       & " only supported under -gnatX",
+                     Token_Ptr);
+               elsif Box_With_Identifier_Present then
+                  Error_Msg
+                    ("Both identifier-in-box and trailing identifier"
+                       & " specified for one component association",
+                     Token_Ptr);
+               else
+                  Set_Binding_Chars (Assoc_Node, Chars (Id));
+               end if;
+            else
+               --  It wasn't an "is <identifier>", so restore.
+               Restore_Scan_State (Scan_State);
+            end if;
+         end;
       end if;
 
       return Assoc_Node;
@@ -2398,9 +2471,6 @@ package body Ch4 is
               and then Num_Concats >= Num_Concats_Threshold
             then
                declare
-                  Empty_String_Val : String_Id;
-                  --  String_Id for ""
-
                   Strlit_Concat_Val : String_Id;
                   --  Contains the folded value (which will be correct if the
                   --  "&" operators are the predefined ones).
@@ -2436,11 +2506,9 @@ package body Ch4 is
                   --  Create new folded node, and rewrite result with a concat-
                   --  enation of an empty string literal and the folded node.
 
-                  Start_String;
-                  Empty_String_Val := End_String;
                   New_Node :=
                     Make_Op_Concat (Loc,
-                      Make_String_Literal (Loc, Empty_String_Val),
+                      Make_String_Literal (Loc, Null_String_Id),
                       Make_String_Literal (Loc, Strlit_Concat_Val,
                         Is_Folded_In_Parser => True));
                   Rewrite (Node1, New_Node);
@@ -2823,8 +2891,10 @@ package body Ch4 is
                if Token_Is_At_Start_Of_Line
                  and then not
                    (Ada_Version >= Ada_2012
-                     and then Style_Check_Indentation /= 0
-                     and then Start_Column rem Style_Check_Indentation /= 0)
+                      and then
+                        (Style_Check_Indentation = 0
+                           or else
+                             Start_Column rem Style_Check_Indentation /= 0))
                then
                   Error_Msg_AP ("missing operand");
                   return Error;
@@ -2898,7 +2968,7 @@ package body Ch4 is
                   Save_Scan_State (Scan_State);
                   Scan;   --  past FOR
 
-                  if Token = Tok_All or else Token = Tok_Some  then
+                  if Token = Tok_All or else Token = Tok_Some then
                      Restore_Scan_State (Scan_State);  -- To FOR
                      Node1 := P_Quantified_Expression;
 
@@ -2928,7 +2998,7 @@ package body Ch4 is
                Scan; -- past minus
 
             when Tok_At_Sign =>  --  AI12-0125 : target_name
-               Error_Msg_Ada_2020_Feature ("target name", Token_Ptr);
+               Error_Msg_Ada_2022_Feature ("target name", Token_Ptr);
 
                Node1 := P_Name;
                return Node1;
@@ -3396,7 +3466,7 @@ package body Ch4 is
 
       procedure Build_Iterated_Element_Association;
       --  If the iterator includes a key expression or a filter, it is
-      --  an Ada_2020 Iterator_Element_Association within a container
+      --  an Ada 2022 Iterator_Element_Association within a container
       --  aggregate.
 
       ----------------------------------------
@@ -3411,7 +3481,7 @@ package body Ch4 is
            New_Node (N_Loop_Parameter_Specification, Prev_Token_Ptr);
          Set_Defining_Identifier (Loop_Spec, Id);
 
-         Choice :=  First (Discrete_Choices (Assoc_Node));
+         Choice := First (Discrete_Choices (Assoc_Node));
          Assoc_Node :=
            New_Node (N_Iterated_Element_Association, Prev_Token_Ptr);
          Set_Loop_Parameter_Specification (Assoc_Node, Loop_Spec);
@@ -3432,7 +3502,7 @@ package body Ch4 is
       Save_Scan_State (State);
 
       --  A lookahead is necessary to differentiate between the
-      --  Ada 2012 form with a choice list, and the Ada 202x element
+      --  Ada 2012 form with a choice list, and the Ada 2022 element
       --  iterator form, recognized by the presence of "OF". Other
       --  disambiguation requires context and is done during semantic
       --  analysis. Note that "for X in E" is syntactically ambiguous:
@@ -3449,62 +3519,62 @@ package body Ch4 is
       Assoc_Node :=
         New_Node (N_Iterated_Component_Association, Prev_Token_Ptr);
 
-      if Token = Tok_In then
-         Set_Defining_Identifier (Assoc_Node, Id);
-         T_In;
-         Set_Discrete_Choices (Assoc_Node, P_Discrete_Choice_List);
+      case Token is
+         when Tok_In =>
+            Set_Defining_Identifier (Assoc_Node, Id);
+            T_In;
+            Set_Discrete_Choices (Assoc_Node, P_Discrete_Choice_List);
 
-         --  The iterator may include a filter
+            --  The iterator may include a filter
 
-         if Token = Tok_When then
-            Scan;    -- past WHEN
-            Filter := P_Condition;
-         end if;
+            if Token = Tok_When then
+               Scan;    -- past WHEN
+               Filter := P_Condition;
+            end if;
 
-         if Token = Tok_Use then
+            if Token = Tok_Use then
 
-            --  Ada_2020 Key-expression is present, rewrite node as an
-            --  Iterated_Element_Association.
+               --  Ada 2022 Key-expression is present, rewrite node as an
+               --  Iterated_Element_Association.
 
-            Scan;  --  past USE
-            Build_Iterated_Element_Association;
-            Set_Key_Expression (Assoc_Node, P_Expression);
+               Scan;  --  past USE
+               Build_Iterated_Element_Association;
+               Set_Key_Expression (Assoc_Node, P_Expression);
 
-         elsif Present (Filter) then
-            --  A loop_parameter_specification also indicates an Ada_2020
-            --  construct, in contrast with a subtype indication used in
-            --  array aggregates.
+            elsif Present (Filter) then
+               --  A loop_parameter_specification also indicates an Ada 2022
+               --  construct, in contrast with a subtype indication used in
+               --  array aggregates.
 
-            Build_Iterated_Element_Association;
-         end if;
+               Build_Iterated_Element_Association;
+            end if;
 
-         TF_Arrow;
-         Set_Expression (Assoc_Node, P_Expression);
+            TF_Arrow;
+            Set_Expression (Assoc_Node, P_Expression);
 
-      elsif Ada_Version >= Ada_2020
-        and then Token = Tok_Of
-      then
-         Restore_Scan_State (State);
-         Scan;  -- past OF
-         Set_Defining_Identifier (Assoc_Node, Id);
-         Iter_Spec := P_Iterator_Specification (Id);
-         Set_Iterator_Specification (Assoc_Node, Iter_Spec);
-
-         if Token = Tok_Use then
-            Scan;  -- past USE
-            --  This is an iterated_element_association
-
-            Assoc_Node :=
-              New_Node (N_Iterated_Element_Association, Prev_Token_Ptr);
+         when Tok_Of =>
+            Restore_Scan_State (State);
+            Scan;  -- past OF
+            Set_Defining_Identifier (Assoc_Node, Id);
+            Iter_Spec := P_Iterator_Specification (Id);
             Set_Iterator_Specification (Assoc_Node, Iter_Spec);
-            Set_Key_Expression (Assoc_Node, P_Expression);
-         end if;
 
-         TF_Arrow;
-         Set_Expression (Assoc_Node, P_Expression);
-      end if;
+            if Token = Tok_Use then
+               Scan;  -- past USE
+               --  This is an iterated_element_association
 
-      Error_Msg_Ada_2020_Feature ("iterated component", Token_Ptr);
+               Assoc_Node :=
+                 New_Node (N_Iterated_Element_Association, Prev_Token_Ptr);
+               Set_Iterator_Specification (Assoc_Node, Iter_Spec);
+               Set_Key_Expression (Assoc_Node, P_Expression);
+            end if;
+
+            TF_Arrow;
+            Set_Expression (Assoc_Node, P_Expression);
+
+         when others =>
+            Error_Msg_AP ("missing IN or OF");
+      end case;
 
       return Assoc_Node;
    end P_Iterated_Component_Association;
@@ -3689,7 +3759,7 @@ package body Ch4 is
             Result : constant Node_Id :=
               Make_Expression_With_Actions (Loc, Actions, Expression);
          begin
-            Error_Msg_Ada_2020_Feature ("declare expression", Loc);
+            Error_Msg_Ada_2022_Feature ("declare expression", Loc);
 
             return Result;
          end;

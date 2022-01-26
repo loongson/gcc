@@ -1,6 +1,6 @@
 ## Makefile for the python subdirectory of the GNU C++ Standard library.
 ##
-## Copyright (C) 2009-2021 Free Software Foundation, Inc.
+## Copyright (C) 2009-2022 Free Software Foundation, Inc.
 ##
 ## This file is part of the libstdc++ version 3 distribution.
 ## Process this file with automake to produce Makefile.in.
@@ -29,6 +29,12 @@ else
 pythondir = $(datadir)/gcc-$(gcc_version)/python
 endif
 
+if GLIBCXX_BUILD_DEBUG
+debug_gdb_py = YES
+else
+debug_gdb_py =
+endif
+
 all-local: gdb.py
 
 nobase_python_DATA = \
@@ -48,5 +54,13 @@ install-data-local: gdb.py
 ## the correct name.
 	@libname=`sed -ne "/^library_names=/{s/.*='//;s/'$$//;s/ .*//;p;}" \
 	          $(DESTDIR)$(toolexeclibdir)/libstdc++.la`; \
+	if [ -z "$$libname" ]; then \
+	  libname=`sed -ne "/^old_library=/{s/.*='//;s/'$$//;s/ .*//;p;}" \
+		  $(DESTDIR)$(toolexeclibdir)/libstdc++.la`; \
+	fi; \
 	echo " $(INSTALL_DATA) gdb.py $(DESTDIR)$(toolexeclibdir)/$$libname-gdb.py"; \
-	$(INSTALL_DATA) gdb.py $(DESTDIR)$(toolexeclibdir)/$$libname-gdb.py
+	$(INSTALL_DATA) gdb.py $(DESTDIR)$(toolexeclibdir)/$$libname-gdb.py ; \
+	if [ -n "$(debug_gdb_py)" ]; then \
+	  sed "/^libdir = /s;'$$;/debug';" gdb.py > debug-gdb.py ; \
+	  $(INSTALL_DATA) debug-gdb.py $(DESTDIR)$(toolexeclibdir)/debug/$$libname-gdb.py ; \
+	fi

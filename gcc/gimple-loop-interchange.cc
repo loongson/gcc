@@ -1,5 +1,5 @@
 /* Loop interchange.
-   Copyright (C) 2017-2021 Free Software Foundation, Inc.
+   Copyright (C) 2017-2022 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
 This file is part of GCC.
@@ -1044,7 +1044,10 @@ tree_loop_interchange::valid_data_dependences (unsigned i_idx, unsigned o_idx,
 
 	  /* Be conservative, skip case if either direction at i_idx/o_idx
 	     levels is not '=' or '<'.  */
-	  if (dist_vect[i_idx] < 0 || dist_vect[o_idx] < 0)
+	  if ((!DDR_REVERSED_P (ddr) && dist_vect[i_idx] < 0)
+	      || (DDR_REVERSED_P (ddr) && dist_vect[i_idx] > 0)
+	      || (!DDR_REVERSED_P (ddr) && dist_vect[o_idx] < 0)
+	      || (DDR_REVERSED_P (ddr) && dist_vect[o_idx] > 0))
 	    return false;
 	}
     }
@@ -2086,8 +2089,7 @@ pass_linterchange::execute (function *fun)
     return 0;
 
   bool changed_p = false;
-  class loop *loop;
-  FOR_EACH_LOOP (loop, LI_ONLY_INNERMOST)
+  for (auto loop : loops_list (cfun, LI_ONLY_INNERMOST))
     {
       vec<loop_p> loop_nest = vNULL;
       vec<data_reference_p> datarefs = vNULL;

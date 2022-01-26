@@ -6,7 +6,7 @@
 --                                                                          --
 --                                B o d y                                   --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -483,8 +483,10 @@ begin
    Write_Line ("        .B   turn off warnings for biased representation");
    Write_Line ("        c+   turn on warnings for constant conditional");
    Write_Line ("        C*   turn off warnings for constant conditional");
-   Write_Line ("        .c+  turn on warnings for unrepped components");
-   Write_Line ("        .C*  turn off warnings for unrepped components");
+   Write_Line ("        .c+  turn on warnings for components without " &
+                                                     "representation clauses");
+   Write_Line ("        .C*  turn off warnings for components without " &
+                                                     "representation clauses");
    Write_Line ("        _c*  turn on warnings for unknown " &
                                                  "Compile_Time_Warning");
    Write_Line ("        _C   turn off warnings for unknown " &
@@ -555,6 +557,8 @@ begin
                                                   "order");
    Write_Line ("        .P*  turn off warnings for suspicious parameter " &
                                                   "order");
+   Write_Line ("        _p   turn on warnings for pedantic checks");
+   Write_Line ("        _P   turn off warnings for pedantic checks");
    Write_Line ("        q*+  turn on warnings for questionable " &
                                                   "missing parenthesis");
    Write_Line ("        Q    turn off warnings for questionable " &
@@ -698,22 +702,12 @@ begin
       --  Line for -gnat95 switch
 
       Write_Switch_Char ("95");
-
-      if Ada_Version_Default = Ada_95 then
-         Write_Line ("Ada 95 mode (default)");
-      else
-         Write_Line ("Ada 95 mode");
-      end if;
+      Write_Line ("Ada 95 mode");
 
       --  Line for -gnat2005 switch
 
       Write_Switch_Char ("2005");
-
-      if Ada_Version_Default = Ada_2005 then
-         Write_Line ("Ada 2005 mode (default)");
-      else
-         Write_Line ("Ada 2005 mode");
-      end if;
+      Write_Line ("Ada 2005 mode");
    end if;
 
    --  Line for -gnat2012 switch
@@ -724,6 +718,16 @@ begin
       Write_Line ("Ada 2012 mode (default)");
    else
       Write_Line ("Ada 2012 mode");
+   end if;
+
+   --  Line for -gnat2022 switch
+
+   Write_Switch_Char ("2022");
+
+   if Ada_Version_Default = Ada_2022 then
+      Write_Line ("Ada 2022 mode (default)");
+   else
+      Write_Line ("Ada 2022 mode");
    end if;
 
    --  Line for -gnat-p switch

@@ -1,5 +1,5 @@
 ;; Arm M-profile Vector Extension Machine Description
-;; Copyright (C) 2019-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2022 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -269,8 +269,7 @@
 (define_insn "mve_vabsq_f<mode>"
   [
    (set (match_operand:MVE_0 0 "s_register_operand" "=w")
-	(unspec:MVE_0 [(match_operand:MVE_0 1 "s_register_operand" "w")]
-	 VABSQ_F))
+	(abs:MVE_0 (match_operand:MVE_0 1 "s_register_operand" "w")))
   ]
   "TARGET_HAVE_MVE && TARGET_HAVE_MVE_FLOAT"
   "vabs.f%#<V_sz_elem>  %q0, %q1"
@@ -436,16 +435,22 @@
 ;;
 ;; [vclzq_u, vclzq_s])
 ;;
-(define_insn "mve_vclzq_<supf><mode>"
+(define_insn "@mve_vclzq_s<mode>"
   [
    (set (match_operand:MVE_2 0 "s_register_operand" "=w")
-	(unspec:MVE_2 [(match_operand:MVE_2 1 "s_register_operand" "w")]
-	 VCLZQ))
+	(clz:MVE_2 (match_operand:MVE_2 1 "s_register_operand" "w")))
   ]
   "TARGET_HAVE_MVE"
   "vclz.i%#<V_sz_elem>  %q0, %q1"
   [(set_attr "type" "mve_move")
 ])
+(define_expand "mve_vclzq_u<mode>"
+  [
+   (set (match_operand:MVE_2 0 "s_register_operand")
+	(clz:MVE_2 (match_operand:MVE_2 1 "s_register_operand")))
+  ]
+  "TARGET_HAVE_MVE"
+)
 
 ;;
 ;; [vclsq_s])
@@ -481,8 +486,7 @@
 (define_insn "mve_vabsq_s<mode>"
   [
    (set (match_operand:MVE_2 0 "s_register_operand" "=w")
-	(unspec:MVE_2 [(match_operand:MVE_2 1 "s_register_operand" "w")]
-	 VABSQ_S))
+	(abs:MVE_2 (match_operand:MVE_2 1 "s_register_operand" "w")))
   ]
   "TARGET_HAVE_MVE"
   "vabs.s%#<V_sz_elem>\t%q0, %q1"
@@ -530,6 +534,26 @@
   "vmovlb.<supf>%#<V_sz_elem>   %q0, %q1"
   [(set_attr "type" "mve_move")
 ])
+
+(define_insn "mve_vec_unpack<US>_lo_<mode>"
+  [(set (match_operand:<V_unpack> 0 "register_operand" "=w")
+	(SE:<V_unpack> (vec_select:<V_HALF>
+			  (match_operand:MVE_3 1 "register_operand" "w")
+			  (match_operand:MVE_3 2 "vect_par_constant_low" ""))))]
+  "TARGET_HAVE_MVE"
+  "vmovlb.<US>%#<V_sz_elem> %q0, %q1"
+  [(set_attr "type" "mve_move")]
+)
+
+(define_insn "mve_vec_unpack<US>_hi_<mode>"
+  [(set (match_operand:<V_unpack> 0 "register_operand" "=w")
+	(SE:<V_unpack> (vec_select:<V_HALF>
+			  (match_operand:MVE_3 1 "register_operand" "w")
+			  (match_operand:MVE_3 2 "vect_par_constant_high" ""))))]
+  "TARGET_HAVE_MVE"
+  "vmovlt.<US>%#<V_sz_elem> %q0, %q1"
+  [(set_attr "type" "mve_move")]
+)
 
 ;;
 ;; [vcvtpq_s, vcvtpq_u])
@@ -1032,7 +1056,7 @@
 ;;
 ;; [vhaddq_s, vhaddq_u])
 ;;
-(define_insn "mve_vhaddq_<supf><mode>"
+(define_insn "@mve_vhaddq_<supf><mode>"
   [
    (set (match_operand:MVE_2 0 "s_register_operand" "=w")
 	(unspec:MVE_2 [(match_operand:MVE_2 1 "s_register_operand" "w")
@@ -1654,7 +1678,7 @@
 ;;
 ;; [vrhaddq_s, vrhaddq_u])
 ;;
-(define_insn "mve_vrhaddq_<supf><mode>"
+(define_insn "@mve_vrhaddq_<supf><mode>"
   [
    (set (match_operand:MVE_2 0 "s_register_operand" "=w")
 	(unspec:MVE_2 [(match_operand:MVE_2 1 "s_register_operand" "w")
@@ -2195,10 +2219,23 @@
   [(set_attr "type" "mve_move")
 ])
 
+;; vmovnb pattern used by the vec_pack_trunc expander to avoid the
+;; need for an uninitialized input operand.
+(define_insn "@mve_vec_pack_trunc_lo_<mode>"
+  [
+   (set (match_operand:<V_narrow_pack> 0 "s_register_operand" "=w")
+	(unspec:<V_narrow_pack> [(match_operand:MVE_5 1 "s_register_operand" "w")]
+	 VMOVNBQ_S))
+  ]
+  "TARGET_HAVE_MVE"
+  "vmovnb.i%#<V_sz_elem>	%q0, %q1"
+  [(set_attr "type" "mve_move")
+])
+
 ;;
 ;; [vmovntq_s, vmovntq_u])
 ;;
-(define_insn "mve_vmovntq_<supf><mode>"
+(define_insn "@mve_vmovntq_<supf><mode>"
   [
    (set (match_operand:<V_narrow_pack> 0 "s_register_operand" "=w")
 	(unspec:<V_narrow_pack> [(match_operand:<V_narrow_pack> 1 "s_register_operand" "0")
@@ -7533,7 +7570,7 @@
 ;;
 (define_insn "mve_vldrwq_fv4sf"
   [(set (match_operand:V4SF 0 "s_register_operand" "=w")
-	(unspec:V4SF [(match_operand:V4SI 1 "memory_operand" "Ux")]
+	(unspec:V4SF [(match_operand:V4SI 1 "mve_memory_operand" "Ux")]
 	 VLDRWQ_F))
   ]
   "TARGET_HAVE_MVE && TARGET_HAVE_MVE_FLOAT"
@@ -7552,7 +7589,7 @@
 ;;
 (define_insn "mve_vldrwq_<supf>v4si"
   [(set (match_operand:V4SI 0 "s_register_operand" "=w")
-	(unspec:V4SI [(match_operand:V4SI 1 "memory_operand" "Ux")]
+	(unspec:V4SI [(match_operand:V4SI 1 "mve_memory_operand" "Ux")]
 	 VLDRWQ))
   ]
   "TARGET_HAVE_MVE"
@@ -7571,7 +7608,7 @@
 ;;
 (define_insn "mve_vldrwq_z_fv4sf"
   [(set (match_operand:V4SF 0 "s_register_operand" "=w")
-	(unspec:V4SF [(match_operand:V4SI 1 "memory_operand" "Ux")
+	(unspec:V4SF [(match_operand:V4SI 1 "mve_memory_operand" "Ux")
 	(match_operand:HI 2 "vpr_register_operand" "Up")]
 	 VLDRWQ_F))
   ]
@@ -7591,7 +7628,7 @@
 ;;
 (define_insn "mve_vldrwq_z_<supf>v4si"
   [(set (match_operand:V4SI 0 "s_register_operand" "=w")
-	(unspec:V4SI [(match_operand:V4SI 1 "memory_operand" "Ux")
+	(unspec:V4SI [(match_operand:V4SI 1 "mve_memory_operand" "Ux")
 	(match_operand:HI 2 "vpr_register_operand" "Up")]
 	 VLDRWQ))
   ]
@@ -8245,7 +8282,7 @@
 ;; [vstrwq_f]
 ;;
 (define_insn "mve_vstrwq_fv4sf"
-  [(set (match_operand:V4SI 0 "memory_operand" "=Ux")
+  [(set (match_operand:V4SI 0 "mve_memory_operand" "=Ux")
 	(unspec:V4SI [(match_operand:V4SF 1 "s_register_operand" "w")]
 	 VSTRWQ_F))
   ]
@@ -8264,7 +8301,7 @@
 ;; [vstrwq_p_f]
 ;;
 (define_insn "mve_vstrwq_p_fv4sf"
-  [(set (match_operand:V4SI 0 "memory_operand" "=Ux")
+  [(set (match_operand:V4SI 0 "mve_memory_operand" "=Ux")
 	(unspec:V4SI [(match_operand:V4SF 1 "s_register_operand" "w")
 		      (match_operand:HI 2 "vpr_register_operand" "Up")]
 	 VSTRWQ_F))
@@ -8284,7 +8321,7 @@
 ;; [vstrwq_p_s vstrwq_p_u]
 ;;
 (define_insn "mve_vstrwq_p_<supf>v4si"
-  [(set (match_operand:V4SI 0 "memory_operand" "=Ux")
+  [(set (match_operand:V4SI 0 "mve_memory_operand" "=Ux")
 	(unspec:V4SI [(match_operand:V4SI 1 "s_register_operand" "w")
 		      (match_operand:HI 2 "vpr_register_operand" "Up")]
 	 VSTRWQ))
@@ -8304,7 +8341,7 @@
 ;; [vstrwq_s vstrwq_u]
 ;;
 (define_insn "mve_vstrwq_<supf>v4si"
-  [(set (match_operand:V4SI 0 "memory_operand" "=Ux")
+  [(set (match_operand:V4SI 0 "mve_memory_operand" "=Ux")
 	(unspec:V4SI [(match_operand:V4SI 1 "s_register_operand" "w")]
 	 VSTRWQ))
   ]

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -81,9 +81,11 @@ package Sem_Ch13 is
    --  the setting of the RM_Size field is not affected. This routine also
    --  initializes the alignment field to zero.
 
+   Unknown_Minimum_Size : constant Nonzero_Int := -1;
+
    function Minimum_Size
      (T      : Entity_Id;
-      Biased : Boolean := False) return Nat;
+      Biased : Boolean := False) return Int;
    --  Given an elementary type, determines the minimum number of bits required
    --  to represent all values of the type. This function may not be called
    --  with any other types. If the flag Biased is set True, then the minimum
@@ -96,7 +98,7 @@ package Sem_Ch13 is
    --  the type is already biased, then Minimum_Size returns the biased size,
    --  regardless of the setting of Biased. Also, fixed-point types are never
    --  biased in the current implementation. If the size is not known at
-   --  compile time, this function returns 0.
+   --  compile time, this function returns Unknown_Minimum_Size.
 
    procedure Check_Constant_Address_Clause (Expr : Node_Id; U_Ent : Entity_Id);
    --  Expr is an expression for an address clause. This procedure checks
@@ -115,18 +117,17 @@ package Sem_Ch13 is
       Siz    : Uint;
       Biased : out Boolean);
    --  Called when size Siz is specified for subtype T. This subprogram checks
-   --  that the size is appropriate, posting errors on node N as required.
-   --  This check is effective for elementary types and bit-packed arrays.
-   --  For other non-elementary types, a check is only made if an explicit
-   --  size has been given for the type (and the specified size must match).
-   --  The parameter Biased is set False if the size specified did not require
-   --  the use of biased representation, and True if biased representation
-   --  was required to meet the size requirement. Note that Biased is only
-   --  set if the type is not currently biased, but biasing it is the only
-   --  way to meet the requirement. If the type is currently biased, then
-   --  this biased size is used in the initial check, and Biased is False.
-   --  If the size is too small, and an error message is given, then both
-   --  Esize and RM_Size are reset to the allowed minimum value in T.
+   --  that the size is appropriate, posting errors on node N as required. This
+   --  check is effective for elementary types and bit-packed arrays. For
+   --  composite types, a check is only made if an explicit size has been given
+   --  for the type (and the specified size must match).  The parameter Biased
+   --  is set False if the size specified did not require the use of biased
+   --  representation, and True if biased representation was required to meet
+   --  the size requirement. Note that Biased is only set if the type is not
+   --  currently biased, but biasing it is the only way to meet the
+   --  requirement. If the type is currently biased, then this biased size is
+   --  used in the initial check, and Biased is False. For a Component_Size
+   --  clause, T is the component type.
 
    function Has_Compatible_Representation
      (Target_Type, Operand_Type : Entity_Id) return Boolean;

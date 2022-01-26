@@ -1,5 +1,5 @@
 /* Definitions for code generation pass of GNU compiler.
-   Copyright (C) 1987-2021 Free Software Foundation, Inc.
+   Copyright (C) 1987-2022 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -108,13 +108,13 @@ enum block_op_methods
 };
 
 typedef rtx (*by_pieces_constfn) (void *, void *, HOST_WIDE_INT,
-				  scalar_int_mode);
+				  fixed_size_mode);
 
 /* The second pointer passed to by_pieces_constfn.  */
 struct by_pieces_prev
 {
   rtx data;
-  scalar_int_mode mode;
+  fixed_size_mode mode;
 };
 
 extern rtx emit_block_move (rtx, rtx, rtx, enum block_op_methods);
@@ -345,5 +345,8 @@ extern void expand_operands (tree, tree, rtx, rtx*, rtx*,
 /* rtl.h and tree.h were included.  */
 /* Return an rtx for the size in bytes of the value of an expr.  */
 extern rtx expr_size (tree);
+
+extern bool mem_ref_refers_to_non_mem_p (tree);
+extern bool non_mem_decl_p (tree);
 
 #endif /* GCC_EXPR_H */

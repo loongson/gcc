@@ -1,5 +1,5 @@
 ;; Machine description for SPARC.
-;; Copyright (C) 1987-2021 Free Software Foundation, Inc.
+;; Copyright (C) 1987-2022 Free Software Foundation, Inc.
 ;; Contributed by Michael Tiemann (tiemann@cygnus.com)
 ;; 64-bit SPARC-V9 support by Michael Tiemann, Jim Wilson, and Doug Evans,
 ;; at Cygnus Support.
@@ -233,6 +233,7 @@
    hypersparc,
    leon,
    leon3,
+   leon5,
    leon3v7,
    sparclite,
    f930,
@@ -638,6 +639,7 @@
 (include "supersparc.md")
 (include "hypersparc.md")
 (include "leon.md")
+(include "leon5.md")
 (include "sparclet.md")
 (include "ultra1_2.md")
 (include "ultra3.md")
@@ -855,7 +857,7 @@
    (clobber (reg:CCX CC_REG))]
   "TARGET_ARCH64 && TARGET_VIS3"
   "#"
-  ""
+  "&& 1"
   [(set (reg:CCXC CC_REG) (compare:CCXC (not:DI (match_dup 1)) (const_int -1)))
    (set (match_dup 0) (ltu:W (reg:CCXC CC_REG) (const_int 0)))]
   ""
@@ -882,7 +884,7 @@
    (clobber (reg:CCX CC_REG))]
   "TARGET_ARCH64 && TARGET_SUBXC"
   "#"
-  ""
+  "&& 1"
   [(set (reg:CCXC CC_REG) (compare:CCXC (not:DI (match_dup 1)) (const_int -1)))
    (set (match_dup 0) (neg:W (ltu:W (reg:CCXC CC_REG) (const_int 0))))]
   ""
@@ -984,7 +986,7 @@
    (clobber (reg:CCX CC_REG))]
   "TARGET_ARCH64 && TARGET_VIS3"
   "#"
-  ""
+  "&& 1"
   [(set (reg:CCXC CC_REG) (compare:CCXC (not:DI (match_dup 1)) (const_int -1)))
    (set (match_dup 0) (plus:W (ltu:W (reg:CCXC CC_REG) (const_int 0))
 			      (match_dup 2)))]
@@ -1000,7 +1002,7 @@
    (clobber (reg:CCX CC_REG))]
   "TARGET_ARCH64 && TARGET_VIS3"
   "#"
-  ""
+  "&& 1"
   [(set (reg:CCXC CC_REG) (compare:CCXC (not:DI (match_dup 1)) (const_int -1)))
    (set (match_dup 0) (plus:W (plus:W (ltu:W (reg:CCXC CC_REG) (const_int 0))
 				      (match_dup 2))
@@ -1048,7 +1050,7 @@
    (clobber (reg:CCX CC_REG))]
   "TARGET_ARCH64 && TARGET_SUBXC"
   "#"
-  ""
+  "&& 1"
   [(set (reg:CCXC CC_REG) (compare:CCXC (not:DI (match_dup 1)) (const_int -1)))
    (set (match_dup 0) (minus:W (match_dup 2)
 			       (ltu:W (reg:CCXC CC_REG) (const_int 0))))]
@@ -1064,7 +1066,7 @@
    (clobber (reg:CCX CC_REG))]
   "TARGET_ARCH64 && TARGET_SUBXC"
   "#"
-  ""
+  "&& 1"
   [(set (reg:CCXC CC_REG) (compare:CCXC (not:DI (match_dup 1)) (const_int -1)))
    (set (match_dup 0) (minus:W (minus:W (match_dup 2)
 				        (ltu:W (reg:CCXC CC_REG) (const_int 0)))
@@ -1933,7 +1935,7 @@ visl")
   "or\t%1, %%lo(%a3-(%a2-.)), %0")
 
 ;; SPARC-v9 code model support insns.  See sparc_emit_set_symbolic_const64
-;; in sparc.c to see what is going on here... PIC stuff comes first.
+;; in sparc.cc to see what is going on here... PIC stuff comes first.
 
 (define_insn "movdi_lo_sum_pic"
   [(set (match_operand:DI 0 "register_operand" "=r")
@@ -2808,7 +2810,7 @@ visl")
 ;; it simple and only allow those constants supported by all flavors.
 ;; Note that emit_conditional_move canonicalizes operands 2,3 so that operand
 ;; 3 contains the constant if one is present, but we handle either for
-;; generality (sparc.c puts a constant in operand 2).
+;; generality (sparc.cc puts a constant in operand 2).
 ;;
 ;; Our instruction patterns, on the other hand, canonicalize such that
 ;; operand 3 must be the set destination.
@@ -8353,9 +8355,15 @@ visl")
 	(unspec:SI [(match_operand:SI 1 "memory_operand" "m")] UNSPEC_SP_SET))
    (set (match_scratch:SI 2 "=&r") (const_int 0))]
   "TARGET_ARCH32"
-  "ld\t%1, %2\;st\t%2, %0\;mov\t0, %2"
+{
+  if (sparc_fix_b2bst)
+    return "ld\t%1, %2\;st\t%2, %0\;mov\t0, %2\;nop";
+  else
+    return "ld\t%1, %2\;st\t%2, %0\;mov\t0, %2";
+}
   [(set_attr "type" "multi")
-   (set_attr "length" "3")])
+   (set (attr "length") (if_then_else (eq_attr "fix_b2bst" "true")
+		      (const_int 4) (const_int 3)))])
 
 (define_insn "stack_protect_set64"
   [(set (match_operand:DI 0 "memory_operand" "=m")

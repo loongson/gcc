@@ -6,7 +6,7 @@
  *                                                                          *
  *                              C Header File                               *
  *                                                                          *
- *          Copyright (C) 1992-2021, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2022, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -61,13 +61,24 @@ extern void Compiler_Abort (String_Pointer, String_Pointer, Boolean) ATTRIBUTE_N
 
 #define Debug_Flag_Dot_KK	debug__debug_flag_dot_kk
 #define Debug_Flag_Dot_R	debug__debug_flag_dot_r
+#define Debug_Flag_Dot_8	debug__debug_flag_dot_8
 #define Debug_Flag_NN		debug__debug_flag_nn
 
 extern Boolean Debug_Flag_Dot_KK;
 extern Boolean Debug_Flag_Dot_R;
+extern Boolean Debug_Flag_Dot_8;
 extern Boolean Debug_Flag_NN;
 
 /* einfo: */
+
+/* Valid_Uint is used to preserve the old behavior of Esize and
+   friends, where Uint_0 was the default. All calls to this
+   are questionable. */
+INLINE Valid_Uint
+No_Uint_To_0 (Uint X)
+{
+  return X == No_Uint ? Uint_0 : X;
+}
 
 #define Set_Alignment			einfo__entities__set_alignment
 #define Set_Component_Bit_Offset	einfo__entities__set_component_bit_offset
@@ -190,6 +201,7 @@ extern Boolean In_Extended_Main_Code_Unit	(Entity_Id);
 /* opt: */
 
 #define Ada_Version			opt__ada_version
+#define Assume_No_Invalid_Values	opt__assume_no_invalid_values
 #define Back_End_Inlining		opt__back_end_inlining
 #define Debug_Generated_Code		opt__debug_generated_code
 #define Enable_128bit_Types		opt__enable_128bit_types
@@ -203,7 +215,7 @@ extern Boolean In_Extended_Main_Code_Unit	(Entity_Id);
 #define Suppress_Checks			opt__suppress_checks
 
 typedef enum {
-  Ada_83, Ada_95, Ada_2005, Ada_2012, Ada_2020
+  Ada_83, Ada_95, Ada_2005, Ada_2012, Ada_2022, Ada_With_Extensions
 } Ada_Version_Type;
 
 typedef enum {
@@ -211,6 +223,7 @@ typedef enum {
 } Exception_Mechanism_Type;
 
 extern Ada_Version_Type Ada_Version;
+extern Boolean Assume_No_Invalid_Values;
 extern Boolean Back_End_Inlining;
 extern Boolean Debug_Generated_Code;
 extern Boolean Enable_128bit_Types;
@@ -247,6 +260,8 @@ extern Boolean Back_End_Exceptions	(void);
   restrict__check_no_implicit_task_alloc
 #define No_Exception_Handlers_Set	\
   restrict__no_exception_handlers_set
+#define No_Exception_Propagation_Active	\
+  restrict__no_exception_propagation_active
 
 extern void Check_Elaboration_Code_Allowed	(Node_Id);
 extern void Check_Implicit_Dynamic_Code_Allowed	(Node_Id);
@@ -254,6 +269,7 @@ extern void Check_No_Implicit_Heap_Alloc	(Node_Id);
 extern void Check_No_Implicit_Protected_Alloc	(Node_Id);
 extern void Check_No_Implicit_Task_Alloc	(Node_Id);
 extern Boolean No_Exception_Handlers_Set	(void);
+extern Boolean No_Exception_Propagation_Active	(void);
 
 /* sem_aggr:  */
 
@@ -613,54 +629,14 @@ B Known_Normalized_Position_Max         (Entity_Id E);
 #define Known_RM_Size einfo__utils__known_rm_size
 B Known_RM_Size                         (Entity_Id E);
 
-#define Known_Static_Component_Bit_Offset einfo__utils__known_static_component_bit_offset
-B Known_Static_Component_Bit_Offset     (Entity_Id E);
+#define Copy_Alignment einfo__utils__copy_alignment
+B Copy_Alignment(Entity_Id To, Entity_Id From);
 
-#define Known_Static_Component_Size einfo__utils__known_static_component_size
-B Known_Static_Component_Size           (Entity_Id E);
+#define Copy_Esize einfo__utils__copy_esize
+B Copy_Esize(Entity_Id To, Entity_Id From);
 
-#define Known_Static_Esize einfo__utils__known_static_esize
-B Known_Static_Esize                    (Entity_Id E);
-
-#define Known_Static_Normalized_First_Bit einfo__utils__known_static_normalized_first_bit
-B Known_Static_Normalized_First_Bit     (Entity_Id E);
-
-#define Known_Static_Normalized_Position einfo__utils__known_static_normalized_position
-B Known_Static_Normalized_Position      (Entity_Id E);
-
-#define Known_Static_Normalized_Position_Max einfo__utils__known_static_normalized_position_max
-B Known_Static_Normalized_Position_Max  (Entity_Id E);
-
-#define Known_Static_RM_Size einfo__utils__known_static_rm_size
-B Known_Static_RM_Size                  (Entity_Id E);
-
-#define Unknown_Alignment einfo__utils__unknown_alignment
-B Unknown_Alignment                     (Entity_Id E);
-
-#define Unknown_Component_Bit_Offset einfo__utils__unknown_component_bit_offset
-B Unknown_Component_Bit_Offset          (Entity_Id E);
-
-#define Unknown_Component_Size einfo__utils__unknown_component_size
-B Unknown_Component_Size                (Entity_Id E);
-
-#define Unknown_Esize einfo__utils__unknown_esize
-B Unknown_Esize                         (Entity_Id E);
-
-#define Unknown_Normalized_First_Bit einfo__utils__unknown_normalized_first_bit
-B Unknown_Normalized_First_Bit          (Entity_Id E);
-
-#define Unknown_Normalized_Position einfo__utils__unknown_normalized_position
-B Unknown_Normalized_Position           (Entity_Id E);
-
-#define Unknown_Normalized_Position_Max einfo__utils__unknown_normalized_position_max
-B Unknown_Normalized_Position_Max       (Entity_Id E);
-
-#define Unknown_RM_Size einfo__utils__unknown_rm_size
-B Unknown_RM_Size                       (Entity_Id E);
-
-// The following were automatically generated as INLINE functions in the old
-// einfo.h by the spitbol program.
-// Is it important that they be inlined????
+#define Copy_RM_Size einfo__utils__copy_rm_size
+B Copy_RM_Size(Entity_Id To, Entity_Id From);
 
 #define Is_Discrete_Or_Fixed_Point_Type einfo__utils__is_discrete_or_fixed_point_type
 B Is_Discrete_Or_Fixed_Point_Type     (E Id);

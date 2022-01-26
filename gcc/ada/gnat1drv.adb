@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -67,7 +67,6 @@ with Sem_Type;
 with Set_Targ;
 with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
-with Sinfo.Utils;    use Sinfo.Utils;
 with Sinput;         use Sinput;
 with Sinput.L;       use Sinput.L;
 with Snames;         use Snames;
@@ -146,12 +145,12 @@ procedure Gnat1drv is
    --  Start of processing for Adjust_Global_Switches
 
    begin
-      --  Define pragma GNAT_Annotate as an alias of pragma Annotate, to be
-      --  able to work around bootstrap limitations with the old syntax of
-      --  pragma Annotate, and use pragma GNAT_Annotate in compiler sources
-      --  when needed.
 
-      Map_Pragma_Name (From => Name_Gnat_Annotate, To => Name_Annotate);
+      --  -gnatd_U disables prepending error messages with "error:"
+
+      if Debug_Flag_Underscore_UU then
+         Unique_Error_Tag := False;
+      end if;
 
       --  -gnatd.M enables Relaxed_RM_Semantics
 
@@ -1288,29 +1287,6 @@ begin
          Exit_Program (E_Errors);
       end if;
 
-      --  Set Generate_Code on main unit and its spec. We do this even if are
-      --  not generating code, since Lib-Writ uses this to determine which
-      --  units get written in the ali file.
-
-      Set_Generate_Code (Main_Unit);
-
-      --  If we have a corresponding spec, and it comes from source or it is
-      --  not a generated spec for a child subprogram body, then we need object
-      --  code for the spec unit as well.
-
-      if Nkind (Unit (Main_Unit_Node)) in N_Unit_Body
-        and then not Acts_As_Spec (Main_Unit_Node)
-      then
-         if Nkind (Unit (Main_Unit_Node)) = N_Subprogram_Body
-           and then not Comes_From_Source (Library_Unit (Main_Unit_Node))
-         then
-            null;
-         else
-            Set_Generate_Code
-              (Get_Cunit_Unit_Number (Library_Unit (Main_Unit_Node)));
-         end if;
-      end if;
-
       --  Case of no code required to be generated, exit indicating no error
 
       if Original_Operating_Mode = Check_Syntax then
@@ -1439,18 +1415,24 @@ begin
 
       if Back_End_Mode = Skip then
 
-         --  An ignored Ghost unit is rewritten into a null statement because
-         --  it must not produce an ALI or object file. Do not emit any errors
-         --  related to code generation because the unit does not exist.
+         --  An ignored Ghost unit is rewritten into a null statement. Do
+         --  not emit any errors related to code generation because the
+         --  unit does not exist.
 
          if Is_Ignored_Ghost_Unit (Main_Unit_Node) then
 
             --  Exit the gnat driver with success, otherwise external builders
             --  such as gnatmake and gprbuild will treat the compilation of an
-            --  ignored Ghost unit as a failure. Note that this will produce
-            --  an empty object file for the unit.
+            --  ignored Ghost unit as a failure. Be sure we produce an empty
+            --  object file for the unit.
 
             Ecode := E_Success;
+            Back_End.Gen_Or_Update_Object_File;
+
+            --  Use a goto instead of calling Exit_Program so that finalization
+            --  occurs normally.
+
+            goto End_Of_Program;
 
          --  Otherwise the unit is missing a crucial piece that prevents code
          --  generation.
@@ -1640,7 +1622,14 @@ begin
 
       Errout.Finalize (Last_Call => True);
       Errout.Output_Messages;
-      Repinfo.List_Rep_Info (Ttypes.Bytes_Big_Endian);
+
+      --  Back annotation of representation info is not done in CodePeer and
+      --  SPARK modes.
+
+      if not (Generate_SCIL or GNATprove_Mode) then
+         Repinfo.List_Rep_Info (Ttypes.Bytes_Big_Endian);
+      end if;
+
       Inline.List_Inlining_Info;
 
       --  Only write the library if the backend did not generate any error
@@ -1711,6 +1700,10 @@ begin
    end;
 
    <<End_Of_Program>>
+
+   if Debug_Flag_Dot_AA then
+      Atree.Print_Statistics;
+   end if;
 
 --  The outer exception handler handles an unrecoverable error
 

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -114,6 +114,7 @@ package Restrict is
       No_Default_Initialization          => True,
       No_Direct_Boolean_Operators        => True,
       No_Dispatching_Calls               => True,
+      No_Dynamic_Accessibility_Checks    => True,
       No_Dynamic_Attachment              => True,
       No_Elaboration_Code                => True,
       No_Enumeration_Maps                => True,
@@ -142,6 +143,7 @@ package Restrict is
       No_Standard_Storage_Pools          => True,
       No_Stream_Optimizations            => True,
       No_Streams                         => True,
+      No_Tagged_Type_Registration        => True,
       No_Task_Attributes_Package         => True,
       No_Task_Termination                => True,
       No_Tasking                         => True,
@@ -238,16 +240,6 @@ package Restrict is
    --  Tests to see if abort is allowed by the current restrictions settings.
    --  For abort to be allowed, either No_Abort_Statements must be False,
    --  or Max_Asynchronous_Select_Nesting must be non-zero.
-
-   procedure Check_Compiler_Unit (Feature : String; N : Node_Id);
-   --  If unit N is in a unit that has a pragma Compiler_Unit_Warning, then
-   --  a message is posted on node N noting use of the given feature is not
-   --  permitted in the compiler (bootstrap considerations).
-
-   procedure Check_Compiler_Unit (Feature : String; Loc : Source_Ptr);
-   --  If unit N is in a unit that has a pragma Compiler_Unit_Warning, then a
-   --  message is posted at location Loc noting use of the given feature is not
-   --  permitted in the compiler (bootstrap considerations).
 
    procedure Check_Restricted_Unit (U : Unit_Name_Type; N : Node_Id);
    --  Checks if loading of unit U is prohibited by the setting of some
@@ -377,6 +369,15 @@ package Restrict is
    --  pragma Restrictions_Warning, or attribute Restriction_Set. Returns
    --  True if N has the proper form for an entity name, False otherwise.
 
+   function No_Dynamic_Accessibility_Checks_Enabled
+     (N : Node_Id) return Boolean;
+   --  Test to see if the current restrictions settings specify that
+   --  No_Dynamic_Accessibility_Checks is activated.
+
+   --  N is currently unused, but is reserved for future use and debugging
+   --  purposes to provide more context on a node for which an accessibility
+   --  check is being performed or generated (e.g. is N in a predefined unit).
+
    function No_Exception_Handlers_Set return Boolean;
    --  Test to see if current restrictions settings specify that no exception
    --  handlers are present. This function is called by Gigi when it needs to
@@ -391,6 +392,8 @@ package Restrict is
    function No_Exception_Propagation_Active return Boolean;
    --  Test to see if current restrictions settings specify that no
    --  exception propagation is activated.
+
+   --  WARNING: There is a matching C declaration of this subprogram in fe.h
 
    function Process_Restriction_Synonyms (N : Node_Id) return Name_Id;
    --  Id is a node whose Chars field contains the name of a restriction.

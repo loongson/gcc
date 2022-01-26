@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -209,39 +209,9 @@ package body Ch3 is
    --  Error recovery: can raise Error_Resync
 
    function P_Defining_Identifier (C : Id_Check := None) return Node_Id is
-      Ident_Node : Node_Id;
+      Ident_Node : Node_Id := P_Identifier (C, True);
 
    begin
-      --  Scan out the identifier. Note that this code is essentially identical
-      --  to P_Identifier, except that in the call to Scan_Reserved_Identifier
-      --  we set Force_Msg to True, since we want at least one message for each
-      --  separate declaration (but not use) of a reserved identifier.
-
-      --  Duplication should be removed, common code should be factored???
-
-      if Token = Tok_Identifier then
-         Check_Future_Keyword;
-
-      --  If we have a reserved identifier, manufacture an identifier with
-      --  a corresponding name after posting an appropriate error message
-
-      elsif Is_Reserved_Identifier (C) then
-         Scan_Reserved_Identifier (Force_Msg => True);
-
-      --  Otherwise we have junk that cannot be interpreted as an identifier
-
-      else
-         T_Identifier; -- to give message
-         raise Error_Resync;
-      end if;
-
-      if Style_Check then
-         Style.Check_Defining_Identifier_Casing;
-      end if;
-
-      Ident_Node := Token_Node;
-      Scan; -- past the identifier
-
       --  If we already have a defining identifier, clean it out and make
       --  a new clean identifier. This situation arises in some error cases
       --  and we need to fix it.
@@ -1486,7 +1456,7 @@ package body Ch3 is
       --  access_definition
 
       elsif Token = Tok_Renames then
-         Error_Msg_Ada_2020_Feature
+         Error_Msg_Ada_2022_Feature
            ("object renaming without subtype", Token_Ptr);
 
          Scan; -- past renames
@@ -2693,6 +2663,73 @@ package body Ch3 is
       Scan_State       : Saved_Scan_State;
       Aliased_Present  : Boolean := False;
 
+      procedure P_Index_Subtype_Def_With_Fixed_Lower_Bound
+        (Subtype_Mark : Node_Id);
+      --  Parse an unconstrained index range with a fixed lower bound:
+      --    subtype_mark range <expression> .. <>
+      --  This procedure creates a subtype_indication node for the index.
+
+      --------------------------------------------
+      --  P_Index_Range_With_Fixed_Lower_Bound  --
+      --------------------------------------------
+
+      procedure P_Index_Subtype_Def_With_Fixed_Lower_Bound
+        (Subtype_Mark : Node_Id)
+      is
+         Low_Expr_Node  : constant Node_Id := P_Expression;
+         High_Expr_Node : Node_Id;
+         Indic_Node     : Node_Id;
+         Constr_Node    : Node_Id;
+         Range_Node     : Node_Id;
+
+      begin
+         T_Dot_Dot;  -- Error if no ..
+
+         --  A box is required at this point, and we'll set the upper bound to
+         --  the same expression as the lower bound (see further below), to
+         --  avoid problems with trying to analyze an Empty node. Analysis can
+         --  still tell that this is a fixed-lower-bound range because the
+         --  index is represented by a subtype_indication in an unconstrained
+         --  array type definition.
+
+         if Token = Tok_Box then
+            Scan;
+            High_Expr_Node := Low_Expr_Node;
+
+         --  Error if no <> was found, and try to parse an expression since
+         --  it's likely one was given in place of the <>.
+
+         else
+            Error_Msg_AP -- CODEFIX
+              ("missing ""'<'>""");
+
+            High_Expr_Node := P_Expression;
+         end if;
+
+         Constr_Node := New_Node (N_Range_Constraint, Token_Ptr);
+         Range_Node  := New_Node (N_Range, Token_Ptr);
+         Set_Range_Expression (Constr_Node, Range_Node);
+
+         Check_Simple_Expression (Low_Expr_Node);
+
+         Set_Low_Bound (Range_Node, Low_Expr_Node);
+         Set_High_Bound (Range_Node, High_Expr_Node);
+
+         Indic_Node :=
+           New_Node (N_Subtype_Indication, Sloc (Subtype_Mark));
+         Set_Subtype_Mark (Indic_Node, Check_Subtype_Mark (Subtype_Mark));
+         Set_Constraint (Indic_Node, Constr_Node);
+
+         Append (Indic_Node, Subs_List);
+      end P_Index_Subtype_Def_With_Fixed_Lower_Bound;
+
+      --  Local variables
+
+      Is_Constrained_Array_Def : Boolean := True;
+      Subtype_Mark_Node        : Node_Id;
+
+   --  Start of processing for P_Array_Type_Definition
+
    begin
       Array_Loc := Token_Ptr;
       Scan; -- past ARRAY
@@ -2724,17 +2761,115 @@ package body Ch3 is
          Def_Node := New_Node (N_Unconstrained_Array_Definition, Array_Loc);
          Restore_Scan_State (Scan_State); -- to first subtype mark
 
+         Is_Constrained_Array_Def := False;
+
+         --  Now parse a sequence of indexes where each is either of form:
+         --    <subtype_mark> range <>
+         --  or
+         --    <subtype_mark> range <expr> .. <>
+         --
+         --  The latter syntax indicates an index with a fixed lower bound,
+         --  and only applies when extensions are enabled (-gnatX).
+
          loop
-            Append (P_Subtype_Mark_Resync, Subs_List);
+            Subtype_Mark_Node := P_Subtype_Mark_Resync;
+
             T_Range;
-            T_Box;
+
+            --  Normal "subtype_mark range <>" form, so simply append
+            --  the subtype reference.
+
+            if Token = Tok_Box then
+               Append (Subtype_Mark_Node, Subs_List);
+               Scan;
+
+            --  Fixed-lower-bound form ("subtype_mark range <expr> .. <>")
+
+            else
+               P_Index_Subtype_Def_With_Fixed_Lower_Bound (Subtype_Mark_Node);
+
+               Error_Msg_GNAT_Extension ("fixed-lower-bound array");
+            end if;
+
             exit when Token = Tok_Right_Paren or else Token = Tok_Of;
             T_Comma;
          end loop;
 
          Set_Subtype_Marks (Def_Node, Subs_List);
 
-      else
+      --  If we don't have "range <>", then "range" will be followed by an
+      --  expression, for either a normal range or a fixed-lower-bound range
+      --  ("<exp> .. <>"), and we have to know which, in order to determine
+      --  whether to parse the indexes for an unconstrained or constrained
+      --  array definition. So we look ahead to see if "<>" follows the "..".
+      --  If not, then this must be a discrete_subtype_indication for a
+      --  constrained_array_definition, which will be processed further below.
+
+      elsif Prev_Token = Tok_Range
+        and then Token /= Tok_Right_Paren and then Token /= Tok_Comma
+      then
+         --  If we have an expression followed by "..", then scan farther
+         --  and check for "<>" to see if we have a fixed-lower-bound range.
+
+         if P_Expression_Or_Range_Attribute /= Error
+           and then Expr_Form /= EF_Range_Attr
+           and then Token = Tok_Dot_Dot
+         then
+            Scan;
+
+            --  If there's a "<>", then we know we have a fixed-lower-bound
+            --  index, so we can proceed with parsing an unconstrained array
+            --  definition.
+
+            if Token = Tok_Box then
+               Is_Constrained_Array_Def := False;
+
+               Def_Node :=
+                 New_Node (N_Unconstrained_Array_Definition, Array_Loc);
+
+               Restore_Scan_State (Scan_State); -- to first subtype mark
+
+               --  Now parse a sequence of indexes where each is either of
+               --  form:
+               --     <subtype_mark> range <>
+               --  or
+               --     <subtype_mark> range <expr> .. <>
+               --
+               --  The latter indicates an index with a fixed lower bound,
+               --  and only applies when extensions are enabled (-gnatX).
+
+               loop
+                  Subtype_Mark_Node := P_Subtype_Mark_Resync;
+
+                  T_Range;
+
+                  --  Normal "subtype_mark range <>" form, so simply append
+                  --  the subtype reference.
+
+                  if Token = Tok_Box then
+                     Append (Subtype_Mark_Node, Subs_List);
+                     Scan;
+
+                  --  This must be an index of form:
+                  --    <subtype_mark> range <expr> .. <>"
+
+                  else
+                     P_Index_Subtype_Def_With_Fixed_Lower_Bound
+                       (Subtype_Mark_Node);
+
+                     Error_Msg_GNAT_Extension ("fixed-lower-bound array");
+                  end if;
+
+                  exit when Token = Tok_Right_Paren or else Token = Tok_Of;
+                  T_Comma;
+               end loop;
+
+               Set_Subtype_Marks (Def_Node, Subs_List);
+            end if;
+         end if;
+      end if;
+
+      if Is_Constrained_Array_Def then
          Def_Node := New_Node (N_Constrained_Array_Definition, Array_Loc);
          Restore_Scan_State (Scan_State); -- to first discrete range
 
@@ -3217,8 +3352,25 @@ package body Ch3 is
             Constr_Node := New_Node (N_Range, Token_Ptr);
             Set_Low_Bound (Constr_Node, Expr_Node);
             Scan; -- past ..
-            Expr_Node := P_Expression;
-            Check_Simple_Expression (Expr_Node);
+
+            --  If the upper bound is given by "<>", this is an index for
+            --  a fixed-lower-bound subtype, so set the expression to Empty
+            --  for now (it will be set to the ranges maximum upper bound
+            --  later during analysis), and scan to the next token.
+
+            if Token = Tok_Box then
+               Error_Msg_GNAT_Extension ("fixed-lower-bound array");
+
+               Expr_Node := Empty;
+               Scan;
+
+            --  Otherwise parse the range's upper bound expression
+
+            else
+               Expr_Node := P_Expression;
+               Check_Simple_Expression (Expr_Node);
+            end if;
+
             Set_High_Bound (Constr_Node, Expr_Node);
             Append (Constr_Node, Constr_List);
             goto Loop_Continue;
@@ -4004,14 +4156,6 @@ package body Ch3 is
    function P_Access_Type_Definition
      (Header_Already_Parsed : Boolean := False) return Node_Id
    is
-      Access_Loc       : constant Source_Ptr := Token_Ptr;
-      Prot_Flag        : Boolean;
-      Not_Null_Present : Boolean := False;
-      Not_Null_Subtype : Boolean := False;
-      Type_Def_Node    : Node_Id;
-      Result_Not_Null  : Boolean;
-      Result_Node      : Node_Id;
-
       procedure Check_Junk_Subprogram_Name;
       --  Used in access to subprogram definition cases to check for an
       --  identifier or operator symbol that does not belong.
@@ -4038,22 +4182,32 @@ package body Ch3 is
          end if;
       end Check_Junk_Subprogram_Name;
 
+      Access_Loc           : constant Source_Ptr := Token_Ptr;
+      Prot_Flag            : Boolean;
+      Not_Null_Present     : Boolean := False;
+      Not_Null_Subtype     : Boolean := False;
+      Not_Null_Subtype_Loc : Source_Ptr; -- loc of second "not null"
+      Type_Def_Node        : Node_Id;
+      Result_Not_Null      : Boolean;
+      Result_Node          : Node_Id;
+
    --  Start of processing for P_Access_Type_Definition
 
    begin
       if not Header_Already_Parsed then
+         --  NOT NULL ACCESS... is a common form of access definition. ACCESS
+         --  NOT NULL... is certainly rare, but syntactically legal. NOT NULL
+         --  ACCESS NOT NULL... is rarer yet, and also legal. The last two
+         --  cases are only meaningful if the following subtype indication
+         --  denotes an access type. We check below for "not null procedure"
+         --  and "not null function"; in the access-to-object case it is a
+         --  semantic check. The flag Not_Null_Subtype indicates that this
+         --  second null exclusion is present in the access type definition.
 
-         --  NOT NULL ACCESS .. is a common form of access definition.
-         --  ACCESS NOT NULL ..  is certainly rare, but syntactically legal.
-         --  NOT NULL ACCESS NOT NULL .. is rarer yet, and also legal.
-         --  The last two cases are only meaningful if the following subtype
-         --  indication denotes an access type (semantic check). The flag
-         --  Not_Null_Subtype indicates that this second null exclusion is
-         --  present in the access type definition.
-
-         Not_Null_Present := P_Null_Exclusion;     --  Ada 2005 (AI-231)
+         Not_Null_Present := P_Null_Exclusion; --  Ada 2005 (AI-231)
          Scan; -- past ACCESS
-         Not_Null_Subtype := P_Null_Exclusion;     --  Might also appear
+         Not_Null_Subtype_Loc := Token_Ptr;
+         Not_Null_Subtype := P_Null_Exclusion; --  Might also appear
       end if;
 
       if Token_Name = Name_Protected then
@@ -4069,6 +4223,20 @@ package body Ch3 is
          if Token /= Tok_Procedure and then Token /= Tok_Function then
             Error_Msg_SC -- CODEFIX
               ("FUNCTION or PROCEDURE expected");
+         end if;
+      end if;
+
+      --  Access-to-subprogram case
+
+      if Token in Tok_Procedure | Tok_Function then
+
+         --  Check for "not null [protected] procedure" and "not null
+         --  [protected] function".
+
+         if Not_Null_Subtype then
+            Error_Msg
+              ("null exclusion must apply to access type",
+               Not_Null_Subtype_Loc);
          end if;
       end if;
 
@@ -4120,9 +4288,10 @@ package body Ch3 is
 
          Set_Result_Definition (Type_Def_Node, Result_Node);
 
+      --  Access-to-object case
+
       else
-         Type_Def_Node :=
-           New_Node (N_Access_To_Object_Definition, Access_Loc);
+         Type_Def_Node := New_Node (N_Access_To_Object_Definition, Access_Loc);
          Set_Null_Exclusion_Present (Type_Def_Node, Not_Null_Present);
          Set_Null_Excluding_Subtype (Type_Def_Node, Not_Null_Subtype);
 

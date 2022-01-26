@@ -1,4 +1,4 @@
-@c Copyright (C) 1988-2021 Free Software Foundation, Inc.
+@c Copyright (C) 1988-2022 Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
 
@@ -240,7 +240,7 @@ between the two is that @code{LIB_SPEC} is used at the end of the
 command given to the linker.
 
 If this macro is not defined, a default is provided that
-loads the standard C library from the usual place.  See @file{gcc.c}.
+loads the standard C library from the usual place.  See @file{gcc.cc}.
 @end defmac
 
 @defmac LIBGCC_SPEC
@@ -287,7 +287,7 @@ difference between the two is that @code{STARTFILE_SPEC} is used at
 the very beginning of the command given to the linker.
 
 If this macro is not defined, a default is provided that loads the
-standard C startup file from the usual place.  See @file{gcc.c}.
+standard C startup file from the usual place.  See @file{gcc.cc}.
 @end defmac
 
 @defmac ENDFILE_SPEC
@@ -392,7 +392,7 @@ The default value of this macro is empty string.
 @defmac LINK_COMMAND_SPEC
 A C string constant giving the complete command line need to execute the
 linker.  When you do this, you will need to update your port each time a
-change is made to the link command line within @file{gcc.c}.  Therefore,
+change is made to the link command line within @file{gcc.cc}.  Therefore,
 define this macro only if you need to completely redefine the command
 line for invoking the linker and there is no other way to accomplish
 the effect you need.  Overriding this macro may be avoidable by overriding
@@ -929,6 +929,9 @@ Do not define this macro if it would never modify @var{m}.
 @end defmac
 
 @hook TARGET_C_EXCESS_PRECISION
+Return a value, with the same meaning as the C99 macro
+@code{FLT_EVAL_METHOD} that describes which excess precision should be
+applied.
 
 @hook TARGET_PROMOTE_FUNCTION_MODE
 
@@ -1432,7 +1435,7 @@ The string can contain more than one keyword.  If so, separate them with
 spaces, and write first any length keyword, then @code{unsigned} if
 appropriate, and finally @code{int}.  The string must exactly match one
 of the data type names defined in the function
-@code{c_common_nodes_and_builtins} in the file @file{c-family/c-common.c}.
+@code{c_common_nodes_and_builtins} in the file @file{c-family/c-common.cc}.
 You may not omit @code{int} or change the order---that would cause the
 compiler to crash on startup.
 
@@ -1960,7 +1963,7 @@ they must be consecutively numbered.  Furthermore, the existing
 support for stack-like registers is specific to the 80387 floating
 point coprocessor.  If you have a new architecture that uses
 stack-like registers, you will need to do substantial work on
-@file{reg-stack.c} and write your machine description to cooperate
+@file{reg-stack.cc} and write your machine description to cooperate
 with it, as well as defining these macros.
 
 @defmac STACK_REGS
@@ -2476,7 +2479,7 @@ on the stack, e.g., by @code{alloca}.
 
 The default value for this macro is @code{STACK_POINTER_OFFSET} plus the
 length of the outgoing arguments.  The default is correct for most
-machines.  See @file{function.c} for details.
+machines.  See @file{function.cc} for details.
 @end defmac
 
 @defmac INITIAL_FRAME_ADDRESS_RTX
@@ -3100,14 +3103,7 @@ control passing certain arguments in registers.
 
 @hook TARGET_PROMOTE_PROTOTYPES
 
-@defmac PUSH_ARGS
-A C expression.  If nonzero, push insns will be used to pass
-outgoing arguments.
-If the target machine does not have a push instruction, set it to zero.
-That directs GCC to use an alternate strategy: to
-allocate the entire argument block and then store the arguments into
-it.  When @code{PUSH_ARGS} is nonzero, @code{PUSH_ROUNDING} must be defined too.
-@end defmac
+@hook TARGET_PUSH_ARGUMENT
 
 @defmac PUSH_ARGS_REVERSED
 A C expression.  If nonzero, function arguments will be evaluated from
@@ -3784,14 +3780,6 @@ These machine description macros help implement varargs:
 
 @hook TARGET_PRETEND_OUTGOING_VARARGS_NAMED
 
-@hook TARGET_LOAD_BOUNDS_FOR_ARG
-
-@hook TARGET_STORE_BOUNDS_FOR_ARG
-
-@hook TARGET_LOAD_RETURNED_BOUNDS
-
-@hook TARGET_STORE_RETURNED_BOUNDS
-
 @node Trampolines
 @section Support for Nested Functions
 @cindex support for nested functions
@@ -3828,6 +3816,11 @@ addresses.  Since GCC's generic function descriptors are
 not ABI-compliant, this option is typically used only on a
 per-language basis (notably by Ada) or when it can otherwise be
 applied to the whole program.
+
+For languages other than Ada, the @code{-ftrampolines} and
+@code{-fno-trampolines} options currently have no effect, and
+trampolines are always generated on platforms that need them
+for nested functions.
 
 Define the following hook if your backend either implements ABI-specified
 descriptor support, or can use GCC's generic descriptor implementation
@@ -4081,9 +4074,9 @@ preserve functionality of inline assembly constructs using the
 
 @defmac FIND_BASE_TERM (@var{x})
 A C expression to determine the base term of address @var{x},
-or to provide a simplified version of @var{x} from which @file{alias.c}
+or to provide a simplified version of @var{x} from which @file{alias.cc}
 can easily find the base term.  This macro is used in only two places:
-@code{find_base_value} and @code{find_base_term} in @file{alias.c}.
+@code{find_base_value} and @code{find_base_term} in @file{alias.cc}.
 
 It is always safe for this macro to not be defined.  It exists so
 that alias analysis can understand machine-dependent addresses.
@@ -4189,13 +4182,7 @@ address;  but often a machine-dependent strategy can generate better code.
 
 @hook TARGET_VECTORIZE_EMPTY_MASK_IS_EXPENSIVE
 
-@hook TARGET_VECTORIZE_INIT_COST
-
-@hook TARGET_VECTORIZE_ADD_STMT_COST
-
-@hook TARGET_VECTORIZE_FINISH_COST
-
-@hook TARGET_VECTORIZE_DESTROY_COST_DATA
+@hook TARGET_VECTORIZE_CREATE_COSTS
 
 @hook TARGET_VECTORIZE_BUILTIN_GATHER
 
@@ -4224,6 +4211,10 @@ address;  but often a machine-dependent strategy can generate better code.
 @hook TARGET_GOACC_ADJUST_PRIVATE_DECL
 
 @hook TARGET_GOACC_EXPAND_VAR_DECL
+
+@hook TARGET_GOACC_CREATE_WORKER_BROADCAST_RECORD
+
+@hook TARGET_GOACC_SHARED_MEM_LAYOUT
 
 @node Anchored Addresses
 @section Anchored Addresses
@@ -4754,11 +4745,11 @@ section}, which holds initialized writable data; and the @dfn{bss
 section}, which holds uninitialized data.  Some systems have other kinds
 of sections.
 
-@file{varasm.c} provides several well-known sections, such as
+@file{varasm.cc} provides several well-known sections, such as
 @code{text_section}, @code{data_section} and @code{bss_section}.
 The normal way of controlling a @code{@var{foo}_section} variable
 is to define the associated @code{@var{FOO}_SECTION_ASM_OP} macro,
-as described below.  The macros are only read once, when @file{varasm.c}
+as described below.  The macros are only read once, when @file{varasm.cc}
 initializes itself, so their values must be run-time constants.
 They may however depend on command-line flags.
 
@@ -4778,7 +4769,7 @@ in @code{TARGET_ASM_INIT_SECTIONS}.  The same is true of
 create a distinct @code{readonly_data_section}, the default is to
 reuse @code{text_section}.
 
-All the other @file{varasm.c} sections are optional, and are null
+All the other @file{varasm.cc} sections are optional, and are null
 if the target does not provide them.
 
 @defmac TEXT_SECTION_ASM_OP
@@ -5309,7 +5300,7 @@ A C statement (sans semicolon) to output to the stdio stream
 is the alignment specified as the number of bits.
 
 Try to use function @code{asm_output_aligned_bss} defined in file
-@file{varasm.c} when defining this macro.  If unable, use the expression
+@file{varasm.cc} when defining this macro.  If unable, use the expression
 @code{assemble_name (@var{stream}, @var{name})} to output the name itself;
 before and after that, output the additional assembler syntax for defining
 the name, and a newline.
@@ -5640,7 +5631,7 @@ requires changes to @var{decl}, such as putting it in a separate section.
 A C expression which evaluates to true if the target supports one-only
 semantics.
 
-If you don't define this macro, @file{varasm.c} provides a default
+If you don't define this macro, @file{varasm.cc} provides a default
 definition.  If @code{MAKE_DECL_ONE_ONLY} is defined, the default
 definition is @samp{1}; otherwise, it is @samp{0}.  Define this macro if
 you want to control one-only symbol support with a compiler flag, or if
@@ -6024,6 +6015,8 @@ encountering an @code{init_priority} attribute.
 
 @hook TARGET_HAVE_CTORS_DTORS
 
+@hook TARGET_DTORS_FROM_CXA_ATEXIT
+
 @hook TARGET_ASM_CONSTRUCTOR
 
 @hook TARGET_ASM_DESTRUCTOR
@@ -6248,7 +6241,7 @@ being output.
 @defmacx IMMEDIATE_PREFIX
 If defined, C string expressions to be used for the @samp{%R}, @samp{%L},
 @samp{%U}, and @samp{%I} options of @code{asm_fprintf} (see
-@file{final.c}).  These are useful when a single @file{md} file must
+@file{final.cc}).  These are useful when a single @file{md} file must
 support multiple assembler formats.  In that case, the various @file{tm.h}
 files can define these macros differently.
 @end defmac
@@ -6615,6 +6608,8 @@ This describes how to specify debugging information.
 * File Names and DBX:: Macros controlling output of file names in DBX format.
 * DWARF::              Macros for DWARF format.
 * VMS Debug::          Macros for VMS debug format.
+* CTF Debug::          Macros for CTF debug format.
+* BTF Debug::          Macros for BTF debug format.
 @end menu
 
 @node All Debuggers
@@ -6996,6 +6991,30 @@ behavior is controlled by @code{TARGET_OPTION_OPTIMIZATION} and
 @code{TARGET_OPTION_OVERRIDE}.
 @end defmac
 
+@need 2000
+@node CTF Debug
+@subsection Macros for CTF Debug Format
+
+@c prevent bad page break with this line
+Here are macros for CTF debug format.
+
+@defmac CTF_DEBUGGING_INFO
+Define this macro if GCC should produce debugging output in CTF debug
+format in response to the @option{-gctf} option.
+@end defmac
+
+@need 2000
+@node BTF Debug
+@subsection Macros for BTF Debug Format
+
+@c prevent bad page break with this line
+Here are macros for BTF debug format.
+
+@defmac BTF_DEBUGGING_INFO
+Define this macro if GCC should produce debugging output in BTF debug
+format in response to the @option{-gbtf} option.
+@end defmac
+
 @node Floating Point
 @section Cross Compilation and Floating Point
 @cindex cross compilation and floating point
@@ -7171,6 +7190,10 @@ on this implementation detail.
 @hook TARGET_OPTION_FUNCTION_VERSIONS
 
 @hook TARGET_CAN_INLINE_P
+
+@hook TARGET_UPDATE_IPA_FN_TARGET_INFO
+
+@hook TARGET_NEED_IPA_FN_TARGET_INFO
 
 @hook TARGET_RELAYOUT_FUNCTION
 
@@ -7919,6 +7942,8 @@ to by @var{ce_info}.
 
 @hook TARGET_INVALID_WITHIN_DOLOOP
 
+@hook TARGET_PREFERRED_DOLOOP_MODE
+
 @hook TARGET_LEGITIMATE_COMBINED_INSN
 
 @hook TARGET_CAN_FOLLOW_JUMP
@@ -7959,6 +7984,8 @@ lists.
 @hook TARGET_GEN_CCMP_FIRST
 
 @hook TARGET_GEN_CCMP_NEXT
+
+@hook TARGET_GEN_MEMSET_SCRATCH_RTX
 
 @hook TARGET_LOOP_UNROLL_ADJUST
 
@@ -8075,6 +8102,8 @@ and the associated definitions of those functions.
 
 @hook TARGET_HAS_IFUNC_P
 
+@hook TARGET_IFUNC_REF_LOCAL_OK
+
 @hook TARGET_ATOMIC_ALIGN_FOR_MODE
 
 @hook TARGET_ATOMIC_ASSIGN_EXPAND_FENV
@@ -8150,3 +8179,5 @@ maintainer is familiar with.
 @hook TARGET_MEMTAG_EXTRACT_TAG
 
 @hook TARGET_MEMTAG_UNTAGGED_POINTER
+
+@hook TARGET_GCOV_TYPE_SIZE

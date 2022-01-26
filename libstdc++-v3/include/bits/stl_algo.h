@@ -1,6 +1,6 @@
 // Algorithm implementation -*- C++ -*-
 
-// Copyright (C) 2001-2021 Free Software Foundation, Inc.
+// Copyright (C) 2001-2022 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -56,7 +56,6 @@
 #ifndef _STL_ALGO_H
 #define _STL_ALGO_H 1
 
-#include <cstdlib>	     // for rand
 #include <bits/algorithmfwd.h>
 #include <bits/stl_heap.h>
 #include <bits/stl_tempbuf.h>  // for _Temporary_buffer
@@ -64,6 +63,10 @@
 
 #if __cplusplus >= 201103L
 #include <bits/uniform_int_dist.h>
+#endif
+
+#if _GLIBCXX_HOSTED && (__cplusplus <= 201103L || _GLIBCXX_USE_DEPRECATED)
+#include <cstdlib>	     // for rand
 #endif
 
 // See concept_check.h for the __glibcxx_*_requires macros.
@@ -806,26 +809,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       return pair<_OutputIterator1, _OutputIterator2>(__out_true, __out_false);
     }
 #endif // C++11
-
-  template<typename _ForwardIterator, typename _Predicate>
-    _GLIBCXX20_CONSTEXPR
-    _ForwardIterator
-    __remove_if(_ForwardIterator __first, _ForwardIterator __last,
-		_Predicate __pred)
-    {
-      __first = std::__find_if(__first, __last, __pred);
-      if (__first == __last)
-	return __first;
-      _ForwardIterator __result = __first;
-      ++__first;
-      for (; __first != __last; ++__first)
-	if (!__pred(__first))
-	  {
-	    *__result = _GLIBCXX_MOVE(*__first);
-	    ++__result;
-	  }
-      return __result;
-    }
 
   /**
    *  @brief Remove elements from a sequence.
@@ -3442,38 +3425,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 				   __gnu_cxx::__ops::__iter_comp_iter(__comp));
     }
 
-  // N2722 + DR 915.
-  template<typename _Tp>
-    _GLIBCXX14_CONSTEXPR
-    inline _Tp
-    min(initializer_list<_Tp> __l)
-    { return *std::min_element(__l.begin(), __l.end()); }
-
-  template<typename _Tp, typename _Compare>
-    _GLIBCXX14_CONSTEXPR
-    inline _Tp
-    min(initializer_list<_Tp> __l, _Compare __comp)
-    { return *std::min_element(__l.begin(), __l.end(), __comp); }
-
-  template<typename _Tp>
-    _GLIBCXX14_CONSTEXPR
-    inline _Tp
-    max(initializer_list<_Tp> __l)
-    { return *std::max_element(__l.begin(), __l.end()); }
-
-  template<typename _Tp, typename _Compare>
-    _GLIBCXX14_CONSTEXPR
-    inline _Tp
-    max(initializer_list<_Tp> __l, _Compare __comp)
-    { return *std::max_element(__l.begin(), __l.end(), __comp); }
-
   template<typename _Tp>
     _GLIBCXX14_CONSTEXPR
     inline pair<_Tp, _Tp>
     minmax(initializer_list<_Tp> __l)
     {
+      __glibcxx_requires_irreflexive(__l.begin(), __l.end());
       pair<const _Tp*, const _Tp*> __p =
-	std::minmax_element(__l.begin(), __l.end());
+	std::__minmax_element(__l.begin(), __l.end(),
+			      __gnu_cxx::__ops::__iter_less_iter());
       return std::make_pair(*__p.first, *__p.second);
     }
 
@@ -3482,8 +3442,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     inline pair<_Tp, _Tp>
     minmax(initializer_list<_Tp> __l, _Compare __comp)
     {
+      __glibcxx_requires_irreflexive_pred(__l.begin(), __l.end(), __comp);
       pair<const _Tp*, const _Tp*> __p =
-	std::minmax_element(__l.begin(), __l.end(), __comp);
+	std::__minmax_element(__l.begin(), __l.end(),
+			      __gnu_cxx::__ops::__iter_comp_iter(__comp));
       return std::make_pair(*__p.first, *__p.second);
     }
 
@@ -3639,9 +3601,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 				   __gnu_cxx::__ops::__iter_comp_iter(__pred));
     }
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
-#define __cpp_lib_clamp 201603
+#define __cpp_lib_clamp 201603L
 
   /**
    *  @brief  Returns the value clamped between lo and hi.
@@ -3649,14 +3611,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  @param  __val  A value of arbitrary type.
    *  @param  __lo   A lower limit of arbitrary type.
    *  @param  __hi   An upper limit of arbitrary type.
-   *  @return max(__val, __lo) if __val < __hi or min(__val, __hi) otherwise.
+   *  @retval `__lo` if `__val < __lo`
+   *  @retval `__hi` if `__hi < __val`
+   *  @retval `__val` otherwise.
+   *  @pre `_Tp` is LessThanComparable and `(__hi < __lo)` is false.
    */
   template<typename _Tp>
     constexpr const _Tp&
     clamp(const _Tp& __val, const _Tp& __lo, const _Tp& __hi)
     {
       __glibcxx_assert(!(__hi < __lo));
-      return (__val < __lo) ? __lo : (__hi < __val) ? __hi : __val;
+      return std::min(std::max(__val, __lo), __hi);
     }
 
   /**
@@ -3666,15 +3631,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  @param  __lo    A lower limit of arbitrary type.
    *  @param  __hi    An upper limit of arbitrary type.
    *  @param  __comp  A comparison functor.
-   *  @return max(__val, __lo, __comp) if __comp(__val, __hi)
-   *	      or min(__val, __hi, __comp) otherwise.
+   *  @retval `__lo` if `__comp(__val, __lo)`
+   *  @retval `__hi` if `__comp(__hi, __val)`
+   *  @retval `__val` otherwise.
+   *  @pre `__comp(__hi, __lo)` is false.
    */
   template<typename _Tp, typename _Compare>
     constexpr const _Tp&
     clamp(const _Tp& __val, const _Tp& __lo, const _Tp& __hi, _Compare __comp)
     {
       __glibcxx_assert(!__comp(__hi, __lo));
-      return __comp(__val, __lo) ? __lo : __comp(__hi, __val) ? __hi : __val;
+      return std::min(std::max(__val, __lo, __comp), __hi, __comp);
     }
 #endif // C++17
 #endif // C++14
@@ -3790,7 +3757,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       for (_RandomAccessIterator __i = __first + 1; __i != __last; ++__i)
 	std::iter_swap(__i, __first + __d(__g, __p_type(0, __i - __first)));
     }
-#endif
+#endif // USE C99_STDINT
 
 #endif // C++11
 
@@ -4551,6 +4518,7 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
 				std::__iterator_category(__result));
     }
 
+#if __cplusplus <= 201103L || _GLIBCXX_USE_DEPRECATED
 #if _GLIBCXX_HOSTED
   /**
    *  @brief Randomly shuffle the elements of a sequence.
@@ -4562,8 +4530,13 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  Reorder the elements in the range @p [__first,__last) using a random
    *  distribution, so that every possible ordering of the sequence is
    *  equally likely.
+   *
+   *  @deprecated
+   *  Since C++14 `std::random_shuffle` is not part of the C++ standard.
+   *  Use `std::shuffle` instead, which was introduced in C++11.
   */
   template<typename _RandomAccessIterator>
+    _GLIBCXX14_DEPRECATED_SUGGEST("std::shuffle")
     inline void
     random_shuffle(_RandomAccessIterator __first, _RandomAccessIterator __last)
     {
@@ -4597,8 +4570,13 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  provide a random distribution. Calling @p __rand(N) for a positive
    *  integer @p N should return a randomly chosen integer from the
    *  range [0,N).
+   *
+   *  @deprecated
+   *  Since C++14 `std::random_shuffle` is not part of the C++ standard.
+   *  Use `std::shuffle` instead, which was introduced in C++11.
   */
   template<typename _RandomAccessIterator, typename _RandomNumberGenerator>
+    _GLIBCXX14_DEPRECATED_SUGGEST("std::shuffle")
     void
     random_shuffle(_RandomAccessIterator __first, _RandomAccessIterator __last,
 #if __cplusplus >= 201103L
@@ -4621,7 +4599,7 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
 	    std::iter_swap(__i, __j);
 	}
     }
-
+#endif // C++11 || USE_DEPRECATED
 
   /**
    *  @brief Move elements for which a predicate is true to the beginning
@@ -5740,6 +5718,49 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
 				__gnu_cxx::__ops::__iter_comp_iter(__comp));
     }
 
+#if __cplusplus >= 201103L
+  // N2722 + DR 915.
+  template<typename _Tp>
+    _GLIBCXX14_CONSTEXPR
+    inline _Tp
+    min(initializer_list<_Tp> __l)
+    {
+      __glibcxx_requires_irreflexive(__l.begin(), __l.end());
+      return *_GLIBCXX_STD_A::__min_element(__l.begin(), __l.end(),
+	  __gnu_cxx::__ops::__iter_less_iter());
+    }
+
+  template<typename _Tp, typename _Compare>
+    _GLIBCXX14_CONSTEXPR
+    inline _Tp
+    min(initializer_list<_Tp> __l, _Compare __comp)
+    {
+      __glibcxx_requires_irreflexive_pred(__l.begin(), __l.end(), __comp);
+      return *_GLIBCXX_STD_A::__min_element(__l.begin(), __l.end(),
+	  __gnu_cxx::__ops::__iter_comp_iter(__comp));
+    }
+
+  template<typename _Tp>
+    _GLIBCXX14_CONSTEXPR
+    inline _Tp
+    max(initializer_list<_Tp> __l)
+    {
+      __glibcxx_requires_irreflexive(__l.begin(), __l.end());
+      return *_GLIBCXX_STD_A::__max_element(__l.begin(), __l.end(),
+	  __gnu_cxx::__ops::__iter_less_iter());
+    }
+
+  template<typename _Tp, typename _Compare>
+    _GLIBCXX14_CONSTEXPR
+    inline _Tp
+    max(initializer_list<_Tp> __l, _Compare __comp)
+    {
+      __glibcxx_requires_irreflexive_pred(__l.begin(), __l.end(), __comp);
+      return *_GLIBCXX_STD_A::__max_element(__l.begin(), __l.end(),
+	  __gnu_cxx::__ops::__iter_comp_iter(__comp));
+    }
+#endif // C++11
+
 #if __cplusplus >= 201402L
   /// Reservoir sampling algorithm.
   template<typename _InputIterator, typename _RandomAccessIterator,
@@ -5837,7 +5858,7 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
     }
 
 #if __cplusplus > 201402L
-#define __cpp_lib_sample 201603
+#define __cpp_lib_sample 201603L
   /// Take a random sample from a population.
   template<typename _PopulationIterator, typename _SampleIterator,
            typename _Distance, typename _UniformRandomBitGenerator>

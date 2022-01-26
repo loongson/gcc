@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2021 Free Software Foundation, Inc.
+// Copyright (C) 2005-2022 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -73,7 +73,7 @@ namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   /**
-   *  @brief Thown by exception safety machinery.
+   *  @brief Thrown by utilities for testing exception safety.
    *  @ingroup exceptions
    */
   struct forced_error : public std::exception
@@ -982,6 +982,9 @@ _GLIBCXX_END_NAMESPACE_VERSION
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
   /// Explicit specialization of std::hash for __gnu_cxx::throw_value_limit.
   template<>
     struct hash<__gnu_cxx::throw_value_limit>
@@ -1013,6 +1016,8 @@ namespace std _GLIBCXX_VISIBILITY(default)
       }
     };
 #endif
+
+#pragma GCC diagnostic pop
 } // end namespace std
 #endif
 

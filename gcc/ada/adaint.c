@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *          Copyright (C) 1992-2021, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2022, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -98,6 +98,7 @@
 
 #ifdef __QNX__
 #include <sys/syspage.h>
+#include <sys/time.h>
 #endif
 
 #ifdef IN_RTS
@@ -1570,7 +1571,7 @@ extern long long __gnat_file_time(char* name)
 /* Set the file time stamp.  */
 
 void
-__gnat_set_file_time_name (char *name, time_t time_stamp)
+__gnat_set_file_time_name (char *name, OS_Time time_stamp)
 {
 #if defined (__vxworks)
 
@@ -1606,7 +1607,7 @@ __gnat_set_file_time_name (char *name, time_t time_stamp)
   time_t t;
 
   /* Set modification time to requested time.  */
-  utimbuf.modtime = time_stamp;
+  utimbuf.modtime = (time_t) time_stamp;
 
   /* Set access time to now in local time.  */
   t = time (NULL);
@@ -2423,9 +2424,10 @@ __gnat_portable_spawn (char *args[] ATTRIBUTE_UNUSED)
   if (pid == 0)
     {
       /* The child. */
-      __gnat_in_child_after_fork = 1;
-      if (execv (args[0], MAYBE_TO_PTR32 (args)) != 0)
-	_exit (1);
+      execv (args[0], MAYBE_TO_PTR32 (args));
+
+      /* execv() returns only on error */
+      _exit (1);
     }
 
   /* The parent.  */
@@ -2486,7 +2488,7 @@ __gnat_number_of_cpus (void)
 {
   int cores = 1;
 
-#ifdef _SC_NPROCESSORS_ONLN
+#if defined (_SC_NPROCESSORS_ONLN)
   cores = (int) sysconf (_SC_NPROCESSORS_ONLN);
 
 #elif defined (__QNX__)
@@ -2822,8 +2824,10 @@ __gnat_portable_no_block_spawn (char *args[] ATTRIBUTE_UNUSED)
   if (pid == 0)
     {
       /* The child.  */
-      if (execv (args[0], MAYBE_TO_PTR32 (args)) != 0)
-	_exit (1);
+      execv (args[0], MAYBE_TO_PTR32 (args));
+
+      /* execv() returns only on error */
+      _exit (1);
     }
 
   return pid;
@@ -3543,6 +3547,9 @@ __gnat_get_executable_load_address (void)
 
   return (const void *)map->l_addr;
 
+#elif defined (_WIN32)
+  return GetModuleHandle (NULL);
+
 #else
   return NULL;
 #endif
@@ -3552,23 +3559,21 @@ void
 __gnat_kill (int pid, int sig, int close ATTRIBUTE_UNUSED)
 {
 #if defined(_WIN32)
-  HANDLE h = OpenProcess (PROCESS_ALL_ACCESS, FALSE, pid);
-  if (h == NULL)
-    return;
-  if (sig == 9)
-    {
-      TerminateProcess (h, 1);
-    }
-  else if (sig == SIGINT)
-    GenerateConsoleCtrlEvent (CTRL_C_EVENT, pid);
-  else if (sig == SIGBREAK)
-    GenerateConsoleCtrlEvent (CTRL_BREAK_EVENT, pid);
-  /* ??? The last two alternatives don't really work. SIGBREAK requires setting
-     up process groups at start time which we don't do; treating SIGINT is just
-     not possible apparently. So we really only support signal 9. Fortunately
-     that's all we use in GNAT.Expect */
+  HANDLE h;
 
-  CloseHandle (h);
+  switch (sig) {
+    case 9: // SIGKILL is not declared in Windows headers
+    case SIGINT:
+    case SIGBREAK:
+    case SIGTERM:
+    case SIGABRT:
+      h = OpenProcess (PROCESS_ALL_ACCESS, FALSE, pid);
+      if (h != NULL) {
+        TerminateProcess (h, sig);
+        CloseHandle (h);
+      }
+  }
+
 #elif defined (__vxworks)
   /* Not implemented */
 #else

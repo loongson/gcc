@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2010-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 2010-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -141,6 +141,22 @@ is
    begin
       Container.Last := No_Index;
    end Clear;
+
+   ------------------------
+   -- Constant_Reference --
+   ------------------------
+
+   function Constant_Reference
+     (Container : aliased Vector;
+      Index     : Index_Type) return not null access constant Element_Type
+   is
+   begin
+      if Index > Container.Last then
+         raise Constraint_Error with "Index is out of range";
+      end if;
+
+      return Container.Elements (To_Array_Index (Index))'Access;
+   end Constant_Reference;
 
    --------------
    -- Contains --
@@ -747,7 +763,7 @@ is
 
       J := To_Array_Index (Before);
 
-      Container.Elements (J .. J - 1 + Count) := (others => New_Item);
+      Container.Elements (J .. J - 1 + Count) := [others => New_Item];
    end Insert;
 
    procedure Insert
@@ -1096,6 +1112,22 @@ is
       end;
    end Replace_Element;
 
+   ---------------
+   -- Reference --
+   ---------------
+
+   function Reference
+     (Container : not null access Vector;
+      Index     : Index_Type) return not null access Element_Type
+   is
+   begin
+      if Index > Container.Last then
+         raise Constraint_Error with "Index is out of range";
+      end if;
+
+      return Container.Elements (To_Array_Index (Index))'Access;
+   end Reference;
+
    ----------------------
    -- Reserve_Capacity --
    ----------------------
@@ -1272,7 +1304,7 @@ is
          return
            (Capacity => Length,
             Last     => Last,
-            Elements => (others => New_Item));
+            Elements => [others => New_Item]);
       end;
    end To_Vector;
 

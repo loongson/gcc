@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -73,6 +73,10 @@ package Sem_Disp is
    --  tagged type T of Subp if T is the full view of a private tagged type.
    --  The Alias of Old_Subp is adjusted to point to the inherited procedure
    --  of the full view because it is always this one which has to be called.
+
+   function Covered_Interface_Primitives (Prim : Entity_Id) return Elist_Id;
+   --  Returns all the interface primitives covered by Prim, when its
+   --  controlling type has progenitors.
 
    function Covered_Interface_Op (Prim : Entity_Id) return Entity_Id;
    --  Returns the interface primitive that Prim covers, when its controlling
@@ -167,13 +171,10 @@ package Sem_Disp is
    procedure Override_Dispatching_Operation
      (Tagged_Type : Entity_Id;
       Prev_Op     : Entity_Id;
-      New_Op      : Entity_Id;
-      Is_Wrapper  : Boolean := False);
+      New_Op      : Entity_Id);
    --  Replace an implicit dispatching operation of the type Tagged_Type
    --  with an explicit one. Prev_Op is an inherited primitive operation which
-   --  is overridden by the explicit declaration of New_Op. Is_Wrapper is
-   --  True when New_Op is an internally generated wrapper of a controlling
-   --  function. The caller checks that Tagged_Type is indeed a tagged type.
+   --  is overridden by the explicit declaration of New_Op.
 
    procedure Propagate_Tag (Control : Node_Id; Actual : Node_Id);
    --  If a function call given by Actual is tag-indeterminate, its controlling

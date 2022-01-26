@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1088,10 +1088,19 @@ package body Exp_Ch11 is
 
    --  (protecting test only needed if not at library level)
 
-   --     exceptF : Boolean := True --  static data
+   --     exceptF : aliased System.Atomic_Operations.Test_And_Set.
+   --                         .Test_And_Set_Flag; --  static data
+   --     if not Atomic_Test_And_Set (exceptF) then
+   --        Register_Exception (except'Unrestricted_Access);
+   --     end if;
+
+   --  If a No_Tasking restriction is in effect, or if Test_And_Set_Flag
+   --  is unavailable, then use Boolean instead. In that case, we generate:
+   --
+   --     exceptF : Boolean := True; --  static data
    --     if exceptF then
-   --        exceptF := False;
-   --        Register_Exception (except'Unchecked_Access);
+   --        ExceptF := False;
+   --        Register_Exception (except'Unrestricted_Access);
    --     end if;
 
    procedure Expand_N_Exception_Declaration (N : Node_Id) is
@@ -1275,7 +1284,7 @@ package body Exp_Ch11 is
 
       Force_Static_Allocation_Of_Referenced_Objects (Expression (N));
 
-      --  Register_Exception (except'Unchecked_Access);
+      --  Register_Exception (except'Unrestricted_Access);
 
       if not No_Exception_Handlers_Set
         and then not Restriction_Active (No_Exception_Registration)
@@ -1296,27 +1305,57 @@ package body Exp_Ch11 is
             Flag_Id :=
               Make_Defining_Identifier (Loc,
                 Chars => New_External_Name (Chars (Id), 'F'));
-
-            Insert_Action (N,
-              Make_Object_Declaration (Loc,
-                Defining_Identifier => Flag_Id,
-                Object_Definition   =>
-                  New_Occurrence_Of (Standard_Boolean, Loc),
-                Expression          =>
-                  New_Occurrence_Of (Standard_True, Loc)));
-
             Set_Is_Statically_Allocated (Flag_Id);
 
-            Append_To (L,
-              Make_Assignment_Statement (Loc,
-                Name       => New_Occurrence_Of (Flag_Id, Loc),
-                Expression => New_Occurrence_Of (Standard_False, Loc)));
+            declare
+               Use_Test_And_Set_Flag : constant Boolean :=
+                 (not Global_No_Tasking)
+                 and then RTE_Available (RE_Test_And_Set_Flag);
 
-            Insert_After_And_Analyze (N,
-              Make_Implicit_If_Statement (N,
-                Condition       => New_Occurrence_Of (Flag_Id, Loc),
-                Then_Statements => L));
+               Flag_Decl : Node_Id;
+               Condition : Node_Id;
+            begin
+               if Use_Test_And_Set_Flag then
+                  Flag_Decl :=
+                    Make_Object_Declaration (Loc,
+                      Defining_Identifier => Flag_Id,
+                      Aliased_Present     => True,
+                      Object_Definition   =>
+                        New_Occurrence_Of (RTE (RE_Test_And_Set_Flag), Loc));
+               else
+                  Flag_Decl :=
+                    Make_Object_Declaration (Loc,
+                      Defining_Identifier => Flag_Id,
+                      Object_Definition   =>
+                        New_Occurrence_Of (Standard_Boolean, Loc),
+                      Expression          =>
+                        New_Occurrence_Of (Standard_True, Loc));
+               end if;
 
+               Insert_Action (N, Flag_Decl);
+
+               if Use_Test_And_Set_Flag then
+                  Condition :=
+                    Make_Op_Not (Loc,
+                      Make_Function_Call (Loc,
+                        Name => New_Occurrence_Of
+                                  (RTE (RE_Atomic_Test_And_Set), Loc),
+                        Parameter_Associations =>
+                          New_List (New_Occurrence_Of (Flag_Id, Loc))));
+               else
+                  Condition := New_Occurrence_Of (Flag_Id, Loc);
+
+                  Append_To (L,
+                    Make_Assignment_Statement (Loc,
+                    Name       => New_Occurrence_Of (Flag_Id, Loc),
+                    Expression => New_Occurrence_Of (Standard_False, Loc)));
+               end if;
+
+               Insert_After_And_Analyze (N,
+                 Make_Implicit_If_Statement (N,
+                   Condition       => Condition,
+                   Then_Statements => L));
+            end;
          else
             Insert_List_After_And_Analyze (N, L);
          end if;
@@ -1626,8 +1665,8 @@ package body Exp_Ch11 is
             --  If the exception is a renaming, use the exception that it
             --  renames (which might be a predefined exception, e.g.).
 
-            if Present (Renamed_Object (Id)) then
-               Id := Renamed_Object (Id);
+            if Present (Renamed_Entity (Id)) then
+               Id := Renamed_Entity (Id);
             end if;
 
             --  Build a C-compatible string in case of no exception handlers,
@@ -1736,6 +1775,24 @@ package body Exp_Ch11 is
       Analyze (N);
    end Expand_N_Raise_Statement;
 
+   -----------------------------------
+   -- Expand_N_Raise_When_Statement --
+   -----------------------------------
+
+   procedure Expand_N_Raise_When_Statement (N : Node_Id) is
+      Loc : constant Source_Ptr := Sloc (N);
+   begin
+      Rewrite (N,
+        Make_If_Statement (Loc,
+          Condition       => Condition (N),
+          Then_Statements => New_List (
+            Make_Raise_Statement (Loc,
+              Name       => Name (N),
+              Expression => Expression (N)))));
+
+      Analyze (N);
+   end Expand_N_Raise_When_Statement;
+
    ----------------------------------
    -- Expand_N_Raise_Storage_Error --
    ----------------------------------
@@ -1802,10 +1859,10 @@ package body Exp_Ch11 is
 
             if Configurable_Run_Time_Mode then
                Error_Msg_NE
-                 ("\?X?& may call Last_Chance_Handler", N, E);
+                 ("\?.x?& may call Last_Chance_Handler", N, E);
             else
                Error_Msg_NE
-                 ("\?X?& may result in unhandled exception", N, E);
+                 ("\?.x?& may result in unhandled exception", N, E);
             end if;
          end if;
       end;
@@ -2104,7 +2161,7 @@ package body Exp_Ch11 is
          Warn_No_Exception_Propagation_Active (N);
 
          Error_Msg_N
-           ("\?X?this handler can never be entered, and has been removed", N);
+           ("\?.x?this handler can never be entered, and has been removed", N);
       end if;
    end Warn_If_No_Local_Raise;
 
@@ -2121,10 +2178,10 @@ package body Exp_Ch11 is
 
          if Configurable_Run_Time_Mode then
             Error_Msg_N
-              ("\?X?Last_Chance_Handler will be called on exception", N);
+              ("\?.x?Last_Chance_Handler will be called on exception", N);
          else
             Error_Msg_N
-              ("\?X?execution may raise unhandled exception", N);
+              ("\?.x?execution may raise unhandled exception", N);
          end if;
       end if;
    end Warn_If_No_Propagation;
@@ -2136,7 +2193,7 @@ package body Exp_Ch11 is
    procedure Warn_No_Exception_Propagation_Active (N : Node_Id) is
    begin
       Error_Msg_N
-        ("?X?pragma Restrictions (No_Exception_Propagation) in effect", N);
+        ("?.x?pragma Restrictions (No_Exception_Propagation) in effect", N);
    end Warn_No_Exception_Propagation_Active;
 
 end Exp_Ch11;

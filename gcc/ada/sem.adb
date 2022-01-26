@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -298,6 +298,9 @@ package body Sem is
          when N_Goto_Statement =>
             Analyze_Goto_Statement (N);
 
+         when N_Goto_When_Statement =>
+            Analyze_Goto_When_Statement (N);
+
          when N_Handled_Sequence_Of_Statements =>
             Analyze_Handled_Statements (N);
 
@@ -505,6 +508,9 @@ package body Sem is
          when N_Raise_Statement =>
             Analyze_Raise_Statement (N);
 
+         when N_Raise_When_Statement =>
+            Analyze_Raise_When_Statement (N);
+
          when N_Raise_xxx_Error =>
             Analyze_Raise_xxx_Error (N);
 
@@ -525,6 +531,9 @@ package body Sem is
 
          when N_Requeue_Statement =>
             Analyze_Requeue (N);
+
+         when N_Return_When_Statement =>
+            Analyze_Return_When_Statement (N);
 
          when N_Simple_Return_Statement =>
             Analyze_Simple_Return_Statement (N);
@@ -1013,16 +1022,20 @@ package body Sem is
       Scop : Entity_Id;
 
    begin
-      --  Entity is global if defined outside of current outer_generic_scope:
-      --  Either the entity has a smaller depth that the outer generic, or it
+      --  Entity is global if defined outside of current Outer_Generic_Scope:
+      --  Either the entity has a smaller depth than the outer generic, or it
       --  is in a different compilation unit, or it is defined within a unit
-      --  in the same compilation, that is not within the outer_generic.
+      --  in the same compilation, that is not within the outer generic.
 
       if No (Outer_Generic_Scope) then
          return False;
 
-      elsif Scope_Depth (Scope (E)) < Scope_Depth (Outer_Generic_Scope)
-        or else not In_Same_Source_Unit (E, Outer_Generic_Scope)
+      --  It makes no sense to compare depths if not in same unit. Scope_Depth
+      --  is not set for inherited operations.
+
+      elsif not In_Same_Source_Unit (E, Outer_Generic_Scope)
+        or else not Scope_Depth_Set (Scope (E))
+        or else Scope_Depth (Scope (E)) < Scope_Depth (Outer_Generic_Scope)
       then
          return True;
 
@@ -1393,7 +1406,9 @@ package body Sem is
       procedure Do_Analyze is
          Saved_GM  : constant Ghost_Mode_Type := Ghost_Mode;
          Saved_IGR : constant Node_Id         := Ignored_Ghost_Region;
-         --  Save the Ghost-related attributes to restore on exit
+         Saved_ISMP : constant Boolean        :=
+                        Ignore_SPARK_Mode_Pragmas_In_Instance;
+         --  Save Ghost and SPARK mode-related data to restore on exit
 
          --  Generally style checks are preserved across compilations, with
          --  one exception: s-oscons.ads, which allows arbitrary long lines
@@ -1412,6 +1427,7 @@ package body Sem is
          --  Set up a clean environment before analyzing
 
          Install_Ghost_Region (None, Empty);
+         Ignore_SPARK_Mode_Pragmas_In_Instance := False;
 
          Outer_Generic_Scope := Empty;
          Scope_Suppress      := Suppress_Options;
@@ -1434,9 +1450,11 @@ package body Sem is
 
          Pop_Scope;
          Restore_Scope_Stack  (List);
-         Restore_Ghost_Region (Saved_GM, Saved_IGR);
          Style_Max_Line_Length := Saved_ML;
          Style_Check_Max_Line_Length := Saved_CML;
+
+         Restore_Ghost_Region (Saved_GM, Saved_IGR);
+         Ignore_SPARK_Mode_Pragmas_In_Instance := Saved_ISMP;
       end Do_Analyze;
 
       --  Local variables

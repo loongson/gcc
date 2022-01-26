@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---             Copyright (C) 2021, Free Software Foundation, Inc.           --
+--             Copyright (C) 2021-2022, Free Software Foundation, Inc.      --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -48,7 +48,7 @@ package System.Value_N is
       Hash    : Hash_Function_Ptr;
       Num     : Natural;
       Str     : String)
-      return    Natural;
+      return    Natural with Inline;
    --  Used to compute Enum'Value (Str) where Enum is some enumeration type
    --  other than those defined in package Standard. Names is a string with
    --  a lower bound of 1 containing the characters of all the enumeration
@@ -66,5 +66,17 @@ package System.Value_N is
    --  and trailing spaces, and letters can be upper or lower case or mixed.
    --  If the image is found in Names, then the corresponding Pos value is
    --  returned. If not, Constraint_Error is raised.
+
+   function Valid_Value_Enumeration
+     (Names   : String;
+      Indexes : System.Address;
+      Hash    : Hash_Function_Ptr;
+      Num     : Natural;
+      Str     : String)
+      return    Boolean with Inline;
+   --  Returns True if Str is a valid Image of some enumeration literal, False
+   --  otherwise. That is, returns False if and only if Value_Enumeration would
+   --  raise Constraint_Error. The parameters have the same meaning as for
+   --  Value_Enumeration.
 
 end System.Value_N;

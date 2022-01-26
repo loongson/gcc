@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -63,10 +63,10 @@ with Sem_Util;       use Sem_Util;
 with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
-with Sinput;         use Sinput;
 with Snames;         use Snames;
 with Stand;          use Stand;
 with Stringt;        use Stringt;
+with Strub;          use Strub;
 with SCIL_LL;        use SCIL_LL;
 with Tbuild;         use Tbuild;
 
@@ -92,10 +92,6 @@ package body Exp_Disp is
    --  From is the original Expression. New_Value is equivalent to a call to
    --  Duplicate_Subexpr with an explicit dereference when From is an access
    --  parameter.
-
-   function Original_View_In_Visible_Part (Typ : Entity_Id) return Boolean;
-   --  Check if the type has a private view or if the public view appears in
-   --  the visible part of a package spec.
 
    function Prim_Op_Kind
      (Prim : Entity_Id;
@@ -352,7 +348,7 @@ package body Exp_Disp is
    -- Build_Static_Dispatch_Tables --
    ----------------------------------
 
-   procedure Build_Static_Dispatch_Tables (N : Entity_Id) is
+   procedure Build_Static_Dispatch_Tables (N : Node_Id) is
       Target_List : List_Id;
 
       procedure Build_Dispatch_Tables (List : List_Id);
@@ -581,26 +577,14 @@ package body Exp_Disp is
          --  If number of primitives already set in the tag component, use it
 
          if Present (Tag_Comp)
-           and then DT_Entry_Count (Tag_Comp) /= No_Uint
+           and then Present (DT_Entry_Count (Tag_Comp))
          then
             return UI_To_Int (DT_Entry_Count (Tag_Comp));
 
          --  Otherwise, count the primitives of the enclosing CPP type
 
          else
-            declare
-               Count : Nat := 0;
-               Elmt  : Elmt_Id;
-
-            begin
-               Elmt := First_Elmt (Primitive_Operations (CPP_Typ));
-               while Present (Elmt) loop
-                  Count := Count + 1;
-                  Next_Elmt (Elmt);
-               end loop;
-
-               return Count;
-            end;
+            return List_Length (Primitive_Operations (CPP_Typ));
          end if;
       end if;
    end CPP_Num_Prims;
@@ -713,222 +697,10 @@ package body Exp_Disp is
       Eq_Prim_Op      : Entity_Id := Empty;
       Controlling_Tag : Node_Id;
 
-      procedure Build_Class_Wide_Check (E : Entity_Id);
-      --  If the denoted subprogram has a class-wide precondition, generate a
-      --  check using that precondition before the dispatching call, because
-      --  this is the only class-wide precondition that applies to the call;
-      --  otherwise climb to the ancestors searching for the enclosing
-      --  overridden primitive of E that has a class-wide precondition (and
-      --  use it to generate the check).
-
       function New_Value (From : Node_Id) return Node_Id;
       --  From is the original Expression. New_Value is equivalent to a call
       --  to Duplicate_Subexpr with an explicit dereference when From is an
       --  access parameter.
-
-      ----------------------------
-      -- Build_Class_Wide_Check --
-      ----------------------------
-
-      procedure Build_Class_Wide_Check (E : Entity_Id) is
-         Subp : Entity_Id := E;
-
-         function Has_Class_Wide_Precondition
-           (Subp : Entity_Id) return Boolean;
-         --  Evaluates if the dispatching subprogram Subp has a class-wide
-         --  precondition.
-
-         function Replace_Formals (N : Node_Id) return Traverse_Result;
-         --  Replace occurrences of the formals of the subprogram by the
-         --  corresponding actuals in the call, given that this check is
-         --  performed outside of the body of the subprogram.
-
-         --  If the dispatching call appears in the same scope as the
-         --  declaration of the dispatching subprogram (for example in
-         --  the expression of a local expression function), the spec
-         --  has not been analyzed yet, in which case we use the Chars
-         --  field to recognize intended occurrences of the formals.
-
-         ---------------------------------
-         -- Has_Class_Wide_Precondition --
-         ---------------------------------
-
-         function Has_Class_Wide_Precondition
-           (Subp : Entity_Id) return Boolean
-         is
-            Prec : Node_Id := Empty;
-
-         begin
-            if Present (Contract (Subp))
-              and then Present (Pre_Post_Conditions (Contract (Subp)))
-            then
-               Prec := Pre_Post_Conditions (Contract (Subp));
-
-               while Present (Prec) loop
-                  exit when Pragma_Name (Prec) = Name_Precondition
-                    and then Class_Present (Prec);
-                  Prec := Next_Pragma (Prec);
-               end loop;
-            end if;
-
-            return Present (Prec)
-              and then not Is_Ignored (Prec);
-         end Has_Class_Wide_Precondition;
-
-         ---------------------
-         -- Replace_Formals --
-         ---------------------
-
-         function Replace_Formals (N : Node_Id) return Traverse_Result is
-            A : Node_Id;
-            F : Entity_Id;
-         begin
-            if Is_Entity_Name (N) then
-               F := First_Formal (Subp);
-               A := First_Actual (Call_Node);
-
-               if Present (Entity (N)) and then Is_Formal (Entity (N)) then
-                  while Present (F) loop
-                     if F = Entity (N) then
-                        if not Is_Controlling_Actual (N) then
-                           Rewrite (N, New_Copy_Tree (A));
-
-                           --  If the formal is class-wide, and thus not a
-                           --  controlling argument, preserve its type because
-                           --  it may appear in a nested call with a class-wide
-                           --  parameter.
-
-                           if Is_Class_Wide_Type (Etype (F)) then
-                              Set_Etype (N, Etype (F));
-
-                           --  Conversely, if this is a controlling argument
-                           --  (in a dispatching call in the condition) that
-                           --  is a dereference, the source is an access-to-
-                           --  -class-wide type, so preserve the dispatching
-                           --  nature of the call in the rewritten condition.
-
-                           elsif Nkind (Parent (N)) = N_Explicit_Dereference
-                             and then Is_Controlling_Actual (Parent (N))
-                           then
-                              Set_Controlling_Argument (Parent (Parent (N)),
-                                 Parent (N));
-                           end if;
-
-                        --  Ensure that the type of the controlling actual
-                        --  matches the type of the controlling formal of the
-                        --  parent primitive Subp defining the class-wide
-                        --  precondition.
-
-                        elsif Is_Class_Wide_Type (Etype (A)) then
-                           Rewrite (N,
-                             Convert_To
-                               (Class_Wide_Type (Etype (F)),
-                                New_Copy_Tree (A)));
-
-                        else
-                           Rewrite (N,
-                             Convert_To
-                               (Etype (F),
-                                New_Copy_Tree (A)));
-                        end if;
-
-                        exit;
-                     end if;
-
-                     Next_Formal (F);
-                     Next_Actual (A);
-                  end loop;
-
-               --  If the node is not analyzed, recognize occurrences of a
-               --  formal by name, as would be done when resolving the aspect
-               --  expression in the context of the subprogram.
-
-               elsif not Analyzed (N)
-                 and then Nkind (N) = N_Identifier
-                 and then No (Entity (N))
-               then
-                  while Present (F) loop
-                     if Chars (N) = Chars (F) then
-                        Rewrite (N, New_Copy_Tree (A));
-                        return Skip;
-                     end if;
-
-                     Next_Formal (F);
-                     Next_Actual (A);
-                  end loop;
-               end if;
-            end if;
-
-            return OK;
-         end Replace_Formals;
-
-         procedure Update is new Traverse_Proc (Replace_Formals);
-
-         --  Local variables
-
-         Str_Loc : constant String := Build_Location_String (Loc);
-
-         Cond : Node_Id;
-         Msg  : Node_Id;
-         Prec : Node_Id;
-
-      --  Start of processing for Build_Class_Wide_Check
-
-      begin
-         --  Climb searching for the enclosing class-wide precondition
-
-         while not Has_Class_Wide_Precondition (Subp)
-           and then Present (Overridden_Operation (Subp))
-         loop
-            Subp := Overridden_Operation (Subp);
-         end loop;
-
-         --  Locate class-wide precondition, if any
-
-         if Present (Contract (Subp))
-           and then Present (Pre_Post_Conditions (Contract (Subp)))
-         then
-            Prec := Pre_Post_Conditions (Contract (Subp));
-
-            while Present (Prec) loop
-               exit when Pragma_Name (Prec) = Name_Precondition
-                 and then Class_Present (Prec);
-               Prec := Next_Pragma (Prec);
-            end loop;
-
-            if No (Prec) or else Is_Ignored (Prec) then
-               return;
-            end if;
-
-            --  The expression for the precondition is analyzed within the
-            --  generated pragma. The message text is the last parameter of
-            --  the generated pragma, indicating source of precondition.
-
-            Cond :=
-              New_Copy_Tree
-                (Expression (First (Pragma_Argument_Associations (Prec))));
-            Update (Cond);
-
-            --  Build message indicating the failed precondition and the
-            --  dispatching call that caused it.
-
-            Msg := Expression (Last (Pragma_Argument_Associations (Prec)));
-            Name_Len := 0;
-            Append (Global_Name_Buffer, Strval (Msg));
-            Append (Global_Name_Buffer, " in dispatching call at ");
-            Append (Global_Name_Buffer, Str_Loc);
-            Msg := Make_String_Literal (Loc, Name_Buffer (1 .. Name_Len));
-
-            Insert_Action (Call_Node,
-              Make_If_Statement (Loc,
-                Condition       => Make_Op_Not (Loc, Cond),
-                Then_Statements => New_List (
-                  Make_Procedure_Call_Statement (Loc,
-                    Name                   =>
-                      New_Occurrence_Of (RTE (RE_Raise_Assert_Failure), Loc),
-                    Parameter_Associations => New_List (Msg)))));
-         end if;
-      end Build_Class_Wide_Check;
 
       ---------------
       -- New_Value --
@@ -990,8 +762,6 @@ package body Exp_Disp is
          Subp := Alias (Subp);
       end if;
 
-      Build_Class_Wide_Check (Subp);
-
       --  Definition of the class-wide type and the tagged type
 
       --  If the controlling argument is itself a tag rather than a tagged
@@ -1021,6 +791,10 @@ package body Exp_Disp is
       end if;
 
       Typ := Find_Specific_Type (CW_Typ);
+
+      --  The tagged type of a dispatching call must be frozen at this stage
+
+      pragma Assert (Is_Frozen (Typ));
 
       if not Is_Limited_Type (Typ) then
          Eq_Prim_Op := Find_Prim_Op (Typ, Name_Op_Eq);
@@ -1073,6 +847,7 @@ package body Exp_Disp is
       end if;
 
       Subp_Typ     := Create_Itype (E_Subprogram_Type, Call_Node);
+      Copy_Strub_Mode (Subp_Typ, Subp);
       Subp_Ptr_Typ := Create_Itype (E_Access_Subprogram_Type, Call_Node);
       Set_Etype          (Subp_Typ, Res_Typ);
       Set_Returns_By_Ref (Subp_Typ, Returns_By_Ref (Subp));
@@ -2565,11 +2340,9 @@ package body Exp_Disp is
                         New_List (
                           Obj_Ref,
 
-                          Make_Unchecked_Type_Conversion (Loc,  --  entry index
-                            Subtype_Mark =>
-                              New_Occurrence_Of
-                                (RTE (RE_Protected_Entry_Index), Loc),
-                            Expression => Make_Identifier (Loc, Name_uI)),
+                          Unchecked_Convert_To ( --  entry index
+                            RTE (RE_Protected_Entry_Index),
+                            Make_Identifier (Loc, Name_uI)),
 
                           Make_Identifier (Loc, Name_uP), --  parameter block
                           New_Occurrence_Of               --  Asynchronous_Call
@@ -2588,11 +2361,9 @@ package body Exp_Disp is
               Make_Assignment_Statement (Loc,
                 Name => Make_Identifier (Loc, Name_uB),
                 Expression =>
-                  Make_Unchecked_Type_Conversion (Loc,
-                    Subtype_Mark =>
-                      New_Occurrence_Of
-                        (RTE (RE_Dummy_Communication_Block), Loc),
-                    Expression   => New_Occurrence_Of (Com_Block, Loc))));
+                  Unchecked_Convert_To
+                    (RTE (RE_Dummy_Communication_Block),
+                     New_Occurrence_Of (Com_Block, Loc))));
 
             --  Generate:
             --    F := False;
@@ -2626,10 +2397,9 @@ package body Exp_Disp is
                       Prefix        => Make_Identifier (Loc, Name_uT),
                       Selector_Name => Make_Identifier (Loc, Name_uTask_Id)),
 
-                    Make_Unchecked_Type_Conversion (Loc,  --  entry index
-                      Subtype_Mark =>
-                        New_Occurrence_Of (RTE (RE_Task_Entry_Index), Loc),
-                      Expression   => Make_Identifier (Loc, Name_uI)),
+                    Unchecked_Convert_To ( --  entry index
+                      RTE (RE_Task_Entry_Index),
+                      Make_Identifier (Loc, Name_uI)),
 
                     Make_Identifier (Loc, Name_uP),       --  parameter block
                     New_Occurrence_Of                     --  Asynchronous_Call
@@ -2919,11 +2689,9 @@ package body Exp_Disp is
                       Parameter_Associations => New_List (
                           Obj_Ref,
 
-                          Make_Unchecked_Type_Conversion (Loc,  --  entry index
-                            Subtype_Mark =>
-                              New_Occurrence_Of
-                                 (RTE (RE_Protected_Entry_Index), Loc),
-                            Expression => Make_Identifier (Loc, Name_uI)),
+                          Unchecked_Convert_To ( --  entry index
+                            RTE (RE_Protected_Entry_Index),
+                            Make_Identifier (Loc, Name_uI)),
 
                           Make_Identifier (Loc, Name_uP),  --  parameter block
 
@@ -2996,10 +2764,9 @@ package body Exp_Disp is
                       Prefix        => Make_Identifier (Loc, Name_uT),
                       Selector_Name => Make_Identifier (Loc, Name_uTask_Id)),
 
-                    Make_Unchecked_Type_Conversion (Loc,  --  entry index
-                      Subtype_Mark =>
-                        New_Occurrence_Of (RTE (RE_Task_Entry_Index), Loc),
-                      Expression   => Make_Identifier (Loc, Name_uI)),
+                    Unchecked_Convert_To ( --  entry index
+                      RTE (RE_Task_Entry_Index),
+                      Make_Identifier (Loc, Name_uI)),
 
                     Make_Identifier (Loc, Name_uP),       --  parameter block
                     New_Occurrence_Of                      --  Conditional_Call
@@ -3209,12 +2976,11 @@ package body Exp_Disp is
          Ret :=
            Make_Simple_Return_Statement (Loc,
              Expression =>
-               Make_Unchecked_Type_Conversion (Loc,
-                 Subtype_Mark => New_Occurrence_Of (RTE (RE_Address), Loc),
-                 Expression   =>
-                   Make_Selected_Component (Loc,
-                     Prefix        => Make_Identifier (Loc, Name_uT),
-                     Selector_Name => Make_Identifier (Loc, Name_uTask_Id))));
+               Unchecked_Convert_To
+                 (RTE (RE_Address),
+                  Make_Selected_Component (Loc,
+                    Prefix        => Make_Identifier (Loc, Name_uT),
+                    Selector_Name => Make_Identifier (Loc, Name_uTask_Id))));
 
       --  A null body is constructed for non-task types
 
@@ -3273,7 +3039,7 @@ package body Exp_Disp is
    begin
       pragma Assert (not Restriction_Active (No_Dispatching_Calls));
 
-      --  Null body is generated for interface types and non-concurrent
+      --  Null body is generated for interface types and nonconcurrent
       --  tagged types.
 
       if Is_Interface (Typ)
@@ -3327,12 +3093,9 @@ package body Exp_Disp is
                       Parameter_Associations =>
                         New_List (
 
-                          Make_Unchecked_Type_Conversion (Loc,  -- PEA (P)
-                            Subtype_Mark =>
-                              New_Occurrence_Of (
-                                RTE (RE_Protection_Entries_Access), Loc),
-                            Expression =>
-                              Make_Identifier (Loc, Name_uP)),
+                          Unchecked_Convert_To ( -- PEA (P)
+                            RTE (RE_Protection_Entries_Access),
+                            Make_Identifier (Loc, Name_uP)),
 
                           Make_Attribute_Reference (Loc,      -- O._object'Acc
                             Attribute_Name =>
@@ -3344,11 +3107,9 @@ package body Exp_Disp is
                                 Selector_Name =>
                                   Make_Identifier (Loc, Name_uObject))),
 
-                          Make_Unchecked_Type_Conversion (Loc,  -- entry index
-                            Subtype_Mark =>
-                              New_Occurrence_Of
-                                (RTE (RE_Protected_Entry_Index), Loc),
-                            Expression => Make_Identifier (Loc, Name_uI)),
+                          Unchecked_Convert_To ( -- entry index
+                            RTE (RE_Protected_Entry_Index),
+                            Make_Identifier (Loc, Name_uI)),
 
                           Make_Identifier (Loc, Name_uA)))),   -- abort status
 
@@ -3373,11 +3134,9 @@ package body Exp_Disp is
                                 Selector_Name =>
                                   Make_Identifier (Loc, Name_uObject))),
 
-                          Make_Unchecked_Type_Conversion (Loc, -- entry index
-                            Subtype_Mark =>
-                              New_Occurrence_Of
-                                (RTE (RE_Protected_Entry_Index), Loc),
-                            Expression   => Make_Identifier (Loc, Name_uI)),
+                          Unchecked_Convert_To ( -- entry index
+                            RTE (RE_Protected_Entry_Index),
+                            Make_Identifier (Loc, Name_uI)),
 
                           Make_Identifier (Loc, Name_uA)))))); -- abort status
          end if;
@@ -3414,20 +3173,17 @@ package body Exp_Disp is
 
                  Parameter_Associations => New_List (
 
-                   Make_Unchecked_Type_Conversion (Loc,  -- PEA (P)
-                     Subtype_Mark =>
-                       New_Occurrence_Of
-                         (RTE (RE_Protection_Entries_Access), Loc),
-                          Expression => Make_Identifier (Loc, Name_uP)),
+                   Unchecked_Convert_To ( -- PEA (P)
+                     RTE (RE_Protection_Entries_Access),
+                     Make_Identifier (Loc, Name_uP)),
 
                    Make_Selected_Component (Loc,         -- O._task_id
                      Prefix        => Make_Identifier (Loc, Name_uO),
                      Selector_Name => Make_Identifier (Loc, Name_uTask_Id)),
 
-                   Make_Unchecked_Type_Conversion (Loc,  -- entry index
-                     Subtype_Mark =>
-                       New_Occurrence_Of (RTE (RE_Task_Entry_Index), Loc),
-                     Expression   => Make_Identifier (Loc, Name_uI)),
+                   Unchecked_Convert_To ( -- entry index
+                     RTE (RE_Task_Entry_Index),
+                     Make_Identifier (Loc, Name_uI)),
 
                    Make_Identifier (Loc, Name_uA)))),    -- abort status
 
@@ -3445,10 +3201,9 @@ package body Exp_Disp is
                      Prefix        => Make_Identifier (Loc, Name_uO),
                      Selector_Name => Make_Identifier (Loc, Name_uTask_Id)),
 
-                   Make_Unchecked_Type_Conversion (Loc,  -- entry index
-                     Subtype_Mark =>
-                       New_Occurrence_Of (RTE (RE_Task_Entry_Index), Loc),
-                     Expression   => Make_Identifier (Loc, Name_uI)),
+                   Unchecked_Convert_To ( -- entry index
+                     RTE (RE_Task_Entry_Index),
+                     Make_Identifier (Loc, Name_uI)),
 
                    Make_Identifier (Loc, Name_uA))))));  -- abort status
       end if;
@@ -3733,11 +3488,9 @@ package body Exp_Disp is
                       Parameter_Associations => New_List (
                         Obj_Ref,
 
-                        Make_Unchecked_Type_Conversion (Loc,  --  entry index
-                          Subtype_Mark =>
-                            New_Occurrence_Of
-                              (RTE (RE_Protected_Entry_Index), Loc),
-                          Expression   => Make_Identifier (Loc, Name_uI)),
+                        Unchecked_Convert_To ( --  entry index
+                         RTE (RE_Protected_Entry_Index),
+                          Make_Identifier (Loc, Name_uI)),
 
                         Make_Identifier (Loc, Name_uP),    --  parameter block
                         Make_Identifier (Loc, Name_uD),    --  delay
@@ -3776,10 +3529,9 @@ package body Exp_Disp is
                     Prefix        => Make_Identifier (Loc, Name_uT),
                     Selector_Name => Make_Identifier (Loc, Name_uTask_Id)),
 
-                  Make_Unchecked_Type_Conversion (Loc,  --  entry index
-                    Subtype_Mark =>
-                      New_Occurrence_Of (RTE (RE_Task_Entry_Index), Loc),
-                    Expression   => Make_Identifier (Loc, Name_uI)),
+                  Unchecked_Convert_To ( --  entry index
+                    RTE (RE_Task_Entry_Index),
+                    Make_Identifier (Loc, Name_uI)),
 
                   Make_Identifier (Loc, Name_uP),       --  parameter block
                   Make_Identifier (Loc, Name_uD),       --  delay
@@ -4042,6 +3794,7 @@ package body Exp_Disp is
          if Present (N)
            and then Is_Private_Type (Typ)
            and then No (Full_View (Typ))
+           and then not Has_Private_Declaration (Typ)
            and then not Is_Generic_Type (Typ)
            and then not Is_Tagged_Type (Typ)
            and then not Is_Frozen (Typ)
@@ -4060,6 +3813,7 @@ package body Exp_Disp is
             if not Is_Tagged_Type (Typ)
               and then Present (Comp)
               and then not Is_Frozen (Comp)
+              and then not Has_Private_Declaration (Comp)
               and then not Is_Actual_For_Formal_Incomplete_Type (Comp)
             then
                Error_Msg_Sloc := Sloc (Subp);
@@ -4739,7 +4493,7 @@ package body Exp_Disp is
       Exname             : Entity_Id;
       HT_Link            : Entity_Id;
       ITable             : Node_Id;
-      I_Depth            : Nat := 0;
+      I_Depth            : Nat;
       Iface_Table_Node   : Node_Id;
       Name_ITable        : Name_Id;
       Nb_Prim            : Nat := 0;
@@ -4861,7 +4615,7 @@ package body Exp_Disp is
                --  case concerning the need for this check, and this topic may
                --  go back to the ARG.
 
-               if not Is_Abstract_Subprogram (Prim)  then
+               if not Is_Abstract_Subprogram (Prim) then
                   Formal := First_Formal (Prim);
                   while Present (Formal) loop
                      Check_Premature_Freezing (Prim, Typ, Etype (Formal));
@@ -5234,9 +4988,12 @@ package body Exp_Disp is
       Set_Is_Statically_Allocated (Exname);
       Set_Is_True_Constant (Exname);
 
-      --  Declare the object used by Ada.Tags.Register_Tag
+      --  Declare the object used by Ada.Tags.Register_Tag, unless
+      --  No_Tagged_Type_Registration is active.
 
-      if RTE_Available (RE_Register_Tag) then
+      if not Restriction_Active (No_Tagged_Type_Registration)
+        and then RTE_Available (RE_Register_Tag)
+      then
          Append_To (Result,
            Make_Object_Declaration (Loc,
              Defining_Identifier => HT_Link,
@@ -5506,7 +5263,9 @@ package body Exp_Disp is
 
       --  HT_Link
 
-      if RTE_Available (RE_Register_Tag) then
+      if not Restriction_Active (No_Tagged_Type_Registration)
+        and then RTE_Available (RE_Register_Tag)
+      then
          Append_To (TSD_Aggr_List,
            Unchecked_Convert_To (RTE (RE_Tag_Ptr),
              Make_Attribute_Reference (Loc,
@@ -5950,6 +5709,11 @@ package body Exp_Disp is
             Expressions => TSD_Aggr_List)));
 
       Set_Is_True_Constant (TSD, Building_Static_DT (Typ));
+
+      --  The debugging information for type Ada.Tags.Type_Specific_Data is
+      --  needed by the debugger in order to display values of tagged types.
+
+      Set_Needs_Debug_Info (TSD, Needs_Debug_Info (Typ));
 
       --  Initialize or declare the dispatch table object
 
@@ -6570,13 +6334,14 @@ package body Exp_Disp is
       --  up the RE_Check_TSD entity and call it in No_Run_Time mode.
 
       --  We cannot perform this check if the generation of its expanded name
-      --  was discarded.
+      --  was discarded or if No_Tagged_Type_Registration is active.
 
       if not No_Run_Time_Mode
         and then not Discard_Names
         and then Ada_Version >= Ada_2005
-        and then RTE_Available (RE_Check_TSD)
         and then not Duplicated_Tag_Checks_Suppressed (Typ)
+        and then not Restriction_Active (No_Tagged_Type_Registration)
+        and then RTE_Available (RE_Check_TSD)
       then
          Append_To (Elab_Code,
            Make_Procedure_Call_Statement (Loc,
@@ -6599,9 +6364,11 @@ package body Exp_Disp is
       --    3) if Typ is not defined at the library level (this is required
       --       to avoid adding concurrency control to the hash table used
       --       by the run-time to register the tags).
+      --    4) No_Tagged_Type_Registration is active.
 
       if not No_Run_Time_Mode
         and then Is_Library_Level_Entity (Typ)
+        and then not Restriction_Active (No_Tagged_Type_Registration)
         and then RTE_Available (RE_Register_Tag)
       then
          Append_To (Elab_Code,
@@ -6612,9 +6379,7 @@ package body Exp_Disp is
                New_List (New_Occurrence_Of (DT_Ptr, Loc))));
       end if;
 
-      if not Is_Empty_List (Elab_Code) then
-         Append_List_To (Result, Elab_Code);
-      end if;
+      Append_List_To (Result, Elab_Code);
 
       --  Populate the two auxiliary tables used for dispatching asynchronous,
       --  conditional and timed selects for synchronized types that implement
@@ -6637,7 +6402,6 @@ package body Exp_Disp is
       Append_Elmt (DT, DT_Decl);
 
       Analyze_List (Result, Suppress => All_Checks);
-      Set_Has_Dispatch_Table (Typ);
 
       --  Mark entities containing dispatch tables. Required by the backend to
       --  handle them properly.
@@ -6669,6 +6433,8 @@ package body Exp_Disp is
       end if;
 
    <<Leave_SCIL>>
+
+      Set_Has_Dispatch_Table (Typ);
 
       --  Register the tagged type in the call graph nodes table
 
@@ -7417,31 +7183,6 @@ package body Exp_Disp is
       end if;
    end New_Value;
 
-   -----------------------------------
-   -- Original_View_In_Visible_Part --
-   -----------------------------------
-
-   function Original_View_In_Visible_Part (Typ : Entity_Id) return Boolean is
-      Scop : constant Entity_Id := Scope (Typ);
-
-   begin
-      --  The scope must be a package
-
-      if not Is_Package_Or_Generic_Package (Scop) then
-         return False;
-      end if;
-
-      --  A type with a private declaration has a private view declared in
-      --  the visible part.
-
-      if Has_Private_Declaration (Typ) then
-         return True;
-      end if;
-
-      return List_Containing (Parent (Typ)) =
-        Visible_Declarations (Package_Specification (Scop));
-   end Original_View_In_Visible_Part;
-
    ------------------
    -- Prim_Op_Kind --
    ------------------
@@ -8059,14 +7800,14 @@ package body Exp_Disp is
                          (Find_Dispatching_Type (Interface_Alias (Prim)), Typ,
                           Use_Full_View => True)
             then
-               pragma Assert (DT_Position (Prim) = No_Uint
-                 and then Present (DTC_Entity (Interface_Alias (Prim))));
+               pragma Assert (No (DT_Position (Prim)));
+               pragma Assert (Present (DTC_Entity (Interface_Alias (Prim))));
 
                E := Interface_Alias (Prim);
                Set_DT_Position_Value (Prim, DT_Position (E));
 
                pragma Assert
-                 (DT_Position (Alias (Prim)) = No_Uint
+                 (No (DT_Position (Alias (Prim)))
                     or else DT_Position (Alias (Prim)) = DT_Position (E));
                Set_DT_Position_Value (Alias (Prim), DT_Position (E));
                Set_Fixed_Prim (UI_To_Int (DT_Position (Prim)));
@@ -8117,7 +7858,7 @@ package body Exp_Disp is
 
             --  Skip primitives previously set entries
 
-            if DT_Position (Prim) /= No_Uint then
+            if Present (DT_Position (Prim)) then
                null;
 
             --  Primitives covering interface primitives are handled later
@@ -8150,7 +7891,7 @@ package body Exp_Disp is
       while Present (Prim_Elmt) loop
          Prim := Node (Prim_Elmt);
 
-         if DT_Position (Prim) = No_Uint
+         if No (DT_Position (Prim))
            and then Present (Interface_Alias (Prim))
          then
             pragma Assert (Present (Alias (Prim))
@@ -8162,14 +7903,14 @@ package body Exp_Disp is
                  (Find_Dispatching_Type (Interface_Alias (Prim)), Typ,
                   Use_Full_View => True)
             then
-               pragma Assert (DT_Position (Alias (Prim)) /= No_Uint);
+               pragma Assert (Present (DT_Position (Alias (Prim))));
                Set_DT_Position_Value (Prim, DT_Position (Alias (Prim)));
 
             --  Otherwise it will be placed in the secondary DT
 
             else
                pragma Assert
-                 (DT_Position (Interface_Alias (Prim)) /= No_Uint);
+                 (Present (DT_Position (Interface_Alias (Prim))));
                Set_DT_Position_Value (Prim,
                  DT_Position (Interface_Alias (Prim)));
             end if;
@@ -8198,7 +7939,7 @@ package body Exp_Disp is
          --  At this point all the primitives MUST have a position in the
          --  dispatch table.
 
-         if DT_Position (Prim) = No_Uint then
+         if No (DT_Position (Prim)) then
             raise Program_Error;
          end if;
 
@@ -8330,19 +8071,17 @@ package body Exp_Disp is
                Out_Present         => True,
                Parameter_Type      => New_Occurrence_Of (Typ, Loc)));
 
-         if Present (Parameter_Specifications (Parent (E))) then
-            P := First (Parameter_Specifications (Parent (E)));
-            while Present (P) loop
-               Append_To (Parms,
-                 Make_Parameter_Specification (Loc,
-                   Defining_Identifier =>
-                     Make_Defining_Identifier (Loc,
-                       Chars => Chars (Defining_Identifier (P))),
-                   Parameter_Type      => New_Copy_Tree (Parameter_Type (P)),
-                   Expression          => New_Copy_Tree (Expression (P))));
-               Next (P);
-            end loop;
-         end if;
+         P := First (Parameter_Specifications (Parent (E)));
+         while Present (P) loop
+            Append_To (Parms,
+              Make_Parameter_Specification (Loc,
+                Defining_Identifier =>
+                  Make_Defining_Identifier (Loc,
+                    Chars => Chars (Defining_Identifier (P))),
+                Parameter_Type      => New_Copy_Tree (Parameter_Type (P)),
+                Expression          => New_Copy_Tree (Expression (P))));
+            Next (P);
+         end loop;
 
          return Parms;
       end Gen_Parameters_Profile;
@@ -8818,7 +8557,7 @@ package body Exp_Disp is
          --  (primary or secondary) dispatch table.
 
          if Present (DTC_Entity (Prim))
-           and then DT_Position (Prim) /= No_Uint
+           and then Present (DT_Position (Prim))
          then
             Write_Str (" at #");
             Write_Int (UI_To_Int (DT_Position (Prim)));

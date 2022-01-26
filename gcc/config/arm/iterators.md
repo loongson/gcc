@@ -1,5 +1,5 @@
 ;; Code and mode itertator and attribute definitions for the ARM backend
-;; Copyright (C) 2010-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2010-2022 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 ;;
 ;; This file is part of GCC.
@@ -363,8 +363,6 @@
 
 (define_int_iterator NEON_VCMP [UNSPEC_VCEQ UNSPEC_VCGT UNSPEC_VCGE
 				UNSPEC_VCLT UNSPEC_VCLE])
-
-(define_int_iterator NEON_VACMP [UNSPEC_VCAGE UNSPEC_VCAGT])
 
 (define_int_iterator NEON_VAGLTE [UNSPEC_VCAGE UNSPEC_VCAGT
 				  UNSPEC_VCALE UNSPEC_VCALT])
@@ -1288,7 +1286,7 @@
 		       (VMOVLBQ_U "u") (VCVTQ_FROM_F_S "s") (VCVTQ_FROM_F_U "u")
 		       (VCVTPQ_S "s") (VCVTPQ_U "u") (VCVTNQ_S "s")
 		       (VCVTNQ_U "u") (VCVTMQ_S "s") (VCVTMQ_U "u")
-		       (VCLZQ_U "u") (VCLZQ_S "s") (VREV32Q_U "u")
+		       (VREV32Q_U "u")
 		       (VREV32Q_S "s") (VADDLVQ_U "u") (VADDLVQ_S "s")
 		       (VCVTQ_N_TO_F_S "s") (VCVTQ_N_TO_F_U "u")
 		       (VCREATEQ_U "u") (VCREATEQ_S "s") (VSHRQ_N_S "s")
@@ -1538,7 +1536,6 @@
 (define_int_iterator VREV16Q [VREV16Q_U VREV16Q_S])
 (define_int_iterator VCVTAQ [VCVTAQ_U VCVTAQ_S])
 (define_int_iterator VDUPQ_N [VDUPQ_N_U VDUPQ_N_S])
-(define_int_iterator VCLZQ [VCLZQ_U VCLZQ_S])
 (define_int_iterator VADDVQ [VADDVQ_U VADDVQ_S])
 (define_int_iterator VREV32Q [VREV32Q_U VREV32Q_S])
 (define_int_iterator VMOVLBQ [VMOVLBQ_S VMOVLBQ_U])

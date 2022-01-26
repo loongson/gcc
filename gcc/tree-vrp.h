@@ -1,5 +1,5 @@
 /* Support routines for Value Range Propagation (VRP).
-   Copyright (C) 2016-2021 Free Software Foundation, Inc.
+   Copyright (C) 2016-2022 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -62,8 +62,9 @@ extern bool find_case_label_index (gswitch *, size_t, tree, size_t *);
 extern bool overflow_comparison_p (tree_code, tree, tree, bool, tree *);
 extern tree get_single_symbol (tree, bool *, tree *);
 extern void maybe_set_nonzero_bits (edge, tree);
-extern value_range_kind determine_value_range (tree, wide_int *, wide_int *);
 extern wide_int masked_increment (const wide_int &val_in, const wide_int &mask,
 				  const wide_int &sgnbit, unsigned int prec);
 
+extern unsigned int execute_ranger_vrp (struct function *fun,
+					bool warn_array_bounds_p = false);
 #endif /* GCC_TREE_VRP_H */

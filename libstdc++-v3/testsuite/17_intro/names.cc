@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2021 Free Software Foundation, Inc.
+// Copyright (C) 2017-2022 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -16,6 +16,7 @@
 // <http://www.gnu.org/licenses/>.
 
 // { dg-do compile }
+// { dg-add-options no_pch }
 
 // Define macros for some common variables names that we must not use for
 // naming variables, parameters etc. in the library.
@@ -105,7 +106,10 @@
 #endif
 #define z (
 
+#define func (
 #define tmp (
+#define sz (
+#define token (
 
 #if __cplusplus < 201103L
 #define uses_allocator  (
@@ -121,6 +125,10 @@
 #define ec (
 #define ptr (
 #endif
+
+// This clashes with newlib so don't use it.
+# define __lockable		cannot be used as an identifier
+
 
 // Common template parameter names
 #define OutputIterator		OutputIterator is not a reserved name
@@ -207,6 +215,11 @@
 #undef r
 #endif
 
+#if defined (__linux__) && defined (__arm__)
+// <sys/ucontext.h> defines fpregset_t::fpregs::j
+#undef j
+#endif
+
 #if defined (__linux__) && defined (__powerpc__)
 // <asm/types.h> defines __vector128::u
 #undef u
@@ -216,9 +229,33 @@
 #undef y
 #endif
 
+#if __has_include(<newlib.h>)
+// newlib's <sys/cdefs.h> defines __lockable as a macro.
+#undef __lockable
+// newlib's <time.h> defines __tzrule_type with these members.
+#undef d
+#undef m
+#undef n
+#undef s
+// newlib's <math.h> uses this for parameters
+#undef x
+// newlib's <inttypes.h> uses this for parameters
+#undef j
+#endif
+
 #ifdef __sun__
+// <fenv.h> defines these as members of fex_numeric_t
+#undef l
+#undef f
+#undef d
+#undef q
+#undef p
 // See https://gcc.gnu.org/ml/libstdc++/2019-05/msg00175.html
 #undef ptr
+// <sys/timespec_util.h> uses this as parameter
+#undef r
+// <stdlib.h> uses this as member of drand48_data
+#undef x
 #endif
 
 #ifdef __VXWORKS__
@@ -261,5 +298,15 @@
 #endif // VxWorks Major >= 7
 
 #endif // __VXWORKS__
+
+#ifdef _WIN32
+#undef Value
+// <stdlib.h> defines _CRT_FLOAT::f
+#undef f
+// <stdlib.h> defines _CRT_DOUBLE::x and _LONGDOUBLE::x
+#undef x
+// <math.h> defines _complex::x and _complex::y
+#undef y
+#endif
 
 #include <bits/stdc++.h>

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2021, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2022, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -49,6 +49,7 @@ with Sem_Ch8;        use Sem_Ch8;
 with Sem_Util;       use Sem_Util;
 with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
+with Stand;          use Stand;
 with Table;
 
 package body Expander is
@@ -152,7 +153,19 @@ package body Expander is
       --  not take place. This prevents cascaded errors due to stack mismatch.
 
       elsif not Expander_Active then
-         Set_Analyzed (N, Full_Analysis);
+
+         --  Do not clear the Analyzed flag if it has been set on purpose
+         --  during preanalysis in Fold_Ureal. In that case, the Etype field
+         --  in N_Real_Literal will be set to something different than
+         --  Universal_Real.
+
+         if Full_Analysis
+           or else not (Nkind (N) = N_Real_Literal
+                          and then Present (Etype (N))
+                          and then Etype (N) /= Universal_Real)
+         then
+            Set_Analyzed (N, Full_Analysis);
+         end if;
 
          if Serious_Errors_Detected > 0 and then Scope_Is_Transient then
             Scope_Stack.Table
@@ -273,6 +286,9 @@ package body Expander is
 
                when N_Generic_Instantiation =>
                   Expand_N_Generic_Instantiation (N);
+
+               when N_Goto_When_Statement =>
+                  Expand_N_Goto_When_Statement (N);
 
                when N_Handled_Sequence_Of_Statements =>
                   Expand_N_Handled_Sequence_Of_Statements (N);
@@ -421,6 +437,9 @@ package body Expander is
                when N_Raise_Statement =>
                   Expand_N_Raise_Statement (N);
 
+               when N_Raise_When_Statement =>
+                  Expand_N_Raise_When_Statement (N);
+
                when N_Raise_Constraint_Error =>
                   Expand_N_Raise_Constraint_Error (N);
 
@@ -441,6 +460,9 @@ package body Expander is
 
                when N_Requeue_Statement =>
                   Expand_N_Requeue_Statement (N);
+
+               when N_Return_When_Statement =>
+                  Expand_N_Return_When_Statement (N);
 
                when N_Simple_Return_Statement =>
                   Expand_N_Simple_Return_Statement (N);

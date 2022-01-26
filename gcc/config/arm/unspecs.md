@@ -1,5 +1,5 @@
 ;; Unspec defintions.
-;; Copyright (C) 2012-2021 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2022 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 
 ;; This file is part of GCC.
@@ -270,6 +270,7 @@
   UNSPEC_AESE
   UNSPEC_AESIMC
   UNSPEC_AESMC
+  UNSPEC_AES_PROTECT
   UNSPEC_SHA1C
   UNSPEC_SHA1M
   UNSPEC_SHA1P
@@ -538,7 +539,6 @@
   VRNDAQ_F
   VREV64Q_F
   VDUPQ_N_F
-  VABSQ_F
   VREV32Q_F
   VCVTTQ_F32_F16
   VCVTBQ_F32_F16
@@ -557,12 +557,9 @@
   VQABSQ_S
   VDUPQ_N_U
   VDUPQ_N_S
-  VCLZQ_U
-  VCLZQ_S
   VCLSQ_S
   VADDVQ_S
   VADDVQ_U
-  VABSQ_S
   VREV32Q_U
   VREV32Q_S
   VMOVLTQ_U

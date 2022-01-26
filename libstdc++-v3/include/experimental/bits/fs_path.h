@@ -1,6 +1,6 @@
 // Class filesystem::path -*- C++ -*-
 
-// Copyright (C) 2014-2021 Free Software Foundation, Inc.
+// Copyright (C) 2014-2022 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -71,13 +71,13 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
   using std::basic_string_view;
 #endif
 
+  /// @cond undocumented
+namespace __detail
+{
   /** @addtogroup filesystem-ts
    *  @{
    */
 
-  /// @cond undocumented
-namespace __detail
-{
   template<typename _CharT,
 	   typename _Ch = typename remove_const<_CharT>::type>
     using __is_encoded_char
@@ -188,10 +188,16 @@ namespace __detail
 #endif
       >::value, _UnqualVal>::type;
 
+  /// @} group filesystem-ts
 } // namespace __detail
   /// @endcond
 
+  /** @addtogroup filesystem-ts
+   *  @{
+   */
+
   /// A filesystem path.
+  /// @ingroup filesystem-ts
   class path
   {
   public:
@@ -551,8 +557,7 @@ namespace __detail
   size_t hash_value(const path& __p) noexcept;
 
   /// Compare paths
-  inline bool operator<(const path& __lhs, const path& __rhs) noexcept
-  { return __lhs.compare(__rhs) < 0; }
+  inline bool operator<(const path& __lhs, const path& __rhs) noexcept;
 
   /// Compare paths
   inline bool operator<=(const path& __lhs, const path& __rhs) noexcept
@@ -567,8 +572,7 @@ namespace __detail
   { return !(__lhs < __rhs); }
 
   /// Compare paths
-  inline bool operator==(const path& __lhs, const path& __rhs) noexcept
-  { return __lhs.compare(__rhs) == 0; }
+  inline bool operator==(const path& __lhs, const path& __rhs) noexcept;
 
   /// Compare paths
   inline bool operator!=(const path& __lhs, const path& __rhs) noexcept
@@ -860,38 +864,44 @@ namespace __detail
     using pointer		= const path*;
     using iterator_category	= std::bidirectional_iterator_tag;
 
-    iterator() : _M_path(nullptr), _M_cur(), _M_at_end() { }
+    iterator() noexcept : _M_path(nullptr), _M_cur(), _M_at_end() { }
 
     iterator(const iterator&) = default;
     iterator& operator=(const iterator&) = default;
 
-    reference operator*() const;
-    pointer   operator->() const { return std::__addressof(**this); }
+    reference operator*() const noexcept;
+    pointer   operator->() const noexcept { return std::__addressof(**this); }
 
-    iterator& operator++();
-    iterator  operator++(int) { auto __tmp = *this; ++*this; return __tmp; }
+    iterator& operator++() noexcept;
 
-    iterator& operator--();
-    iterator  operator--(int) { auto __tmp = *this; --*this; return __tmp; }
+    iterator  operator++(int) noexcept
+    { auto __tmp = *this; ++*this; return __tmp; }
 
-    friend bool operator==(const iterator& __lhs, const iterator& __rhs)
+    iterator& operator--() noexcept;
+
+    iterator  operator--(int) noexcept
+    { auto __tmp = *this; --*this; return __tmp; }
+
+    friend bool
+    operator==(const iterator& __lhs, const iterator& __rhs) noexcept
     { return __lhs._M_equals(__rhs); }
 
-    friend bool operator!=(const iterator& __lhs, const iterator& __rhs)
+    friend bool
+    operator!=(const iterator& __lhs, const iterator& __rhs) noexcept
     { return !__lhs._M_equals(__rhs); }
 
   private:
     friend class path;
 
-    iterator(const path* __path, path::_List::const_iterator __iter)
+    iterator(const path* __path, path::_List::const_iterator __iter) noexcept
     : _M_path(__path), _M_cur(__iter), _M_at_end()
     { }
 
-    iterator(const path* __path, bool __at_end)
+    iterator(const path* __path, bool __at_end) noexcept
     : _M_path(__path), _M_cur(), _M_at_end(__at_end)
     { }
 
-    bool _M_equals(iterator) const;
+    bool _M_equals(iterator) const noexcept;
 
     const path* 		_M_path;
     path::_List::const_iterator _M_cur;
@@ -1202,7 +1212,7 @@ namespace __detail
   }
 
   inline path::iterator
-  path::begin() const
+  path::begin() const noexcept
   {
     if (_M_type == _Type::_Multi)
       return iterator(this, _M_cmpts.begin());
@@ -1210,7 +1220,7 @@ namespace __detail
   }
 
   inline path::iterator
-  path::end() const
+  path::end() const noexcept
   {
     if (_M_type == _Type::_Multi)
       return iterator(this, _M_cmpts.end());
@@ -1218,7 +1228,7 @@ namespace __detail
   }
 
   inline path::iterator&
-  path::iterator::operator++()
+  path::iterator::operator++() noexcept
   {
     __glibcxx_assert(_M_path != nullptr);
     if (_M_path->_M_type == _Type::_Multi)
@@ -1235,7 +1245,7 @@ namespace __detail
   }
 
   inline path::iterator&
-  path::iterator::operator--()
+  path::iterator::operator--() noexcept
   {
     __glibcxx_assert(_M_path != nullptr);
     if (_M_path->_M_type == _Type::_Multi)
@@ -1252,7 +1262,7 @@ namespace __detail
   }
 
   inline path::iterator::reference
-  path::iterator::operator*() const
+  path::iterator::operator*() const noexcept
   {
     __glibcxx_assert(_M_path != nullptr);
     if (_M_path->_M_type == _Type::_Multi)
@@ -1264,7 +1274,7 @@ namespace __detail
   }
 
   inline bool
-  path::iterator::_M_equals(iterator __rhs) const
+  path::iterator::_M_equals(iterator __rhs) const noexcept
   {
     if (_M_path != __rhs._M_path)
       return false;
@@ -1274,6 +1284,16 @@ namespace __detail
       return _M_cur == __rhs._M_cur;
     return _M_at_end == __rhs._M_at_end;
   }
+
+  // Define these now that path and path::iterator are complete.
+  // They needs to consider the string_view(Range&&) constructor during
+  // overload resolution, which depends on whether range<path> is satisfied,
+  // which depends on whether path::iterator is complete.
+  inline bool operator<(const path& __lhs, const path& __rhs) noexcept
+  { return __lhs.compare(__rhs) < 0; }
+
+  inline bool operator==(const path& __lhs, const path& __rhs) noexcept
+  { return __lhs.compare(__rhs) == 0; }
 
   /// @} group filesystem-ts
 _GLIBCXX_END_NAMESPACE_CXX11

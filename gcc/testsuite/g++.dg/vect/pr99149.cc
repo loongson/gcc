@@ -11,7 +11,7 @@ public:
   a operator*(a d) { return a(b * b - c * c, b * c + c * d.b); }
 };
 int f, g;
-class {
+class mp {
   a *h;
   a *i;
 
@@ -25,4 +25,3 @@ public:
 main() { n.j(); }
 
 /* { dg-final { scan-tree-dump-times "stmt.*COMPLEX_MUL" 1 "slp2" } } */
-/* { dg-final { scan-tree-dump-times "stmt.*COMPLEX_FMA" 1 "slp2" } } */

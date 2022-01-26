@@ -1,4 +1,4 @@
-// Copyright (C) 2015-2021 Free Software Foundation, Inc.
+// Copyright (C) 2015-2022 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,6 +15,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+// { dg-options "-std=gnu++17" }
 // { dg-do compile { target c++17 } }
 
 // Ensure the library only uses the __name__ form for attributes.
@@ -26,6 +27,7 @@
 # define cold 1
 # define visibility 1
 #endif
+#define no_unique_address 1
 #define packed 1
 #define pure 1
 // glibc's sysdeps/unix/sysv/linux/arm/sys/ucontext.h uses this on ARM.

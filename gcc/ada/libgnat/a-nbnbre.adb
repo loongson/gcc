@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---             Copyright (C) 2019-2021, Free Software Foundation, Inc.      --
+--             Copyright (C) 2019-2022, Free Software Foundation, Inc.      --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,7 +29,6 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Ada.Strings.Text_Output.Utils;
 with System.Unsigned_Types; use System.Unsigned_Types;
 
 package body Ada.Numerics.Big_Numbers.Big_Reals is
@@ -442,8 +441,8 @@ package body Ada.Numerics.Big_Numbers.Big_Reals is
          if Str = "" then
             return Leading_Padding ("0", Min_Length, Char);
          else
-            return (1 .. Integer'Max (Integer (Min_Length) - Str'Length, 0)
-                           => Char) & Str;
+            return [1 .. Integer'Max (Integer (Min_Length) - Str'Length, 0)
+                           => Char] & Str;
          end if;
       end Leading_Padding;
 
@@ -469,8 +468,8 @@ package body Ada.Numerics.Big_Numbers.Big_Reals is
             return Str (Str'First .. Str'First + Length - 1);
          else
             return Str &
-              (1 .. Integer'Max (Integer (Length) - Str'Length, 0)
-                      => Char);
+              [1 .. Integer'Max (Integer (Length) - Str'Length, 0)
+                      => Char];
          end if;
       end Trailing_Padding;
 
@@ -496,7 +495,7 @@ package body Ada.Numerics.Big_Numbers.Big_Reals is
             if Index < 0 then
                return Leading_Padding ("0", Fore)
                  & "."
-                 & Trailing_Padding ((1 .. -Index => '0') & Str, Aft)
+                 & Trailing_Padding ([1 .. -Index => '0'] & Str, Aft)
                  & (if Exp = 0 then "" else "E+" & Image (Natural (Exp)));
             else
                return Leading_Padding (Str (Str'First .. Index), Fore)
@@ -619,12 +618,12 @@ package body Ada.Numerics.Big_Numbers.Big_Reals is
    -- Put_Image --
    ---------------
 
-   procedure Put_Image (S : in out Sink'Class; V : Big_Real) is
+   procedure Put_Image (S : in out Root_Buffer_Type'Class; V : Big_Real) is
       --  This is implemented in terms of To_String. It might be more elegant
       --  and more efficient to do it the other way around, but this is the
       --  most expedient implementation for now.
    begin
-      Strings.Text_Output.Utils.Put_UTF_8 (S, To_String (V));
+      Strings.Text_Buffers.Put_UTF_8 (S, To_String (V));
    end Put_Image;
 
    ---------

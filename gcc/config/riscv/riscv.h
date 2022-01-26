@@ -1,5 +1,5 @@
 /* Definition of RISC-V target for GNU compiler.
-   Copyright (C) 2011-2021 Free Software Foundation, Inc.
+   Copyright (C) 2011-2022 Free Software Foundation, Inc.
    Contributed by Andrew Waterman (andrew@sifive.com).
    Based on MIPS target for GNU compiler.
 
@@ -147,7 +147,7 @@ ASM_MISA_SPEC
 #define MIN_UNITS_PER_WORD 4
 #endif
 
-/* Allows SImode op in builtin overflow pattern, see internal-fn.c.  */
+/* Allows SImode op in builtin overflow pattern, see internal-fn.cc.  */
 #undef TARGET_MIN_ARITHMETIC_PRECISION
 #define TARGET_MIN_ARITHMETIC_PRECISION riscv_min_arithmetic_precision
 
@@ -525,6 +525,14 @@ enum reg_class
 #define LUI_OPERAND(VALUE)						\
   (((VALUE) | ((1UL<<31) - IMM_REACH)) == ((1UL<<31) - IMM_REACH)	\
    || ((VALUE) | ((1UL<<31) - IMM_REACH)) + IMM_REACH == 0)
+
+/* If this is a single bit mask, then we can load it with bseti.  But this
+   is not useful for any of the low 31 bits because we can use addi or lui
+   to load them.  It is wrong for loading SImode 0x80000000 on rv64 because it
+   needs to be sign-extended.  So we restrict this to the upper 32-bits
+   only.  */
+#define SINGLE_BIT_MASK_OPERAND(VALUE) \
+  (pow2p_hwi (VALUE) && (ctz_hwi (VALUE) >= 32))
 
 /* Stack layout; function entry, exit and calling.  */
 
@@ -988,7 +996,7 @@ extern unsigned riscv_stack_boundary;
    offset (an unsigned 5-bit value scaled by 4).  */
 #define CSW_MAX_OFFSET (((4LL << C_S_BITS) - 1) & ~3)
 
-/* Called from RISCV_REORG, this is defined in riscv-sr.c.  */
+/* Called from RISCV_REORG, this is defined in riscv-sr.cc.  */
 
 extern void riscv_remove_unneeded_save_restore_calls (void);
 
