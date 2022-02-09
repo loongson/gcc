@@ -289,6 +289,7 @@ unsigned const char omp_clause_num_ops[] =
   2, /* OMP_CLAUSE_FROM  */
   2, /* OMP_CLAUSE_TO  */
   2, /* OMP_CLAUSE_MAP  */
+  1, /* OMP_CLAUSE_HAS_DEVICE_ADDR  */
   2, /* OMP_CLAUSE__CACHE_  */
   2, /* OMP_CLAUSE_GANG  */
   1, /* OMP_CLAUSE_ASYNC  */
@@ -378,6 +379,7 @@ const char * const omp_clause_code_name[] =
   "from",
   "to",
   "map",
+  "has_device_addr",
   "_cache_",
   "gang",
   "async",
@@ -9518,7 +9520,7 @@ build_common_builtin_nodes (void)
       local_define_builtin ("__builtin_clear_padding", ftype,
 			    BUILT_IN_CLEAR_PADDING,
 			    "__builtin_clear_padding",
-			      ECF_LEAF | ECF_NOTHROW);
+			    ECF_LEAF | ECF_NOTHROW);
     }
 
   if (!builtin_decl_explicit_p (BUILT_IN_UNREACHABLE)
@@ -12045,10 +12047,12 @@ warn_deprecated_use (tree node, tree attr)
 	attr = DECL_ATTRIBUTES (node);
       else if (TYPE_P (node))
 	{
-	  tree decl = TYPE_STUB_DECL (node);
+	  tree decl = TYPE_STUB_DECL (TYPE_MAIN_VARIANT (node));
 	  if (decl)
-	    attr = lookup_attribute ("deprecated",
-				     TYPE_ATTRIBUTES (TREE_TYPE (decl)));
+	    {
+	      node = TREE_TYPE (decl);
+	      attr = TYPE_ATTRIBUTES (node);
+	    }
 	}
     }
 
@@ -14547,6 +14551,30 @@ get_attr_nonstring_decl (tree expr, tree *ref)
     return decl;
 
   return NULL_TREE;
+}
+
+/* Return length of attribute names string,
+   if arglist chain > 1, -1 otherwise.  */
+
+int
+get_target_clone_attr_len (tree arglist)
+{
+  tree arg;
+  int str_len_sum = 0;
+  int argnum = 0;
+
+  for (arg = arglist; arg; arg = TREE_CHAIN (arg))
+    {
+      const char *str = TREE_STRING_POINTER (TREE_VALUE (arg));
+      size_t len = strlen (str);
+      str_len_sum += len + 1;
+      for (const char *p = strchr (str, ','); p; p = strchr (p + 1, ','))
+	argnum++;
+      argnum++;
+    }
+  if (argnum <= 1)
+    return -1;
+  return str_len_sum;
 }
 
 #if CHECKING_P

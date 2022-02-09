@@ -9223,7 +9223,7 @@
 (define_expand "vec_unpacks_float_hi_v8si"
   [(set (match_dup 2)
 	(vec_select:V4SI
-	  (match_operand:V8SI 1 "vector_operand")
+	  (match_operand:V8SI 1 "register_operand")
 	  (parallel [(const_int 4) (const_int 5)
 		     (const_int 6) (const_int 7)])))
    (set (match_operand:V4DF 0 "register_operand")
@@ -17025,8 +17025,8 @@
   "@
    p<logic>\t{%2, %0|%0, %2}
    vp<logic>\t{%2, %1, %0|%0, %1, %2}
-   vp<logic>\t{%2, %1, %0|%0, %1, %2}"
-  [(set_attr "isa" "noavx,avx,avx")
+   vp<logic>d\t{%2, %1, %0|%0, %1, %2}"
+  [(set_attr "isa" "noavx,avx,avx512vl")
    (set_attr "prefix" "orig,vex,evex")
    (set_attr "prefix_data16" "1,*,*")
    (set_attr "type" "sselog")
