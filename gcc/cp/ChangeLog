@@ -1,3 +1,114 @@
+2022-02-28  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/104682
+	* cp-tree.h (build_enumerator): Adjust.
+	* decl.cc (finish_enum): Make it return the new decl.
+	* pt.cc (tsubst_enum): Propagate TREE_DEPRECATED and TREE_UNAVAILABLE.
+
+2022-02-28  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/104667
+	* decl2.cc (is_late_template_attribute): Cope with a decl without
+	a type.
+
+2022-02-27  Jason Merrill  <jason@redhat.com>
+
+	PR c++/104618
+	* typeck.cc (cp_build_addr_expr_1): Also
+	maybe_undo_parenthesized_ref.
+
+2022-02-24  Martin Liska  <mliska@suse.cz>
+
+	* pt.cc (defarg_insts_for): Use braces for subobject.
+
+2022-02-18  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/94944
+	* pt.cc (maybe_instantiate_noexcept): For non-static member
+	functions, set current_class_ptr/ref to the specialized 'this'
+	instead.
+
+2022-02-17  Jason Merrill  <jason@redhat.com>
+
+	PR c++/104539
+	* pt.cc (mark_decl_instantiated): Don't clear DECL_COMDAT.
+
+2022-02-17  Jason Merrill  <jason@redhat.com>
+
+	PR c++/90451
+	* decl2.cc (mark_single_function): New.
+	* cp-tree.h: Declare it.
+	* typeck.cc (cp_build_addr_expr_1): mark_used when making a PMF.
+	* semantics.cc (finish_qualified_id_expr): Not here.
+	(finish_id_expression_1): Or here.
+	(finish_decltype_type): Call mark_single_function.
+	* cvt.cc (convert_to_void): And here.
+	* pt.cc (convert_nontype_argument): And here.
+	* init.cc (build_offset_ref): Adjust assert.
+
+2022-02-17  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/104565
+	* semantics.cc (finish_compound_literal): Don't perform
+	non-dependent expr folding before calling check_narrowing.
+
+2022-02-16  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/104507
+	* constexpr.cc (potential_constant_expression_1)
+	<case NON_DEPENDENT_EXPR>: Return false instead of recursing.
+	Assert tf_error isn't set.
+
+2022-02-15  Jason Merrill  <jason@redhat.com>
+
+	PR c++/104107
+	PR c++/95036
+	* pt.cc (coerce_template_template_parms): Take full parms.
+	Avoid adding too much of outer_args.
+	(coerce_template_template_parm): Adjust.
+	(template_template_parm_bindings_ok_p): Adjust.
+	(convert_template_argument): Adjust.
+
+2022-02-14  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/104513
+	* constexpr.cc (potential_constant_expression_1) <case GOTO_EXPR>:
+	Don't punt if returns (target).
+
+2022-02-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/104472
+	* constexpr.cc (cxx_eval_internal_function) <case IFN_VEC_CONVERT>:
+	Only return fold_const_call result if it is non-NULL.  Otherwise
+	fall through into the default: case to return t, set *non_constant_p
+	and emit diagnostics if needed.
+
+2022-02-10  Jason Merrill  <jason@redhat.com>
+
+	* module.cc (depset::hash::add_specializations): Use
+	STRIP_TEMPLATE.
+
+2022-02-10  Tobias Burnus  <tobias@codesourcery.com>
+
+	PR c++/102204
+	* decl2.cc (cp_omp_mappable_type_1): Remove check for virtual
+	members as those are permitted since OpenMP 5.0.
+
+2022-02-10  Patrick Palka  <ppalka@redhat.com>
+
+	* pt.cc (filter_memfn_lookup): Handle dependent USING_DECL
+	better.
+
+2022-02-10  Marcel Vollweiler  <marcel@codesourcery.com>
+
+	* parser.cc (cp_parser_omp_clause_name): Parse 'has_device_addr' clause.
+	(cp_parser_omp_var_list_no_open): Handle array sections.
+	(cp_parser_omp_all_clauses): Added PRAGMA_OMP_CLAUSE_HAS_DEVICE_ADDR
+	case.
+	(cp_parser_omp_target_update): Added HAS_DEVICE_ADDR to OMP_CLAUSE_MASK.
+	* semantics.cc (handle_omp_array_sections): Handle clause restrictions.
+	(finish_omp_clauses): Handle array sections.
+
 2022-02-09  Patrick Palka  <ppalka@redhat.com>
 
 	PR c++/104432

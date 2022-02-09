@@ -4223,10 +4223,12 @@ try_combine (rtx_insn *i3, rtx_insn *i2, rtx_insn *i1, rtx_insn *i0,
 	  for (rtx_insn *insn = NEXT_INSN (i3);
 	       !done
 	       && insn
-	       && NONDEBUG_INSN_P (insn)
+	       && INSN_P (insn)
 	       && BLOCK_FOR_INSN (insn) == this_basic_block;
 	       insn = NEXT_INSN (insn))
 	    {
+	      if (DEBUG_INSN_P (insn))
+		continue;
 	      struct insn_link *link;
 	      FOR_EACH_LOG_LINK (link, insn)
 		if (link->insn == i3 && link->regno == regno)
@@ -5534,6 +5536,12 @@ subst (rtx x, rtx from, rtx to, int in_dest, int in_cond, int unique_copy)
 		  if (!x)
 		    return gen_rtx_CLOBBER (VOIDmode, const0_rtx);
 		}
+	      /* CONST_INTs shouldn't be substituted into PRE_DEC, PRE_MODIFY
+		 etc. arguments, otherwise we can ICE before trying to recog
+		 it.  See PR104446.  */
+	      else if (CONST_SCALAR_INT_P (new_rtx)
+		       && GET_RTX_CLASS (GET_CODE (x)) == RTX_AUTOINC)
+		return gen_rtx_CLOBBER (VOIDmode, const0_rtx);
 	      else
 		SUBST (XEXP (x, i), new_rtx);
 	    }
