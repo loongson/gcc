@@ -571,7 +571,7 @@
 (define_insn "add<mode>3"
   [(set (match_operand:GPR 0 "register_operand" "=r,r")
 	(plus:GPR (match_operand:GPR 1 "register_operand" "r,r")
-		  (match_operand:GPR 2 "arith_operand" "r,Q")))]
+		  (match_operand:GPR 2 "arith_operand" "r,I")))]
   ""
   "add%i2.<d>\t%0,%1,%2";
   [(set_attr "alu_type" "add")
@@ -582,7 +582,7 @@
   [(set (match_operand:DI 0 "register_operand" "=r,r")
 	(sign_extend:DI
 	     (plus:SI (match_operand:SI 1 "register_operand" "r,r")
-		      (match_operand:SI 2 "arith_operand" "r,Q"))))]
+		      (match_operand:SI 2 "arith_operand" "r,I"))))]
   "TARGET_64BIT"
   "add%i2.w\t%0,%1,%2"
   [(set_attr "alu_type" "add")
@@ -592,7 +592,7 @@
   [(set (match_operand:DI 0 "register_operand" "=r,r")
 	(sign_extend:DI
 	  (subreg:SI (plus:DI (match_operand:DI 1 "register_operand" "r,r")
-			      (match_operand:DI 2 "arith_operand"    "r,Q"))
+			      (match_operand:DI 2 "arith_operand"    "r,I"))
 		     0)))]
   "TARGET_64BIT"
   "add%i2.w\t%0,%1,%2"

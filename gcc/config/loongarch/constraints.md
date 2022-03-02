@@ -177,12 +177,6 @@
   (and (match_code "const_int")
        (match_test "IMM12_OPERAND_UNSIGNED (ival)")))
 
-;; General constraints
-
-(define_constraint "Q"
-  "@internal"
-  (match_operand 0 "const_arith_operand"))
-
 (define_memory_constraint "W"
   "@internal
    A memory address based on a member of @code{BASE_REG_CLASS}.  This is
