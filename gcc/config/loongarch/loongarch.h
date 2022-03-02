@@ -569,7 +569,7 @@ enum reg_class
    factor or added to another register (as well as added to a
    displacement).  */
 
-#define INDEX_REG_CLASS NO_REGS
+#define INDEX_REG_CLASS GR_REGS
 
 /* We generally want to put call-clobbered registers ahead of
    call-saved ones.  (IRA expects this.)  */
@@ -797,13 +797,15 @@ typedef struct loongarch_args
 
 /* Addressing modes, and classification of registers for them.  */
 
-#define REGNO_OK_FOR_INDEX_P(REGNO) 0
+#define REGNO_OK_FOR_INDEX_P(REGNO) \
+  loongarch_regno_mode_ok_for_base_p (REGNO, VOIDmode, 1)
+
 #define REGNO_MODE_OK_FOR_BASE_P(REGNO, MODE) \
   loongarch_regno_mode_ok_for_base_p (REGNO, MODE, 1)
 
 /* Maximum number of registers that can appear in a valid memory address.  */
 
-#define MAX_REGS_PER_ADDRESS 1
+#define MAX_REGS_PER_ADDRESS 2
 
 /* Check for constness inline but use loongarch_legitimate_address_p
    to check whether a constant really is an address.  */

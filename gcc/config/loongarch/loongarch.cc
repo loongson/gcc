@@ -97,6 +97,9 @@ along with GCC; see the file COPYING3.  If not see
        A natural register + offset address.  The register satisfies
        loongarch_valid_base_register_p and the offset is a const_arith_operand.
 
+   ADDRESS_REG_REG
+       A base register indexed by (optionally scaled) register.
+
    ADDRESS_CONST_INT
        A signed 16-bit constant address.
 
@@ -105,6 +108,7 @@ along with GCC; see the file COPYING3.  If not see
 enum loongarch_address_type
 {
   ADDRESS_REG,
+  ADDRESS_REG_REG,
   ADDRESS_CONST_INT,
   ADDRESS_SYMBOLIC
 };
@@ -1804,6 +1808,35 @@ loongarch_valid_offset_p (rtx x, machine_mode mode)
   return true;
 }
 
+static bool
+loongarch_valid_index_p (struct loongarch_address_info *info, rtx x,
+			  machine_mode mode, bool strict_p)
+{
+  rtx index;
+
+  if ((REG_P (x) || SUBREG_P (x))
+      && GET_MODE (x) == Pmode)
+    {
+      index = x;
+    }
+  else
+    return false;
+
+  if (!strict_p
+      && GET_CODE (index) == SUBREG
+      && contains_reg_of_mode[GENERAL_REGS][GET_MODE (SUBREG_REG (index))])
+    index = SUBREG_REG (index);
+
+  if (loongarch_valid_base_register_p (index, mode, strict_p))
+    {
+      info->type = ADDRESS_REG_REG;
+      info->offset = index;
+      return true;
+    }
+
+  return false;
+}
+
 /* Return true if X is a valid address for machine mode MODE.  If it is,
    fill in INFO appropriately.  STRICT_P is true if REG_OK_STRICT is in
    effect.  */
@@ -1822,12 +1855,25 @@ loongarch_classify_address (struct loongarch_address_info *info, rtx x,
       return loongarch_valid_base_register_p (info->reg, mode, strict_p);
 
     case PLUS:
+      if (loongarch_valid_base_register_p (XEXP (x, 0), mode, strict_p)
+	  && loongarch_valid_index_p (info, XEXP (x, 1), mode, strict_p))
+	{
+	  info->reg = XEXP (x, 0);
+	  return true;
+	}
+
+      if (loongarch_valid_base_register_p (XEXP (x, 1), mode, strict_p)
+	 && loongarch_valid_index_p (info, XEXP (x, 0), mode, strict_p))
+	{
+	  info->reg = XEXP (x, 1);
+	  return true;
+	}
+
       info->type = ADDRESS_REG;
       info->reg = XEXP (x, 0);
       info->offset = XEXP (x, 1);
       return (loongarch_valid_base_register_p (info->reg, mode, strict_p)
 	      && loongarch_valid_offset_p (info->offset, mode));
-
     default:
       return false;
     }
@@ -1843,31 +1889,17 @@ loongarch_legitimate_address_p (machine_mode mode, rtx x, bool strict_p)
   return loongarch_classify_address (&addr, x, mode, strict_p);
 }
 
-/* Return true if X is a legitimate $sp-based address for mode MODE.  */
-
-bool
-loongarch_stack_address_p (rtx x, machine_mode mode)
-{
-  struct loongarch_address_info addr;
-
-  return (loongarch_classify_address (&addr, x, mode, false)
-	  && addr.type == ADDRESS_REG
-	  && addr.reg == stack_pointer_rtx);
-}
-
-/* Return true if ADDR matches the pattern for the L{B,H,W,D}{,U}X load
-   indexed address instruction.  Note that such addresses are
-   not considered legitimate in the TARGET_LEGITIMATE_ADDRESS_P
-   sense, because their use is so restricted.  */
+/* Return true if ADDR matches the pattern for the indexed address
+   instruction.  */
 
 static bool
-loongarch_lx_address_p (rtx addr, machine_mode mode ATTRIBUTE_UNUSED)
+loongarch_index_address_p (rtx addr, machine_mode mode ATTRIBUTE_UNUSED)
 {
   if (GET_CODE (addr) != PLUS
       || !REG_P (XEXP (addr, 0))
       || !REG_P (XEXP (addr, 1)))
     return false;
-  return false;
+  return true;
 }
 
 /* Return the number of instructions needed to load or store a value
@@ -1899,6 +1931,9 @@ loongarch_address_insns (rtx x, machine_mode mode, bool might_split_p)
     switch (addr.type)
       {
       case ADDRESS_REG:
+	return factor;
+
+      case ADDRESS_REG_REG:
 	return factor;
 
       case ADDRESS_CONST_INT:
@@ -2512,6 +2547,7 @@ loongarch_legitimize_move (machine_mode mode, rtx dest, rtx src)
       set_unique_reg_note (get_last_insn (), REG_EQUAL, copy_rtx (src));
       return true;
     }
+
   return false;
 }
 
@@ -2814,16 +2850,16 @@ loongarch_rtx_costs (rtx x, machine_mode mode, int outer_code,
       /* If the address is legitimate, return the number of
 	 instructions it needs.  */
       addr = XEXP (x, 0);
+      /* Check for a scaled indexed address.  */
+      if (loongarch_index_address_p (addr, mode))
+	{
+	  *total = COSTS_N_INSNS (2);
+	  return true;
+	}
       cost = loongarch_address_insns (addr, mode, true);
       if (cost > 0)
 	{
 	  *total = COSTS_N_INSNS (cost + 1);
-	  return true;
-	}
-      /* Check for a scaled indexed address.  */
-      if (loongarch_lx_address_p (addr, mode))
-	{
-	  *total = COSTS_N_INSNS (2);
 	  return true;
 	}
       /* Otherwise use the default handling.  */
@@ -3258,6 +3294,65 @@ loongarch_split_move_insn (rtx dest, rtx src, rtx insn)
 static HOST_WIDE_INT
 loongarch_constant_alignment (const_tree exp, HOST_WIDE_INT align);
 
+const char *
+loongarch_output_move_index (rtx x, machine_mode mode, bool ldr)
+{
+  int index = exact_log2 (GET_MODE_SIZE (mode));
+  if (!IN_RANGE (index, 0, 3))
+    return NULL;
+
+  struct loongarch_address_info info;
+  if ((loongarch_classify_address (&info, x, mode, false)
+       && !(info.type == ADDRESS_REG_REG))
+      || !loongarch_legitimate_address_p (mode, x, false))
+    return NULL;
+
+  const char *const insn[][4] =
+    {
+      {
+	"stx.b\t%z1,%0",
+	"stx.h\t%z1,%0",
+	"stx.w\t%z1,%0",
+	"stx.d\t%z1,%0",
+      },
+      {
+	"ldx.bu\t%0,%1",
+	"ldx.hu\t%0,%1",
+	"ldx.w\t%0,%1",
+	"ldx.d\t%0,%1",
+      }
+    };
+
+  return insn[ldr][index];
+}
+
+const char *
+loongarch_output_move_index_float (rtx x, machine_mode mode, bool ldr)
+{
+  int index = exact_log2 (GET_MODE_SIZE (mode));
+  if (!IN_RANGE (index, 2, 3))
+    return NULL;
+
+  struct loongarch_address_info info;
+  if ((loongarch_classify_address (&info, x, mode, false)
+       && !(info.type == ADDRESS_REG_REG))
+      || !loongarch_legitimate_address_p (mode, x, false))
+    return NULL;
+
+  const char *const insn[][2] =
+    {
+	{
+	  "fstx.s\t%1,%0",
+	  "fstx.d\t%1,%0"
+	},
+	{
+	  "fldx.s\t%0,%1",
+	  "fldx.d\t%0,%1"
+	},
+    };
+
+  return insn[ldr][index-2];
+}
 /* Return the appropriate instructions to move SRC into DEST.  Assume
    that SRC is operand 1 and DEST is operand 0.  */
 
@@ -3285,6 +3380,12 @@ loongarch_output_move (rtx dest, rtx src)
 	}
       if (dest_code == MEM)
 	{
+	  const char *insn = NULL;
+	  insn = loongarch_output_move_index (XEXP (dest, 0), GET_MODE (dest),
+					      false);
+	  if (insn)
+	    return insn;
+
 	  rtx offset = XEXP (dest, 0);
 	  if (GET_CODE (offset) == PLUS)
 	    offset = XEXP (offset, 1);
@@ -3317,6 +3418,12 @@ loongarch_output_move (rtx dest, rtx src)
 
       if (src_code == MEM)
 	{
+	  const char *insn = NULL;
+	  insn = loongarch_output_move_index (XEXP (src, 0), GET_MODE (src),
+					      true);
+	  if (insn)
+	    return insn;
+
 	  rtx offset = XEXP (src, 0);
 	  if (GET_CODE (offset) == PLUS)
 	    offset = XEXP (offset, 1);
@@ -3410,12 +3517,30 @@ loongarch_output_move (rtx dest, rtx src)
 	return dbl_p ? "fmov.d\t%0,%1" : "fmov.s\t%0,%1";
 
       if (dest_code == MEM)
-	return dbl_p ? "fst.d\t%1,%0" : "fst.s\t%1,%0";
+	{
+	  const char *insn = NULL;
+	  insn = loongarch_output_move_index_float (XEXP (dest, 0),
+						    GET_MODE (dest),
+						    false);
+	  if (insn)
+	    return insn;
+
+	  return dbl_p ? "fst.d\t%1,%0" : "fst.s\t%1,%0";
+	}
     }
   if (dest_code == REG && FP_REG_P (REGNO (dest)))
     {
       if (src_code == MEM)
-	return dbl_p ? "fld.d\t%0,%1" : "fld.s\t%0,%1";
+	{
+	  const char *insn = NULL;
+	  insn = loongarch_output_move_index_float (XEXP (src, 0),
+						    GET_MODE (src),
+						    true);
+	  if (insn)
+	    return insn;
+
+	  return dbl_p ? "fld.d\t%0,%1" : "fld.s\t%0,%1";
+	}
     }
   gcc_unreachable ();
 }
@@ -4443,6 +4568,11 @@ loongarch_print_operand_address (FILE *file, machine_mode /* mode  */, rtx x)
       case ADDRESS_REG:
 	fprintf (file, "%s,", reg_names[REGNO (addr.reg)]);
 	loongarch_print_operand (file, addr.offset, 0);
+	return;
+
+      case ADDRESS_REG_REG:
+	fprintf (file, "%s,%s", reg_names[REGNO (addr.reg)],
+				reg_names[REGNO (addr.offset)]);
 	return;
 
       case ADDRESS_CONST_INT:
@@ -5707,8 +5837,7 @@ loongarch_output_mi_thunk (FILE *file, tree thunk_fndecl ATTRIBUTE_UNUSED,
   final_end_function ();
   assemble_end_function (thunk_fndecl, fnname);
 
-  /* Clean up the vars set above.  Note that final_end_function resets
-     the global pointer for us.  */
+  /* Stop pretending to be a post-reload pass.  */
   reload_completed = 0;
 }
 

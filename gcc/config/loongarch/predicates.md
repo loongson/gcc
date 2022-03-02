@@ -496,10 +496,6 @@
 (define_predicate "symbol_ref_operand"
   (match_code "symbol_ref"))
 
-(define_predicate "stack_operand"
-  (and (match_code "mem")
-       (match_test "loongarch_stack_address_p (XEXP (op, 0), GET_MODE (op))")))
-
 (define_predicate "equality_operator"
   (match_code "eq,ne"))
 

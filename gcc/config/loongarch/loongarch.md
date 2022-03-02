@@ -571,7 +571,7 @@
 (define_insn "add<mode>3"
   [(set (match_operand:GPR 0 "register_operand" "=r,r")
 	(plus:GPR (match_operand:GPR 1 "register_operand" "r,r")
-		  (match_operand:GPR 2 "arith_operand" "r,Q")))]
+		  (match_operand:GPR 2 "arith_operand" "r,I")))]
   ""
   "add%i2.<d>\t%0,%1,%2";
   [(set_attr "alu_type" "add")
@@ -582,7 +582,7 @@
   [(set (match_operand:DI 0 "register_operand" "=r,r")
 	(sign_extend:DI
 	     (plus:SI (match_operand:SI 1 "register_operand" "r,r")
-		      (match_operand:SI 2 "arith_operand" "r,Q"))))]
+		      (match_operand:SI 2 "arith_operand" "r,I"))))]
   "TARGET_64BIT"
   "add%i2.w\t%0,%1,%2"
   [(set_attr "alu_type" "add")
@@ -592,7 +592,7 @@
   [(set (match_operand:DI 0 "register_operand" "=r,r")
 	(sign_extend:DI
 	  (subreg:SI (plus:DI (match_operand:DI 1 "register_operand" "r,r")
-			      (match_operand:DI 2 "arith_operand"    "r,Q"))
+			      (match_operand:DI 2 "arith_operand"    "r,I"))
 		     0)))]
   "TARGET_64BIT"
   "add%i2.w\t%0,%1,%2"
@@ -1211,13 +1211,14 @@
 ;; Step A needs a real instruction but step B does not.
 
 (define_insn "truncdi<mode>2"
-  [(set (match_operand:SUBDI 0 "nonimmediate_operand" "=r,m")
-	(truncate:SUBDI (match_operand:DI 1 "register_operand" "r,r")))]
+  [(set (match_operand:SUBDI 0 "nonimmediate_operand" "=r,m,k")
+	(truncate:SUBDI (match_operand:DI 1 "register_operand" "r,r,r")))]
   "TARGET_64BIT"
   "@
     slli.w\t%0,%1,0
-    st.<size>\t%1,%0"
-  [(set_attr "move_type" "sll0,store")
+    st.<size>\t%1,%0
+    stx.<size>\t%1,%0"
+  [(set_attr "move_type" "sll0,store,store")
    (set_attr "mode" "SI")])
 
 (define_insn "truncdisi2_extended"
@@ -1258,37 +1259,40 @@
 ;;  ....................
 
 (define_insn "zero_extendsidi2"
-  [(set (match_operand:DI 0 "register_operand" "=r,r,r")
-	(zero_extend:DI (match_operand:SI 1 "nonimmediate_operand" "r,ZC,W")))]
+  [(set (match_operand:DI 0 "register_operand" "=r,r,r,r")
+	(zero_extend:DI (match_operand:SI 1 "nonimmediate_operand" "r,ZC,m,k")))]
   "TARGET_64BIT"
   "@
    bstrpick.d\t%0,%1,31,0
    ldptr.w\t%0,%1\n\tlu32i.d\t%0,0
-   ld.wu\t%0,%1"
-  [(set_attr "move_type" "arith,load,load")
+   ld.wu\t%0,%1
+   ldx.wu\t%0,%1"
+  [(set_attr "move_type" "arith,load,load,load")
    (set_attr "mode" "DI")
-   (set_attr "insn_count" "1,2,1")])
+   (set_attr "insn_count" "1,2,1,1")])
 
 (define_insn "zero_extend<SHORT:mode><GPR:mode>2"
-  [(set (match_operand:GPR 0 "register_operand" "=r,r")
+  [(set (match_operand:GPR 0 "register_operand" "=r,r,r")
 	(zero_extend:GPR
-	     (match_operand:SHORT 1 "nonimmediate_operand" "r,m")))]
+	     (match_operand:SHORT 1 "nonimmediate_operand" "r,m,k")))]
   ""
   "@
    bstrpick.w\t%0,%1,<SHORT:qi_hi>,0
-   ld.<SHORT:size>u\t%0,%1"
-  [(set_attr "move_type" "pick_ins,load")
-   (set_attr "compression" "*,*")
+   ld.<SHORT:size>u\t%0,%1
+   ldx.<SHORT:size>u\t%0,%1"
+  [(set_attr "move_type" "pick_ins,load,load")
+   (set_attr "compression" "*,*,*")
    (set_attr "mode" "<GPR:MODE>")])
 
 (define_insn "zero_extendqihi2"
-  [(set (match_operand:HI 0 "register_operand" "=r,r")
-	(zero_extend:HI (match_operand:QI 1 "nonimmediate_operand" "r,m")))]
+  [(set (match_operand:HI 0 "register_operand" "=r,r,r")
+	(zero_extend:HI (match_operand:QI 1 "nonimmediate_operand" "r,m,k")))]
   ""
   "@
    andi\t%0,%1,0xff
-   ld.bu\t%0,%1"
-  [(set_attr "move_type" "andi,load")
+   ld.bu\t%0,%1
+   ldx.bu\t%0,%1"
+  [(set_attr "move_type" "andi,load,load")
    (set_attr "mode" "HI")])
 
 ;; Combiner patterns to optimize truncate/zero_extend combinations.
@@ -1332,42 +1336,45 @@
 ;; what happens if the two pre-reload operands cannot be tied, and are
 ;; instead allocated two separate GPRs.
 (define_insn_and_split "extendsidi2"
-  [(set (match_operand:DI 0 "register_operand" "=r,r,r")
-	(sign_extend:DI (match_operand:SI 1 "nonimmediate_operand" "0,ZC,m")))]
+  [(set (match_operand:DI 0 "register_operand" "=r,r,r,r")
+	(sign_extend:DI (match_operand:SI 1 "nonimmediate_operand" "0,ZC,m,k")))]
   "TARGET_64BIT"
   "@
    #
    ldptr.w\t%0,%1
-   ld.w\t%0,%1"
+   ld.w\t%0,%1
+   ldx.w\t%0,%1"
   "&& reload_completed && register_operand (operands[1], VOIDmode)"
   [(const_int 0)]
 {
   emit_note (NOTE_INSN_DELETED);
   DONE;
 }
-  [(set_attr "move_type" "move,load,load")
+  [(set_attr "move_type" "move,load,load,load")
    (set_attr "mode" "DI")])
 
 (define_insn "extend<SHORT:mode><GPR:mode>2"
-  [(set (match_operand:GPR 0 "register_operand" "=r,r")
+  [(set (match_operand:GPR 0 "register_operand" "=r,r,r")
 	(sign_extend:GPR
-	     (match_operand:SHORT 1 "nonimmediate_operand" "r,m")))]
+	     (match_operand:SHORT 1 "nonimmediate_operand" "r,m,k")))]
   ""
   "@
    ext.w.<SHORT:size>\t%0,%1
-   ld.<SHORT:size>\t%0,%1"
-  [(set_attr "move_type" "signext,load")
+   ld.<SHORT:size>\t%0,%1
+   ldx.<SHORT:size>\t%0,%1"
+  [(set_attr "move_type" "signext,load,load")
    (set_attr "mode" "<GPR:MODE>")])
 
 (define_insn "extendqihi2"
-  [(set (match_operand:HI 0 "register_operand" "=r,r")
+  [(set (match_operand:HI 0 "register_operand" "=r,r,r")
 	(sign_extend:HI
-	     (match_operand:QI 1 "nonimmediate_operand" "r,m")))]
+	     (match_operand:QI 1 "nonimmediate_operand" "r,m,k")))]
   ""
   "@
    ext.w.b\t%0,%1
-   ld.b\t%0,%1"
-  [(set_attr "move_type" "signext,load")
+   ld.b\t%0,%1
+   ldx.b\t%0,%1"
+  [(set_attr "move_type" "signext,load,load")
    (set_attr "mode" "SI")])
 
 (define_insn "*extenddi_truncate<mode>"
@@ -1757,23 +1764,23 @@
 })
 
 (define_insn "*movdi_32bit"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=r,r,r,ZC,r,m,*f,*f,*r,*m")
-       (match_operand:DI 1 "move_operand" "r,i,ZC,r,m,r,*J*r,*m,*f,*f"))]
+  [(set (match_operand:DI 0 "nonimmediate_operand" "=r,r,r,w,*f,*f,*r,*m")
+       (match_operand:DI 1 "move_operand" "r,i,w,r,*J*r,*m,*f,*f"))]
   "!TARGET_64BIT
    && (register_operand (operands[0], DImode)
        || reg_or_0_operand (operands[1], DImode))"
   { return loongarch_output_move (operands[0], operands[1]); }
-  [(set_attr "move_type" "move,const,load,store,load,store,mgtf,fpload,mftg,fpstore")
+  [(set_attr "move_type" "move,const,load,store,mgtf,fpload,mftg,fpstore")
    (set_attr "mode" "DI")])
 
 (define_insn "*movdi_64bit"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=r,r,r,ZC,r,m,*f,*f,*r,*m")
-	(match_operand:DI 1 "move_operand" "r,Yd,ZC,rJ,m,rJ,*r*J,*m,*f,*f"))]
+  [(set (match_operand:DI 0 "nonimmediate_operand" "=r,r,r,w,*f,*f,*r,*m")
+	(match_operand:DI 1 "move_operand" "r,Yd,w,rJ,*r*J,*m,*f,*f"))]
   "TARGET_64BIT
    && (register_operand (operands[0], DImode)
        || reg_or_0_operand (operands[1], DImode))"
   { return loongarch_output_move (operands[0], operands[1]); }
-  [(set_attr "move_type" "move,const,load,store,load,store,mgtf,fpload,mftg,fpstore")
+  [(set_attr "move_type" "move,const,load,store,mgtf,fpload,mftg,fpstore")
    (set_attr "mode" "DI")])
 
 ;; 32-bit Integer moves
@@ -1788,13 +1795,13 @@
 })
 
 (define_insn "*movsi_internal"
-  [(set (match_operand:SI 0 "nonimmediate_operand" "=r,r,r,ZC,r,m,*f,*f,*r,*m,*r,*z")
-	(match_operand:SI 1 "move_operand" "r,Yd,ZC,rJ,m,rJ,*r*J,*m,*f,*f,*z,*r"))]
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=r,r,r,w,*f,*f,*r,*m,*r,*z")
+	(match_operand:SI 1 "move_operand" "r,Yd,w,rJ,*r*J,*m,*f,*f,*z,*r"))]
   "(register_operand (operands[0], SImode)
        || reg_or_0_operand (operands[1], SImode))"
   { return loongarch_output_move (operands[0], operands[1]); }
-  [(set_attr "move_type" "move,const,load,store,load,store,mgtf,fpload,mftg,fpstore,mftg,mgtf")
-   (set_attr "compression" "all,*,*,*,*,*,*,*,*,*,*,*")
+  [(set_attr "move_type" "move,const,load,store,mgtf,fpload,mftg,fpstore,mftg,mgtf")
+   (set_attr "compression" "all,*,*,*,*,*,*,*,*,*")
    (set_attr "mode" "SI")])
 
 ;; 16-bit Integer moves
@@ -1814,13 +1821,13 @@
 })
 
 (define_insn "*movhi_internal"
-  [(set (match_operand:HI 0 "nonimmediate_operand" "=r,r,r,r,m")
-	(match_operand:HI 1 "move_operand" "r,Yd,I,m,rJ"))]
+  [(set (match_operand:HI 0 "nonimmediate_operand" "=r,r,r,r,m,r,k")
+	(match_operand:HI 1 "move_operand" "r,Yd,I,m,rJ,k,rJ"))]
   "(register_operand (operands[0], HImode)
        || reg_or_0_operand (operands[1], HImode))"
   { return loongarch_output_move (operands[0], operands[1]); }
-  [(set_attr "move_type" "move,const,const,load,store")
-   (set_attr "compression" "all,all,*,*,*")
+  [(set_attr "move_type" "move,const,const,load,store,load,store")
+   (set_attr "compression" "all,all,*,*,*,*,*")
    (set_attr "mode" "HI")])
 
 ;; 8-bit Integer moves
@@ -1840,13 +1847,13 @@
 })
 
 (define_insn "*movqi_internal"
-  [(set (match_operand:QI 0 "nonimmediate_operand" "=r,r,r,m")
-	(match_operand:QI 1 "move_operand" "r,I,m,rJ"))]
+  [(set (match_operand:QI 0 "nonimmediate_operand" "=r,r,r,m,r,k")
+	(match_operand:QI 1 "move_operand" "r,I,m,rJ,k,rJ"))]
   "(register_operand (operands[0], QImode)
        || reg_or_0_operand (operands[1], QImode))"
   { return loongarch_output_move (operands[0], operands[1]); }
-  [(set_attr "move_type" "move,const,load,store")
-   (set_attr "compression" "all,*,*,*")
+  [(set_attr "move_type" "move,const,load,store,load,store")
+   (set_attr "compression" "all,*,*,*,*,*")
    (set_attr "mode" "QI")])
 
 ;; 32-bit floating point moves
@@ -1861,13 +1868,13 @@
 })
 
 (define_insn "*movsf_hardfloat"
-  [(set (match_operand:SF 0 "nonimmediate_operand" "=f,f,f,m,m,*f,*r,*r,*r,*m")
-	(match_operand:SF 1 "move_operand" "f,G,m,f,G,*r,*f,*G*r,*m,*r"))]
+  [(set (match_operand:SF 0 "nonimmediate_operand" "=f,f,f,m,f,k,m,*f,*r,*r,*r,*m")
+	(match_operand:SF 1 "move_operand" "f,G,m,f,k,f,G,*r,*f,*G*r,*m,*r"))]
   "TARGET_HARD_FLOAT
    && (register_operand (operands[0], SFmode)
        || reg_or_0_operand (operands[1], SFmode))"
   { return loongarch_output_move (operands[0], operands[1]); }
-  [(set_attr "move_type" "fmove,mgtf,fpload,fpstore,store,mgtf,mftg,move,load,store")
+  [(set_attr "move_type" "fmove,mgtf,fpload,fpstore,fpload,fpstore,store,mgtf,mftg,move,load,store")
    (set_attr "mode" "SF")])
 
 (define_insn "*movsf_softfloat"
@@ -1892,13 +1899,13 @@
 })
 
 (define_insn "*movdf_hardfloat"
-  [(set (match_operand:DF 0 "nonimmediate_operand" "=f,f,f,m,m,*f,*r,*r,*r,*m")
-	(match_operand:DF 1 "move_operand" "f,G,m,f,G,*r,*f,*r*G,*m,*r"))]
+  [(set (match_operand:DF 0 "nonimmediate_operand" "=f,f,f,m,f,k,m,*f,*r,*r,*r,*m")
+	(match_operand:DF 1 "move_operand" "f,G,m,f,k,f,G,*r,*f,*r*G,*m,*r"))]
   "TARGET_DOUBLE_FLOAT
    && (register_operand (operands[0], DFmode)
        || reg_or_0_operand (operands[1], DFmode))"
   { return loongarch_output_move (operands[0], operands[1]); }
-  [(set_attr "move_type" "fmove,mgtf,fpload,fpstore,store,mgtf,mftg,move,load,store")
+  [(set_attr "move_type" "fmove,mgtf,fpload,fpstore,fpload,fpstore,store,mgtf,mftg,move,load,store")
    (set_attr "mode" "DF")])
 
 (define_insn "*movdf_softfloat"
@@ -2155,9 +2162,9 @@
 (define_insn "*<GPR:storex>_<P:mode>"
   [(set (mem:GPR (plus:P (match_operand:P 1 "register_operand" "r")
 			 (match_operand:P 2 "register_operand" "r")))
-	(match_operand:GPR 0 "register_operand" "r"))]
+	(match_operand:GPR 0 "reg_or_0_operand" "rJ"))]
   ""
-  "<GPR:storex>\t%0,%1,%2"
+  "<GPR:storex>\t%z0,%1,%2"
   [(set_attr "type" "store")
    (set_attr "mode" "<GPR:MODE>")])
 
@@ -2176,9 +2183,9 @@
 (define_insn "*extend_<SHORT:storex>"
   [(set (mem:SHORT (plus:P (match_operand:P 1 "register_operand" "r")
 			   (match_operand:P 2 "register_operand" "r")))
-	(match_operand:SHORT 0 "register_operand" "r"))]
+	(match_operand:SHORT 0 "reg_or_0_operand" "rJ"))]
   ""
-  "<SHORT:storex>\t%0,%1,%2"
+  "<SHORT:storex>\t%z0,%1,%2"
   [(set_attr "type" "store")
    (set_attr "mode" "SI")])
 
@@ -3570,10 +3577,12 @@
 
 ;; Match paired HI/SI/SF/DFmode load/stores.
 (define_insn "*join2_load_store<JOIN_MODE:mode>"
-  [(set (match_operand:JOIN_MODE 0 "nonimmediate_operand" "=r,f,m,m,r,ZC")
-	(match_operand:JOIN_MODE 1 "nonimmediate_operand" "m,m,r,f,ZC,r"))
-   (set (match_operand:JOIN_MODE 2 "nonimmediate_operand" "=r,f,m,m,r,ZC")
-	(match_operand:JOIN_MODE 3 "nonimmediate_operand" "m,m,r,f,ZC,r"))]
+  [(set (match_operand:JOIN_MODE 0 "nonimmediate_operand"
+  "=r,f,m,m,r,ZC,r,k,f,k")
+	(match_operand:JOIN_MODE 1 "nonimmediate_operand" "m,m,r,f,ZC,r,k,r,k,f"))
+   (set (match_operand:JOIN_MODE 2 "nonimmediate_operand"
+   "=r,f,m,m,r,ZC,r,k,f,k")
+	(match_operand:JOIN_MODE 3 "nonimmediate_operand" "m,m,r,f,ZC,r,k,r,k,f"))]
   "reload_completed"
   {
     bool load_p = (which_alternative == 0 || which_alternative == 1);
@@ -3596,8 +3605,9 @@
       }
     return "";
   }
-  [(set_attr "move_type" "load,fpload,store,fpstore,load,store")
-   (set_attr "insn_count" "2,2,2,2,2,2")])
+  [(set_attr "move_type"
+  "load,fpload,store,fpstore,load,store,load,store,fpload,fpstore")
+   (set_attr "insn_count" "2,2,2,2,2,2,2,2,2,2")])
 
 ;; 2 HI/SI/SF/DF loads are bonded.
 (define_peephole2
@@ -3627,10 +3637,10 @@
 
 ;; Match paired HImode loads.
 (define_insn "*join2_loadhi"
-  [(set (match_operand:SI 0 "register_operand" "=r")
-	(any_extend:SI (match_operand:HI 1 "non_volatile_mem_operand" "m")))
-   (set (match_operand:SI 2 "register_operand" "=r")
-	(any_extend:SI (match_operand:HI 3 "non_volatile_mem_operand" "m")))]
+  [(set (match_operand:SI 0 "register_operand" "=r,r")
+	(any_extend:SI (match_operand:HI 1 "non_volatile_mem_operand" "m,k")))
+   (set (match_operand:SI 2 "register_operand" "=r,r")
+	(any_extend:SI (match_operand:HI 3 "non_volatile_mem_operand" "m,k")))]
   "reload_completed"
   {
     /* Reg-renaming pass reuses base register if it is dead after bonded loads.
@@ -3649,8 +3659,8 @@
 
     return "";
   }
-  [(set_attr "move_type" "load")
-   (set_attr "insn_count" "2")])
+  [(set_attr "move_type" "load,load")
+   (set_attr "insn_count" "2,2")])
 
 
 ;; 2 HI loads are bonded.

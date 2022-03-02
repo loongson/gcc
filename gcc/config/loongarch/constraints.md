@@ -30,7 +30,8 @@
 ;; "h" "A constant call plt address."
 ;; "i" "Matches a general integer constant." (Global non-architectural)
 ;; "j" SIBCALL_REGS
-;; "k" <-----unused
+;; "k" "A memory operand whose address is formed by a base register and
+;;      (optionally scaled) index register."
 ;; "l" "A signed 16-bit constant."
 ;; "m" "A memory operand whose address is formed by a base register and offset
 ;;      that is suitable for use in instructions with the same addressing mode
@@ -64,14 +65,13 @@
 ;; "N" <-----unused
 ;; "O" <-----unused
 ;; "P" <-----unused
-;; "Q" "A signed 12-bit constant"
+;; "Q" <-----unused
 ;; "R" <-----unused
 ;; "S" <-----unused
 ;; "T" <-----unused
 ;; "U" <-----unused
 ;; "V" "Matches a non-offsettable memory reference." (Global non-architectural)
-;; "W" "A memory address based on a member of @code{BASE_REG_CLASS}.  This is
-;;     true for all references."
+;; "W" <-----unused
 ;; "X" "Matches anything." (Global non-architectural)
 ;; "Y" -
 ;;    "Yd"
@@ -112,6 +112,13 @@
 
 (define_register_constraint "j" "SIBCALL_REGS"
   "@internal")
+
+(define_memory_constraint "k"
+  "A memory operand whose address is formed by a base register and (optionally scaled)
+   index register."
+  (and (match_code "mem")
+       (not (match_test "loongarch_14bit_shifted_offset_address_p (XEXP (op, 0), mode)"))
+       (not (match_test "loongarch_12bit_offset_address_p (XEXP (op, 0), mode)"))))
 
 (define_constraint "l"
 "A signed 16-bit constant."
@@ -169,21 +176,6 @@
   "An unsigned 12-bit constant (for logic instructions)."
   (and (match_code "const_int")
        (match_test "IMM12_OPERAND_UNSIGNED (ival)")))
-
-;; General constraints
-
-(define_constraint "Q"
-  "@internal"
-  (match_operand 0 "const_arith_operand"))
-
-(define_memory_constraint "W"
-  "@internal
-   A memory address based on a member of @code{BASE_REG_CLASS}.  This is
-   true for allreferences."
-  (and (match_code "mem")
-       (match_operand 0 "memory_operand")
-	    (and (not (match_operand 0 "stack_operand"))
-		 (not (match_test "CONSTANT_P (XEXP (op, 0))")))))
 
 (define_constraint "Yd"
   "@internal

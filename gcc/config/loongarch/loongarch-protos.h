@@ -106,7 +106,6 @@ extern bool loongarch_can_use_return_insn (void);
 extern bool loongarch_symbolic_constant_p (rtx, enum loongarch_symbol_context,
 					   enum loongarch_symbol_type *);
 extern int loongarch_regno_mode_ok_for_base_p (int, machine_mode, bool);
-extern bool loongarch_stack_address_p (rtx, machine_mode);
 extern int loongarch_address_insns (rtx, machine_mode, bool);
 extern int loongarch_const_insns (rtx);
 extern int loongarch_split_const_insns (rtx);
