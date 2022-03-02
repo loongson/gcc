@@ -30,7 +30,7 @@
 ;; "h" "A constant call plt address."
 ;; "i" "Matches a general integer constant." (Global non-architectural)
 ;; "j" SIBCALL_REGS
-;; "k" <-----unused
+;; "k" "A memory operand whose address is formed by a base register and offset register."
 ;; "l" "A signed 16-bit constant."
 ;; "m" "A memory operand whose address is formed by a base register and offset
 ;;      that is suitable for use in instructions with the same addressing mode
@@ -64,7 +64,7 @@
 ;; "N" <-----unused
 ;; "O" <-----unused
 ;; "P" <-----unused
-;; "Q" "A signed 12-bit constant"
+;; "Q" <-----unused
 ;; "R" <-----unused
 ;; "S" <-----unused
 ;; "T" <-----unused
@@ -112,6 +112,13 @@
 
 (define_register_constraint "j" "SIBCALL_REGS"
   "@internal")
+
+(define_memory_constraint "k"
+  "A memory operand whose address is formed by a base register and offset.
+   And offset is register or 12 bit immediate."
+  (and (match_code "mem")
+       (not (match_test "loongarch_14bit_shifted_offset_address_p (XEXP (op, 0), mode)"))
+       (not (match_test "loongarch_12bit_offset_address_p (XEXP (op, 0), mode)"))))
 
 (define_constraint "l"
 "A signed 16-bit constant."
