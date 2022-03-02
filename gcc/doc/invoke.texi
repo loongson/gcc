@@ -1001,7 +1001,7 @@ Objective-C and Objective-C++ Dialects}.
 -mbranch-cost=@var{n}  -mcheck-zero-division -mno-check-zero-division @gol
 -mcond-move-int  -mno-cond-move-int @gol
 -mcond-move-float  -mno-cond-move-float @gol
--memcpy  -mno-memcpy -mstrict-align @gol
+-memcpy  -mno-memcpy -mstrict-align -mno-strict-align @gol
 -mmax-inline-memcpy-size=@var{n} @gol
 -mlra -mcmodel=@var{code-model}}
 
@@ -24442,7 +24442,7 @@ division'.
 @item -mcond-move-int
 @itemx -mno-cond-move-int
 @opindex -mcond-move-int
-Conditional moves for floating point are enabled (disabled). The default is
+Conditional moves for integer are enabled (disabled). The default is
 '-mcond-move-float'.
 
 @item -mmemcpy
@@ -24460,7 +24460,8 @@ Use the new LRA register allocator. By default, the LRA is used.
 @itemx -mno-strict-align
 @opindex -mstrict-align
 Avoid or allow generating memory accesses that may not be aligned on a natural
-object boundary as described in the architecture specification.
+object boundary as described in the architecture specification. The default is
+'-mno-strict-align'.
 
 @item -msmall-data-limit=@var{number}
 @opindex -msmall-data-limit

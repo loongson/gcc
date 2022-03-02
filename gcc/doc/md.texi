@@ -2761,6 +2761,9 @@ A floating-point register (if available).
 A constant call plt address.
 @item j
 A rester that is used as sibing call.
+@item k
+A memory operand whose address is formed by a base register and
+(optionally scaled) index register.
 @item l
 A signed 16-bit constant.
 @item m
@@ -2775,6 +2778,8 @@ A constant call weak address.
 A signed 52bit constant and low 32-bit is zero (for logic instructions).
 @item v
 A nsigned 64-bit constant and low 44-bit is zero (for logic instructions).
+@item w
+Matches any valid memory.
 @item z
 A floating-point condition code register.
 @item G
@@ -2785,11 +2790,6 @@ A signed 12-bit constant (for arithmetic instructions).
 Integer zero.
 @item K
 An unsigned 12-bit constant (for logic instructions).
-@item Q
-A 12-bit constant used for logical operations.
-@item W
-A memory address based on a member of @code{BASE_REG_CLASS}.  This is
-true for allreferences.
 @item Yd
 A constant @code{move_operand} that can be safely loaded using
 @code{la}.
