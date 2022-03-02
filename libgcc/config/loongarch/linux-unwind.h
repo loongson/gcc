@@ -52,7 +52,7 @@ loongarch_fallback_frame_state (struct _Unwind_Context *context,
 	siginfo_t info;
 	ucontext_t uc;
       } *rt_ = context->cfa;
-      sc = &rt_->uc.uc_mcontext;
+      sc = (struct sigcontext *) (void *) &rt_->uc.uc_mcontext;
     }
   else
     return _URC_END_OF_STACK;

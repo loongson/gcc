@@ -6442,6 +6442,9 @@ loongarch_starting_frame_offset (void)
 #undef TARGET_SECONDARY_RELOAD
 #define TARGET_SECONDARY_RELOAD loongarch_secondary_reload
 
+#undef  TARGET_HAVE_SPECULATION_SAFE_VALUE
+#define TARGET_HAVE_SPECULATION_SAFE_VALUE speculation_safe_value_not_needed
+
 struct gcc_target targetm = TARGET_INITIALIZER;
 
 #include "gt-loongarch.h"
