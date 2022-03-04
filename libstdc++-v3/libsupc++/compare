@@ -843,6 +843,19 @@ namespace std
 	static constexpr strong_ordering
 	_S_fp_cmp(_Tp __x, _Tp __y) noexcept
 	{
+#ifdef __vax__
+	  if (__builtin_isnan(__x) || __builtin_isnan(__y))
+	    {
+	      int __ix = (bool) __builtin_isnan(__x);
+	      int __iy = (bool) __builtin_isnan(__y);
+	      __ix *= __builtin_signbit(__x) ? -1 : 1;
+	      __iy *= __builtin_signbit(__y) ? -1 : 1;
+	      return __ix <=> __iy;
+	    }
+	  else
+	    return __builtin_bit_cast(strong_ordering, __x <=> __y);
+#endif
+
 	  auto __ix = _S_fp_bits(__x);
 	  auto __iy = _S_fp_bits(__y);
 
@@ -850,8 +863,6 @@ namespace std
 	    return strong_ordering::equal; // All bits are equal, we're done.
 
 	  using enum _Fp_fmt;
-	  using _Int = decltype(__ix);
-
 	  constexpr auto __fmt = _S_fp_fmt<_Tp>();
 
 	  if constexpr (__fmt == _Dbldbl) // double-double
@@ -899,6 +910,8 @@ namespace std
 		  // bit to be reversed. Flip that to give desired ordering.
 		  if (__builtin_isnan(__x) && __builtin_isnan(__y))
 		    {
+		      using _Int = decltype(__ix);
+
 		      constexpr int __nantype = __fmt == _Binary32  ?  22
 					      : __fmt == _Binary64  ?  51
 					      : __fmt == _Binary128 ? 111

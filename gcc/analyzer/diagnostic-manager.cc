@@ -629,7 +629,8 @@ saved_diagnostic::saved_diagnostic (const state_machine *sm,
   m_var (var), m_sval (sval), m_state (state),
   m_d (d), m_trailing_eedge (NULL),
   m_idx (idx),
-  m_best_epath (NULL), m_problem (NULL)
+  m_best_epath (NULL), m_problem (NULL),
+  m_notes ()
 {
   gcc_assert (m_stmt || m_stmt_finder);
 
@@ -651,6 +652,11 @@ saved_diagnostic::~saved_diagnostic ()
 bool
 saved_diagnostic::operator== (const saved_diagnostic &other) const
 {
+  if (m_notes.length () != other.m_notes.length ())
+    return false;
+  for (unsigned i = 0; i < m_notes.length (); i++)
+    if (!m_notes[i]->equal_p (*other.m_notes[i]))
+      return false;
   return (m_sm == other.m_sm
 	  /* We don't compare m_enode.  */
 	  && m_snode == other.m_snode
@@ -660,6 +666,15 @@ saved_diagnostic::operator== (const saved_diagnostic &other) const
 	  && m_state == other.m_state
 	  && m_d->equal_p (*other.m_d)
 	  && m_trailing_eedge == other.m_trailing_eedge);
+}
+
+/* Add PN to this diagnostic, taking ownership of it.  */
+
+void
+saved_diagnostic::add_note (pending_note *pn)
+{
+  gcc_assert (pn);
+  m_notes.safe_push (pn);
 }
 
 /* Return a new json::object of the form
@@ -697,6 +712,7 @@ saved_diagnostic::to_json () const
      exploded_edge *m_trailing_eedge;
      enum status m_status;
      feasibility_problem *m_problem;
+     auto_delete_vec <pending_note> m_notes;
   */
 
   return sd_obj;
@@ -769,6 +785,15 @@ saved_diagnostic::supercedes_p (const saved_diagnostic &other) const
   return m_d->supercedes_p (*other.m_d);
 }
 
+/* Emit any pending notes owned by this diagnostic.  */
+
+void
+saved_diagnostic::emit_any_notes () const
+{
+  for (auto pn : m_notes)
+    pn->emit ();
+}
+
 /* State for building a checker_path from a particular exploded_path.
    In particular, this precomputes reachability information: the set of
    source enodes for which a path be found to the diagnostic enode.  */
@@ -824,13 +849,28 @@ private:
   const feasibility_problem *m_feasibility_problem;
 };
 
+/* Determine the emission location for PD at STMT in FUN.  */
+
+static location_t
+get_emission_location (const gimple *stmt, function *fun,
+		       const pending_diagnostic &pd)
+{
+  location_t loc = get_stmt_location (stmt, fun);
+
+  /* Allow the pending_diagnostic to fix up the location.  */
+  loc = pd.fixup_location (loc);
+
+  return loc;
+}
+
 /* class diagnostic_manager.  */
 
 /* diagnostic_manager's ctor.  */
 
 diagnostic_manager::diagnostic_manager (logger *logger, engine *eng,
 					int verbosity)
-: log_user (logger), m_eng (eng), m_verbosity (verbosity)
+: log_user (logger), m_eng (eng), m_verbosity (verbosity),
+  m_num_disabled_diagnostics (0)
 {
 }
 
@@ -851,6 +891,25 @@ diagnostic_manager::add_diagnostic (const state_machine *sm,
   /* We must have an enode in order to be able to look for paths
      through the exploded_graph to the diagnostic.  */
   gcc_assert (enode);
+
+  /* If this warning is ultimately going to be rejected by a -Wno-analyzer-*
+     flag, reject it now.
+     We can only do this for diagnostics where we already know the stmt,
+     and thus can determine the emission location.  */
+  if (stmt)
+    {
+      location_t loc = get_emission_location (stmt, snode->m_fun, *d);
+      int option = d->get_controlling_option ();
+      if (!warning_enabled_at (loc, option))
+	{
+	  if (get_logger ())
+	    get_logger ()->log ("rejecting disabled warning %qs",
+				d->get_kind ());
+	  delete d;
+	  m_num_disabled_diagnostics++;
+	  return;
+	}
+    }
 
   saved_diagnostic *sd
     = new saved_diagnostic (sm, enode, snode, stmt, finder, var, sval,
@@ -873,6 +932,20 @@ diagnostic_manager::add_diagnostic (exploded_node *enode,
 {
   gcc_assert (enode);
   add_diagnostic (NULL, enode, snode, stmt, finder, NULL_TREE, NULL, 0, d);
+}
+
+/* Add PN to the most recent saved_diagnostic.  */
+
+void
+diagnostic_manager::add_note (pending_note *pn)
+{
+  LOG_FUNC (get_logger ());
+  gcc_assert (pn);
+
+  /* Get most recent saved_diagnostic.  */
+  gcc_assert (m_saved_diagnostics.length () > 0);
+  saved_diagnostic *sd = m_saved_diagnostics[m_saved_diagnostics.length () - 1];
+  sd->add_note (pn);
 }
 
 /* Return a new json::object of the form
@@ -1147,6 +1220,7 @@ diagnostic_manager::emit_saved_diagnostics (const exploded_graph &eg)
   LOG_SCOPE (get_logger ());
   auto_timevar tv (TV_ANALYZER_DIAGNOSTICS);
   log ("# saved diagnostics: %i", m_saved_diagnostics.length ());
+  log ("# disabled diagnostics: %i", m_num_disabled_diagnostics);
   if (get_logger ())
     {
       unsigned i;
@@ -1226,11 +1300,10 @@ diagnostic_manager::emit_saved_diagnostic (const exploded_graph &eg,
 
   emission_path.prepare_for_emission (sd.m_d);
 
-  location_t loc = get_stmt_location (sd.m_stmt, sd.m_snode->m_fun);
+  location_t loc
+    = get_emission_location (sd.m_stmt, sd.m_snode->m_fun, *sd.m_d);
 
-  /* Allow the pending_diagnostic to fix up the primary location
-     and any locations for events.  */
-  loc = sd.m_d->fixup_location (loc);
+  /* Allow the pending_diagnostic to fix up the locations of events.  */
   emission_path.fixup_locations (sd.m_d);
 
   gcc_rich_location rich_loc (loc);
@@ -1240,6 +1313,8 @@ diagnostic_manager::emit_saved_diagnostic (const exploded_graph &eg,
   auto_cfun sentinel (sd.m_snode->m_fun);
   if (sd.m_d->emit (&rich_loc))
     {
+      sd.emit_any_notes ();
+
       unsigned num_dupes = sd.get_num_dupes ();
       if (flag_analyzer_show_duplicate_count && num_dupes > 0)
 	inform_n (loc, num_dupes,

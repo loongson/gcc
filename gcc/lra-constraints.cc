@@ -3625,8 +3625,21 @@ process_address_1 (int nop, bool check_only_p,
 		  *ad.inner = gen_rtx_LO_SUM (Pmode, new_reg, addr);
 		  if (!valid_address_p (op, &ad, cn))
 		    {
-		      *ad.inner = addr; /* Punt.  */
-		      code = -1;
+		      /* Try to put lo_sum into register.  */
+		      insn = emit_insn (gen_rtx_SET
+					(new_reg,
+					 gen_rtx_LO_SUM (Pmode, new_reg, addr)));
+		      code = recog_memoized (insn);
+		      if (code >= 0)
+			{
+			  *ad.inner = new_reg;
+			  if (!valid_address_p (op, &ad, cn))
+			    {
+			      *ad.inner = addr;
+			      code = -1;
+			    }
+			}
+
 		    }
 		}
 	      if (code < 0)
@@ -5981,12 +5994,17 @@ split_reg (bool before_p, int original_regno, rtx_insn *insn,
 			 before_p ? NULL : save,
 			 call_save_p
 			 ?  "Add save<-reg" : "Add split<-reg");
-  if (nregs > 1)
+  if (nregs > 1 || original_regno < FIRST_PSEUDO_REGISTER)
     /* If we are trying to split multi-register.  We should check
        conflicts on the next assignment sub-pass.  IRA can allocate on
        sub-register levels, LRA do this on pseudos level right now and
        this discrepancy may create allocation conflicts after
-       splitting.  */
+       splitting.
+
+       If we are trying to split hard register we should also check conflicts
+       as such splitting can create artificial conflict of the hard register
+       with another pseudo because of simplified conflict calculation in
+       LRA.  */
     check_and_force_assignment_correctness_p = true;
   if (lra_dump_file != NULL)
     fprintf (lra_dump_file,

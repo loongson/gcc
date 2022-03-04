@@ -1,3 +1,152 @@
+2022-03-16  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/104955
+	* diagnostic-manager.cc (get_emission_location): New.
+	(diagnostic_manager::diagnostic_manager): Initialize
+	m_num_disabled_diagnostics.
+	(diagnostic_manager::add_diagnostic): Reject diagnostics that
+	will eventually be rejected due to being disabled.
+	(diagnostic_manager::emit_saved_diagnostics): Log the number
+	of disabled diagnostics.
+	(diagnostic_manager::emit_saved_diagnostic): Split out logic for
+	determining emission location to get_emission_location.
+	* diagnostic-manager.h
+	(diagnostic_manager::m_num_disabled_diagnostics): New field.
+	* engine.cc (stale_jmp_buf::get_controlling_option): New.
+	(stale_jmp_buf::emit): Use it.
+	* pending-diagnostic.h
+	(pending_diagnostic::get_controlling_option): New vfunc.
+	* region-model.cc
+	(poisoned_value_diagnostic::get_controlling_option): New.
+	(poisoned_value_diagnostic::emit): Use it.
+	(shift_count_negative_diagnostic::get_controlling_option): New.
+	(shift_count_negative_diagnostic::emit): Use it.
+	(shift_count_overflow_diagnostic::get_controlling_option): New.
+	(shift_count_overflow_diagnostic::emit): Use it.
+	(dump_path_diagnostic::get_controlling_option): New.
+	(dump_path_diagnostic::emit): Use it.
+	(write_to_const_diagnostic::get_controlling_option): New.
+	(write_to_const_diagnostic::emit): Use it.
+	(write_to_string_literal_diagnostic::get_controlling_option): New.
+	(write_to_string_literal_diagnostic::emit): Use it.
+	* sm-file.cc (double_fclose::get_controlling_option): New.
+	(double_fclose::emit): Use it.
+	(file_leak::get_controlling_option): New.
+	(file_leak::emit): Use it.
+	* sm-malloc.cc (mismatching_deallocation::get_controlling_option):
+	New.
+	(mismatching_deallocation::emit): Use it.
+	(double_free::get_controlling_option): New.
+	(double_free::emit): Use it.
+	(possible_null_deref::get_controlling_option): New.
+	(possible_null_deref::emit): Use it.
+	(possible_null_arg::get_controlling_option): New.
+	(possible_null_arg::emit): Use it.
+	(null_deref::get_controlling_option): New.
+	(null_deref::emit): Use it.
+	(null_arg::get_controlling_option): New.
+	(null_arg::emit): Use it.
+	(use_after_free::get_controlling_option): New.
+	(use_after_free::emit): Use it.
+	(malloc_leak::get_controlling_option): New.
+	(malloc_leak::emit): Use it.
+	(free_of_non_heap::get_controlling_option): New.
+	(free_of_non_heap::emit): Use it.
+	* sm-pattern-test.cc (pattern_match::get_controlling_option): New.
+	(pattern_match::emit): Use it.
+	* sm-sensitive.cc
+	(exposure_through_output_file::get_controlling_option): New.
+	(exposure_through_output_file::emit): Use it.
+	* sm-signal.cc (signal_unsafe_call::get_controlling_option): New.
+	(signal_unsafe_call::emit): Use it.
+	* sm-taint.cc (tainted_array_index::get_controlling_option): New.
+	(tainted_array_index::emit): Use it.
+	(tainted_offset::get_controlling_option): New.
+	(tainted_offset::emit): Use it.
+	(tainted_size::get_controlling_option): New.
+	(tainted_size::emit): Use it.
+	(tainted_divisor::get_controlling_option): New.
+	(tainted_divisor::emit): Use it.
+	(tainted_allocation_size::get_controlling_option): New.
+	(tainted_allocation_size::emit): Use it.
+
+2022-03-15  David Malcolm  <dmalcolm@redhat.com>
+
+	* store.cc (store::store): Presize m_cluster_map.
+
+2022-03-10  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/104863
+	* constraint-manager.cc (constraint_manager::add_constraint):
+	Refresh the EC IDs when adding constraints implied by offsets.
+
+2022-03-10  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/104793
+	* analyzer.h (class pending_note): New forward decl.
+	* diagnostic-manager.cc (saved_diagnostic::saved_diagnostic):
+	Initialize m_notes.
+	(saved_diagnostic::operator==): Compare m_notes.
+	(saved_diagnostic::add_note): New.
+	(saved_diagnostic::emit_any_notes): New.
+	(diagnostic_manager::add_note): New.
+	(diagnostic_manager::emit_saved_diagnostic): Call emit_any_notes
+	after emitting the warning.
+	* diagnostic-manager.h (saved_diagnostic::add_note): New decl.
+	(saved_diagnostic::emit_any_notes): New decl.
+	(saved_diagnostic::m_notes): New field.
+	(diagnostic_manager::add_note): New decl.
+	* engine.cc (impl_region_model_context::add_note): New.
+	* exploded-graph.h (impl_region_model_context::add_note): New
+	decl.
+	* pending-diagnostic.h (class pending_note): New.
+	(class pending_note_subclass): New template.
+	* region-model.cc (class reason_attr_access): New.
+	(check_external_function_for_access_attr): Add class
+	annotating_ctxt and use it when checking region.
+	(noop_region_model_context::add_note): New.
+	* region-model.h (region_model_context::add_note): New vfunc.
+	(noop_region_model_context::add_note): New decl.
+	(class region_model_context_decorator): New.
+	(class note_adding_context): New.
+
+2022-03-10  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/104793
+	* region-model.cc
+	(region_model::check_external_function_for_access_attr): New.
+	(region_model::handle_unrecognized_call): Call it.
+	* region-model.h
+	(region_model::check_external_function_for_access_attr): New decl.
+	(region_model::handle_unrecognized_call): New decl.
+
+2022-03-10  David Malcolm  <dmalcolm@redhat.com>
+
+	* sm-taint.cc (taint_state_machine::check_for_tainted_size_arg):
+	Avoid generating duplicate saved_diagnostics by only handling the
+	rdwr_map entry for the ptrarg, not the duplicate entry for the
+	sizarg.
+
+2022-03-07  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/101983
+	* engine.cc (returning_from_function_p): New.
+	(impl_region_model_context::on_state_leak): Use it when rejecting
+	leaks at the return from "main".
+
+2022-03-07  Jakub Jelinek  <jakub@redhat.com>
+
+	* store.cc: Fix up duplicated word issue in a comment.
+	* analyzer.cc: Likewise.
+	* engine.cc: Likewise.
+	* sm-taint.cc: Likewise.
+
+2022-03-04  David Malcolm  <dmalcolm@redhat.com>
+
+	PR analyzer/103521
+	* analyzer.opt (-param=analyzer-max-svalue-depth=): Reduce from 13
+	to 12.
+
 2022-02-23  David Malcolm  <dmalcolm@redhat.com>
 
 	PR analyzer/104434
