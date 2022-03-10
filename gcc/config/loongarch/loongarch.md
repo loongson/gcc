@@ -2020,6 +2020,14 @@
   DONE;
 })
 
+;; Clear one FCC register
+
+(define_insn "movfcc"
+  [(set (match_operand:FCC 0 "register_operand" "=z")
+	(const_int 0))]
+  ""
+  "movgr2cf\t%0,$r0")
+
 ;; Conditional move instructions.
 
 (define_insn "*sel<code><GPR:mode>_using_<GPR2:mode>"
