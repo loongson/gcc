@@ -68,7 +68,7 @@ __builtin_loongarch_rdtimeh_w (void)
     :);
   return rdtime;
 }
-#define __rdtimel_w __builtin_loongarch_rdtimel_w
+#define __rdtimeh_w __builtin_loongarch_rdtimeh_w
 
 extern __inline __rdtime_t
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
@@ -81,16 +81,16 @@ __builtin_loongarch_rdtimel_w (void)
     :);
   return rdtime;
 }
-#define __rdtimeh_w __builtin_loongarch_rdtimeh_w
+#define __rdtimel_w __builtin_loongarch_rdtimel_w
 
 /* Assembly instruction format:	rj, fcsr.  */
 /* Data types in instruction templates:  USI, UQI.  */
 #define __movfcsr2gr(/*ui5*/ _1) __builtin_loongarch_movfcsr2gr ((_1));
 
-/* Assembly instruction format:	0, fcsr, rj.  */
+/* Assembly instruction format:	fcsr, rj.  */
 /* Data types in instruction templates:  VOID, UQI, USI.  */
 #define __movgr2fcsr(/*ui5*/ _1, _2) \
-  __builtin_loongarch_movgr2fcsr ((unsigned short) _1, (unsigned int) _2);
+  __builtin_loongarch_movgr2fcsr ((_1), (unsigned int) _2);
 
 #if defined __loongarch64
 /* Assembly instruction format:	ui5, rj, si12.  */
@@ -98,7 +98,7 @@ __builtin_loongarch_rdtimel_w (void)
 #define __dcacop(/*ui5*/ _1, /*unsigned long int*/ _2, /*si12*/ _3) \
   ((void) __builtin_loongarch_dcacop ((_1), (unsigned long int) (_2), (_3)))
 #else
-#error "Don't support this ABI."
+#error "Unsupported ABI."
 #endif
 
 /* Assembly instruction format:	rd, rj.  */
@@ -111,7 +111,7 @@ __cpucfg (unsigned int _1)
 }
 
 #ifdef __loongarch64
-/* Assembly instruction format:	rd, rj.  */
+/* Assembly instruction format:	rj, rk.  */
 /* Data types in instruction templates:  DI, DI.  */
 extern __inline void
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
@@ -120,7 +120,7 @@ __asrtle_d (long int _1, long int _2)
   __builtin_loongarch_asrtle_d ((long int) _1, (long int) _2);
 }
 
-/* Assembly instruction format:	rd, rj.  */
+/* Assembly instruction format:	rj, rk.  */
 /* Data types in instruction templates:  DI, DI.  */
 extern __inline void
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
@@ -136,7 +136,7 @@ __asrtgt_d (long int _1, long int _2)
 #define __dlddir(/*long int*/ _1, /*ui5*/ _2) \
   ((long int) __builtin_loongarch_dlddir ((long int) (_1), (_2)))
 #else
-#error "Don't support this ABI."
+#error "Unsupported ABI."
 #endif
 
 #if defined __loongarch64
@@ -145,7 +145,7 @@ __asrtgt_d (long int _1, long int _2)
 #define __dldpte(/*long int*/ _1, /*ui5*/ _2) \
   ((void) __builtin_loongarch_dldpte ((long int) (_1), (_2)))
 #else
-#error "Don't support this ABI."
+#error "Unsupported ABI."
 #endif
 
 /* Assembly instruction format:	rd, rj, rk.  */
@@ -303,8 +303,7 @@ extern __inline void
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
 __iocsrwr_b (unsigned char _1, unsigned int _2)
 {
-  return (void) __builtin_loongarch_iocsrwr_b ((unsigned char) _1,
-					       (unsigned int) _2);
+  __builtin_loongarch_iocsrwr_b ((unsigned char) _1, (unsigned int) _2);
 }
 
 /* Assembly instruction format:	rd, rj.  */
@@ -313,8 +312,7 @@ extern __inline void
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
 __iocsrwr_h (unsigned short _1, unsigned int _2)
 {
-  return (void) __builtin_loongarch_iocsrwr_h ((unsigned short) _1,
-					       (unsigned int) _2);
+  __builtin_loongarch_iocsrwr_h ((unsigned short) _1, (unsigned int) _2);
 }
 
 /* Assembly instruction format:	rd, rj.  */
@@ -323,8 +321,7 @@ extern __inline void
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
 __iocsrwr_w (unsigned int _1, unsigned int _2)
 {
-  return (void) __builtin_loongarch_iocsrwr_w ((unsigned int) _1,
-					       (unsigned int) _2);
+  __builtin_loongarch_iocsrwr_w ((unsigned int) _1, (unsigned int) _2);
 }
 
 #ifdef __loongarch64
@@ -334,8 +331,7 @@ extern __inline void
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
 __iocsrwr_d (unsigned long int _1, unsigned int _2)
 {
-  return (void) __builtin_loongarch_iocsrwr_d ((unsigned long int) _1,
-					       (unsigned int) _2);
+  __builtin_loongarch_iocsrwr_d ((unsigned long int) _1, (unsigned int) _2);
 }
 #endif
 

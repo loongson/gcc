@@ -223,8 +223,8 @@ static const struct loongarch_builtin_description loongarch_builtins[] = {
   DIRECT_NO_TARGET_BUILTIN (ibar, LARCH_VOID_FTYPE_USI, default),
 
   DIRECT_BUILTIN (cpucfg, LARCH_USI_FTYPE_USI, default),
-  DIRECT_BUILTIN (asrtle_d, LARCH_VOID_FTYPE_DI_DI, default),
-  DIRECT_BUILTIN (asrtgt_d, LARCH_VOID_FTYPE_DI_DI, default),
+  DIRECT_NO_TARGET_BUILTIN (asrtle_d, LARCH_VOID_FTYPE_DI_DI, default),
+  DIRECT_NO_TARGET_BUILTIN (asrtgt_d, LARCH_VOID_FTYPE_DI_DI, default),
   DIRECT_BUILTIN (dlddir, LARCH_DI_FTYPE_DI_UQI, default),
   DIRECT_BUILTIN (lddir, LARCH_SI_FTYPE_SI_UQI, default),
   DIRECT_NO_TARGET_BUILTIN (dldpte, LARCH_VOID_FTYPE_DI_UQI, default),
