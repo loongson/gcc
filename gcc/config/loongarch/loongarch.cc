@@ -1531,7 +1531,7 @@ loongarch_legitimate_constant_p (machine_mode mode ATTRIBUTE_UNUSED, rtx x)
 static bool
 loongarch_tls_symbol_p (rtx x)
 {
-  return GET_CODE (x) == SYMBOL_REF && SYMBOL_REF_TLS_MODEL (x) != 0;
+  return SYMBOL_REF_P (x) && SYMBOL_REF_TLS_MODEL (x) != 0;
 }
 
 /* Return true if SYMBOL_REF X is associated with a global symbol
@@ -1540,7 +1540,7 @@ loongarch_tls_symbol_p (rtx x)
 bool
 loongarch_global_symbol_p (const_rtx x)
 {
-  if (GET_CODE (x) == LABEL_REF)
+  if (LABEL_REF_P (x))
     return false;
 
   const_tree decl = SYMBOL_REF_DECL (x);
@@ -1557,7 +1557,7 @@ loongarch_global_symbol_p (const_rtx x)
 bool
 loongarch_global_symbol_noweak_p (const_rtx x)
 {
-  if (GET_CODE (x) == LABEL_REF)
+  if (LABEL_REF_P (x))
     return false;
 
   const_tree decl = SYMBOL_REF_DECL (x);
@@ -1575,7 +1575,7 @@ bool
 loongarch_weak_symbol_p (const_rtx x)
 {
   const_tree decl;
-  if (GET_CODE (x) == LABEL_REF || !(decl = SYMBOL_REF_DECL (x)))
+  if (LABEL_REF_P (x) || !(decl = SYMBOL_REF_DECL (x)))
     return false;
   return DECL_P (decl) && DECL_WEAK (decl);
 }
@@ -1585,7 +1585,7 @@ loongarch_weak_symbol_p (const_rtx x)
 bool
 loongarch_symbol_binds_local_p (const_rtx x)
 {
-  if (GET_CODE (x) == LABEL_REF)
+  if (LABEL_REF_P (x))
     return false;
 
   return (SYMBOL_REF_DECL (x) ? targetm.binds_local_p (SYMBOL_REF_DECL (x))
@@ -1609,17 +1609,17 @@ loongarch_classify_symbol (const_rtx x,
 			   enum loongarch_symbol_context context  \
 			   ATTRIBUTE_UNUSED)
 {
-  if (GET_CODE (x) == LABEL_REF)
+  if (LABEL_REF_P (x))
     {
       return SYMBOL_GOT_DISP;
     }
 
-  gcc_assert (GET_CODE (x) == SYMBOL_REF);
+  gcc_assert (SYMBOL_REF_P (x));
 
   if (SYMBOL_REF_TLS_MODEL (x))
     return SYMBOL_TLS;
 
-  if (GET_CODE (x) == SYMBOL_REF)
+  if (SYMBOL_REF_P (x))
     return SYMBOL_GOT_DISP;
 
   return SYMBOL_GOT_DISP;
@@ -1640,7 +1640,7 @@ loongarch_symbolic_constant_p (rtx x, enum loongarch_symbol_context context,
       *symbol_type = UNSPEC_ADDRESS_TYPE (x);
       x = UNSPEC_ADDRESS (x);
     }
-  else if (GET_CODE (x) == SYMBOL_REF || GET_CODE (x) == LABEL_REF)
+  else if (SYMBOL_REF_P (x) || LABEL_REF_P (x))
     {
       *symbol_type = loongarch_classify_symbol (x, context);
       if (*symbol_type == SYMBOL_TLS)
@@ -1777,7 +1777,7 @@ loongarch_regno_mode_ok_for_base_p (int regno,
 static bool
 loongarch_valid_base_register_p (rtx x, machine_mode mode, bool strict_p)
 {
-  if (!strict_p && GET_CODE (x) == SUBREG)
+  if (!strict_p && SUBREG_P (x))
     x = SUBREG_REG (x);
 
   return (REG_P (x)
@@ -1823,7 +1823,7 @@ loongarch_valid_index_p (struct loongarch_address_info *info, rtx x,
     return false;
 
   if (!strict_p
-      && GET_CODE (index) == SUBREG
+      && SUBREG_P (index)
       && contains_reg_of_mode[GENERAL_REGS][GET_MODE (SUBREG_REG (index))])
     index = SUBREG_REG (index);
 
@@ -3471,7 +3471,7 @@ loongarch_output_move (rtx dest, rtx src)
 	      /* The symbol must be aligned to 4 byte.  */
 	      unsigned int align;
 
-	      if (GET_CODE (src) == LABEL_REF)
+	      if (LABEL_REF_P (src))
 		align = 128 /* Whatever.  */;
 	      else if (CONSTANT_POOL_ADDRESS_P (src))
 		align = GET_MODE_ALIGNMENT (get_pool_mode (src));
@@ -4447,7 +4447,7 @@ loongarch_print_operand (FILE *file, rtx op, int letter)
       break;
 
     case 'V':
-      if (GET_CODE (op) == CONST_VECTOR)
+      if (CONST_VECTOR_P (op))
 	{
 	  machine_mode mode = GET_MODE_INNER (GET_MODE (op));
 	  unsigned HOST_WIDE_INT val = UINTVAL (CONST_VECTOR_ELT (op, 0));
@@ -4584,7 +4584,7 @@ loongarch_print_operand_address (FILE *file, machine_mode /* mode  */, rtx x)
 	output_addr_const (file, loongarch_strip_unspec_address (x));
 	return;
       }
-  if (GET_CODE (x) == CONST_INT)
+  if (CONST_INT_P (x))
     output_addr_const (file, x);
   else
     gcc_unreachable ();
@@ -4628,7 +4628,7 @@ loongarch_in_small_data_p (const_tree decl)
   if (TREE_CODE (decl) == STRING_CST || TREE_CODE (decl) == FUNCTION_DECL)
     return false;
 
-  if (TREE_CODE (decl) == VAR_DECL && DECL_SECTION_NAME (decl) != 0)
+  if (VAR_P (decl) && DECL_SECTION_NAME (decl) != 0)
     {
       const char *name;
 

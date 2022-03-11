@@ -200,5 +200,5 @@
   An address that is held in a general-purpose register.
   The offset is zero"
   (and (match_code "mem")
-       (match_test "GET_CODE (XEXP (op,0)) == REG")))
+       (match_test "REG_P (XEXP (op,0))")))
 
