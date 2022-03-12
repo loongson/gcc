@@ -61,8 +61,8 @@ loongarch_cpu_cpp_builtins (cpp_reader *pfile)
   builtin_assert ("cpu=loongarch");
   builtin_define ("__loongarch__");
 
-  LARCH_CPP_SET_PROCESSOR ("_LOONGARCH_ARCH", __ACTUAL_ARCH);
-  LARCH_CPP_SET_PROCESSOR ("_LOONGARCH_TUNE", __ACTUAL_TUNE);
+  LARCH_CPP_SET_PROCESSOR ("_LOONGARCH_ARCH", LARCH_ACTUAL_ARCH);
+  LARCH_CPP_SET_PROCESSOR ("_LOONGARCH_TUNE", LARCH_ACTUAL_TUNE);
 
   /* Base architecture / ABI.  */
   if (TARGET_64BIT)
@@ -103,7 +103,7 @@ loongarch_cpu_cpp_builtins (cpp_reader *pfile)
   builtin_define_with_int_value ("_LOONGARCH_SZINT", INT_TYPE_SIZE);
   builtin_define_with_int_value ("_LOONGARCH_SZLONG", LONG_TYPE_SIZE);
   builtin_define_with_int_value ("_LOONGARCH_SZPTR", POINTER_SIZE);
-  builtin_define_with_int_value ("_LOONGARCH_FPSET", 32 / MAX_FPRS_PER_FMT);
+  builtin_define_with_int_value ("_LOONGARCH_FPSET", 32);
   builtin_define_with_int_value ("_LOONGARCH_SPFPSET", 32);
 
 }

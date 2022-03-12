@@ -21,9 +21,5 @@ along with GCC; see the file COPYING3.  If not see
 
 FLOAT_MODE (TF, 16, ieee_quad_format);
 
-VECTOR_MODES (FLOAT, 8);      /*       V4HF V2SF */
-
 /* For floating point conditions in FCC registers.  */
 CC_MODE (FCC);
-
-INT_MODE (OI, 32);

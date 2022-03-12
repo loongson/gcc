@@ -35,10 +35,10 @@ extern const int loongarch_switch_mask[];
    shared by the driver and the compiler proper.  */
 void
 loongarch_config_target (struct loongarch_target *target,
-  HOST_WIDE_INT opt_switches,
-  int opt_arch, int opt_tune, int opt_fpu,
-  int opt_abi_base, int opt_abi_ext,
-  int opt_cmodel, int follow_multilib_list);
+			 HOST_WIDE_INT opt_switches,
+			 int opt_arch, int opt_tune, int opt_fpu,
+			 int opt_abi_base, int opt_abi_ext,
+			 int opt_cmodel, int follow_multilib_list);
 #endif
 
 
@@ -61,26 +61,26 @@ loongarch_config_target (struct loongarch_target *target,
 #define TARGET_DOUBLE_FLOAT_ABI	  (la_target.abi.base == ABI_BASE_LP64D)
 
 #define TARGET_64BIT		  (la_target.isa.base == ISA_BASE_LA64V100)
-#define TARGET_ABI_LP64	  (la_target.abi.base == ABI_BASE_LP64D \
+#define TARGET_ABI_LP64		  (la_target.abi.base == ABI_BASE_LP64D	\
 				   || la_target.abi.base == ABI_BASE_LP64F \
 				   || la_target.abi.base == ABI_BASE_LP64S)
 
 #define TARGET_ARCH_NATIVE	  (la_target.cpu_arch == CPU_NATIVE)
-#define __ACTUAL_ARCH		  (TARGET_ARCH_NATIVE \
+#define LARCH_ACTUAL_ARCH	  (TARGET_ARCH_NATIVE \
 				   ? (la_target.cpu_native < N_ARCH_TYPES \
 				      ? (la_target.cpu_native) : (CPU_NATIVE)) \
 				      : (la_target.cpu_arch))
 
 #define TARGET_TUNE_NATIVE	(la_target.cpu_tune == CPU_NATIVE)
-#define __ACTUAL_TUNE		(TARGET_TUNE_NATIVE \
+#define LARCH_ACTUAL_TUNE		(TARGET_TUNE_NATIVE \
 				 ? (la_target.cpu_native < N_TUNE_TYPES \
 				    ? (la_target.cpu_native) : (CPU_NATIVE)) \
 				    : (la_target.cpu_tune))
 
-#define TARGET_ARCH_LOONGARCH64	  (__ACTUAL_ARCH == CPU_LOONGARCH64)
-#define TARGET_ARCH_LA464	  (__ACTUAL_ARCH == CPU_LA464)
+#define TARGET_ARCH_LOONGARCH64	  (LARCH_ACTUAL_ARCH == CPU_LOONGARCH64)
+#define TARGET_ARCH_LA464	  (LARCH_ACTUAL_ARCH == CPU_LA464)
 
-#define TARGET_TUNE_LOONGARCH64	  (__ACTUAL_TUNE == CPU_LOONGARCH64)
-#define TARGET_TUNE_LA464	  (__ACTUAL_TUNE == CPU_LA464)
+#define TARGET_TUNE_LOONGARCH64	  (LARCH_ACTUAL_TUNE == CPU_LOONGARCH64)
+#define TARGET_TUNE_LA464	  (LARCH_ACTUAL_TUNE == CPU_LA464)
 
 #endif /* LOONGARCH_OPTS_H */
