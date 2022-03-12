@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-/* LoongArch external variables defined in loongarch.c.  */
+/* LoongArch external variables defined in loongarch.cc.  */
 
 #include "config/loongarch/loongarch-opts.h"
 
@@ -47,12 +47,6 @@ along with GCC; see the file COPYING3.  If not see
 
 #define TARGET_LIBGCC_SDATA_SECTION ".sdata"
 
-/* Support for a compile-time default CPU, et cetera.  The rules are:
-   --with-divide is ignored if -mdivide-traps or -mdivide-breaks are
-     specified.  */
-#define OPTION_DEFAULT_SPECS \
-  {"divide", "%{!mdivide-traps:%{!mdivide-breaks:-mdivide-%(VALUE)}}"},
-
 /* Driver native functions for SPEC processing in the GCC driver.  */
 #include "loongarch-driver.h"
 
@@ -66,17 +60,6 @@ along with GCC; see the file COPYING3.  If not see
 /* Tell collect what flags to pass to nm.  */
 #ifndef NM_FLAGS
 #define NM_FLAGS "-Bn"
-#endif
-
-/* SUBTARGET_ASM_DEBUGGING_SPEC handles passing debugging options to
-   the assembler.  It may be overridden by subtargets.  */
-
-#ifndef SUBTARGET_ASM_DEBUGGING_SPEC
-#define SUBTARGET_ASM_DEBUGGING_SPEC "\
-%{g} %{g0} %{g1} %{g2} %{g3} \
-%{ggdb:-g} %{ggdb0:-g0} %{ggdb1:-g1} %{ggdb2:-g2} %{ggdb3:-g3} \
-%{gstabs:-g} %{gstabs0:-g0} %{gstabs1:-g1} %{gstabs2:-g2} %{gstabs3:-g3} \
-%{gstabs+:-g} %{gstabs+0:-g0} %{gstabs+1:-g1} %{gstabs+2:-g2} %{gstabs+3:-g3}"
 #endif
 
 /* SUBTARGET_ASM_SPEC is always passed to the assembler.  It may be
@@ -127,7 +110,6 @@ along with GCC; see the file COPYING3.  If not see
 #define EXTRA_SPECS \
   {"subtarget_cc1_spec", SUBTARGET_CC1_SPEC}, \
   {"subtarget_cpp_spec", SUBTARGET_CPP_SPEC}, \
-  {"subtarget_asm_debugging_spec", SUBTARGET_ASM_DEBUGGING_SPEC}, \
   {"subtarget_asm_spec", SUBTARGET_ASM_SPEC},
 
 /* Registers may have a prefix which can be ignored when matching
@@ -200,18 +182,10 @@ along with GCC; see the file COPYING3.  If not see
 /* For LARCH, width of a floating point register.  */
 #define UNITS_PER_FPREG (TARGET_DOUBLE_FLOAT ? 8 : 4)
 
-/* The number of consecutive floating-point registers needed to store the
-   largest format supported by the FPU.  */
-#define MAX_FPRS_PER_FMT 1
-
-/* The number of consecutive floating-point registers needed to store the
-   smallest format supported by the FPU.  */
-#define MIN_FPRS_PER_FMT 1
-
 /* The largest size of value that can be held in floating-point
    registers and moved with a single instruction.  */
 #define UNITS_PER_HWFPVALUE \
-  (TARGET_SOFT_FLOAT ? 0 : MAX_FPRS_PER_FMT * UNITS_PER_FPREG)
+  (TARGET_SOFT_FLOAT ? 0 : UNITS_PER_FPREG)
 
 /* The largest size of value that can be held in floating-point
    registers.  */
@@ -424,9 +398,6 @@ along with GCC; see the file COPYING3.  If not see
 
 #define FP_REG_RTX_P(X) (REG_P (X) && FP_REG_P (REGNO (X)))
 
-#define HARD_REGNO_RENAME_OK(OLD_REG, NEW_REG) \
-  loongarch_hard_regno_rename_ok (OLD_REG, NEW_REG)
-
 /* Select a register mode required for caller save of hard regno REGNO.  */
 #define HARD_REGNO_CALLER_SAVE_MODE(REGNO, NREGS, MODE) \
   loongarch_hard_regno_caller_save_mode (REGNO, NREGS, MODE)
@@ -454,7 +425,7 @@ along with GCC; see the file COPYING3.  If not see
 #define LARCH_EPILOGUE_TEMP_REGNUM (GP_TEMP_FIRST)
 
 #define CALLEE_SAVED_REG_NUMBER(REGNO) \
-  ((REGNO) >= 22 && (REGNO) <= 31 ? (REGNO) -22 : -1)
+  ((REGNO) >= 22 && (REGNO) <= 31 ? (REGNO) - 22 : -1)
 
 #define LARCH_PROLOGUE_TEMP(MODE) \
   gen_rtx_REG (MODE, LARCH_PROLOGUE_TEMP_REGNUM)
@@ -494,10 +465,10 @@ along with GCC; see the file COPYING3.  If not see
 enum reg_class
 {
   NO_REGS,	  /* no registers in set  */
-  SIBCALL_REGS,	  /* SIBCALL_REGS  */
-  JIRL_REGS,	  /* JIRL_REGS  */
-  GR_REGS,	  /* integer registers  */
+  SIBCALL_REGS,	  /* registers used by indirect sibcalls  */
+  JIRL_REGS,	  /* registers used by indirect calls  */
   CSR_REGS,	  /* integer registers except for $r0 and $r1 for lcsr.  */
+  GR_REGS,	  /* integer registers  */
   FP_REGS,	  /* floating point registers  */
   FCC_REGS,	  /* status registers (fp status)  */
   FRAME_REGS,	  /* arg pointer and frame pointer  */
@@ -518,8 +489,8 @@ enum reg_class
   "NO_REGS",								\
   "SIBCALL_REGS",							\
   "JIRL_REGS",								\
-  "GR_REGS",								\
   "CSR_REGS",								\
+  "GR_REGS",								\
   "FP_REGS",								\
   "FCC_REGS",								\
   "FRAME_REGS",								\
@@ -542,8 +513,8 @@ enum reg_class
   { 0x00000000, 0x00000000, 0x00000000 },	/* NO_REGS  */		\
   { 0x001ff000, 0x00000000, 0x00000000 },	/* SIBCALL_REGS  */	\
   { 0xff9ffff0, 0x00000000, 0x00000000 },	/* JIRL_REGS  */	\
-  { 0xffffffff, 0x00000000, 0x00000000 },	/* GR_REGS  */		\
   { 0xfffffffc, 0x00000000, 0x00000000 },	/* CSR_REGS  */		\
+  { 0xffffffff, 0x00000000, 0x00000000 },	/* GR_REGS  */		\
   { 0x00000000, 0xffffffff, 0x00000000 },	/* FP_REGS  */		\
   { 0x00000000, 0x00000000, 0x000000ff },	/* FCC_REGS  */		\
   { 0x00000000, 0x00000000, 0x00000300 },	/* FRAME_REGS  */	\
@@ -636,7 +607,7 @@ enum reg_class
 
 #define CONST_HIGH_PART(VALUE) (((VALUE) + (IMM_REACH / 2)) & ~(IMM_REACH - 1))
 
-#define CONST_LOW_PART(VALUE) ((VALUE) -CONST_HIGH_PART (VALUE))
+#define CONST_LOW_PART(VALUE) ((VALUE) - CONST_HIGH_PART (VALUE))
 
 #define IMM12_INT(X) IMM12_OPERAND (INTVAL (X))
 #define IMM12_INT_UNSIGNED(X) IMM12_OPERAND_UNSIGNED (INTVAL (X))
@@ -669,9 +640,9 @@ enum reg_class
 #define ELIMINABLE_REGS \
   { \
     {ARG_POINTER_REGNUM, STACK_POINTER_REGNUM}, \
-      {ARG_POINTER_REGNUM, HARD_FRAME_POINTER_REGNUM}, \
-      {FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM}, \
-      {FRAME_POINTER_REGNUM, HARD_FRAME_POINTER_REGNUM}, \
+    {ARG_POINTER_REGNUM, HARD_FRAME_POINTER_REGNUM}, \
+    {FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM}, \
+    {FRAME_POINTER_REGNUM, HARD_FRAME_POINTER_REGNUM}, \
   }
 
 #define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET) \
@@ -717,20 +688,7 @@ enum reg_class
   (IN_RANGE ((N), GP_ARG_FIRST, GP_ARG_LAST) \
    || (UNITS_PER_FP_ARG && IN_RANGE ((N), FP_ARG_FIRST, FP_ARG_LAST)))
 
-/* This structure has to cope with two different argument allocation
-   schemes.  Most LoongArch ABIs view the arguments as a structure, of which
-   the first N words go in registers and the rest go on the stack.  If I
-   < N, the Ith word might go in Ith integer argument register or in a
-   floating-point register.  For these ABIs, we only need to remember
-   the offset of the current argument into the structure.
-
-   So for the standard ABIs, the first N words are allocated to integer
-   registers, and loongarch_function_arg decides on an argument-by-argument
-   basis whether that argument should really go in an integer register,
-   or in a floating-point one.  */
-
-typedef struct loongarch_args
-{
+typedef struct {
   /* Number of integer registers used so far, up to MAX_ARGS_IN_REGISTERS.  */
   unsigned int num_gprs;
 
@@ -752,9 +710,6 @@ typedef struct loongarch_args
    to the next fully-aligned offset.  */
 #define LARCH_STACK_ALIGN(LOC) \
   (TARGET_ABI_LP64 ? ROUND_UP ((LOC), 16) : ROUND_UP ((LOC), 8))
-
-/* Output assembler code to FILE to increment profiler label # LABELNO
-   for profiling a function entry.  */
 
 #define MCOUNT_NAME "_mcount"
 
@@ -828,7 +783,6 @@ typedef struct loongarch_args
 
 #define CASE_VECTOR_MODE Pmode
 
-/* Only use short offsets if their range will not overflow.  */
 #define CASE_VECTOR_SHORTEN_MODE(MIN, MAX, BODY) Pmode
 
 /* Define this as 1 if `char' should by default be signed; else as 0.  */
@@ -950,35 +904,8 @@ typedef struct loongarch_args
   { "v1",	 5 + GP_REG_FIRST }					\
 }
 
-/* The LoongArch implementation uses some labels for its own purpose.  The
-   following lists what labels are created, and are all formed by the
-   pattern $L[a-z].*.  The machine independent portion of GCC creates
-   labels matching:  $L[A-Z][0-9]+ and $L[0-9]+.
-
-	LM[0-9]+	Silicon Graphics/ECOFF stabs label before each stmt.
-	$Lb[0-9]+	Begin blocks for LoongArch debug support
-	$Lc[0-9]+	Label for use in s<xx> operation.
-	$Le[0-9]+	End blocks for LoongArch debug support.  */
-
-#undef ASM_DECLARE_OBJECT_NAME
-#define ASM_DECLARE_OBJECT_NAME(STREAM, NAME, DECL) \
-  loongarch_declare_object (STREAM, NAME, "", ":\n")
-
 /* Globalizing directive for a label.  */
 #define GLOBAL_ASM_OP "\t.globl\t"
-
-/* This says how to define a global common symbol.  */
-
-#define ASM_OUTPUT_ALIGNED_DECL_COMMON loongarch_output_aligned_decl_common
-
-/* This says how to define a local common symbol (i.e., not visible to
-   linker).  */
-
-#ifndef ASM_OUTPUT_ALIGNED_LOCAL
-#define ASM_OUTPUT_ALIGNED_LOCAL(STREAM, NAME, SIZE, ALIGN) \
-  loongarch_declare_common_object (STREAM, NAME, "\n\t.lcomm\t", SIZE, ALIGN, \
-				   false)
-#endif
 
 /* This says how to output an external.  It would be possible not to
    output anything and let undefined symbol become external.  However
@@ -988,16 +915,6 @@ typedef struct loongarch_args
 #undef ASM_OUTPUT_EXTERNAL
 #define ASM_OUTPUT_EXTERNAL(STREAM, DECL, NAME) \
   loongarch_output_external (STREAM, DECL, NAME)
-
-/* This is how to declare a function name.  The actual work of
-   emitting the label is moved to function_prologue, so that we can
-   get the line number correctly emitted before the .ent directive,
-   and after any .file directives.  Define as empty so that the function
-   is not declared before the .ent directive elsewhere.  */
-
-#undef ASM_DECLARE_FUNCTION_NAME
-#define ASM_DECLARE_FUNCTION_NAME(STREAM, NAME, DECL) \
-  loongarch_declare_function_name (STREAM, NAME, DECL)
 
 /* This is how to store into the string LABEL
    the symbol_ref name of an internal numbered label where
@@ -1207,54 +1124,11 @@ struct GTY (()) machine_function
   /* The current frame information, calculated by loongarch_compute_frame_info.
    */
   struct loongarch_frame_info frame;
-
-  /* True if at least one of the formal parameters to a function must be
-     written to the frame header (probably so its address can be taken).  */
-  bool does_not_use_frame_header;
-
-  /* True if none of the functions that are called by this function need
-     stack space allocated for their arguments.  */
-  bool optimize_call_stack;
-
-  /* True if one of the functions calling this function may not allocate
-     a frame header.  */
-  bool callers_may_not_allocate_frame;
 };
 #endif
 
-/* As on most targets, we want the .eh_frame section to be read-only where
-   possible.  And as on most targets, this means two things:
-
-     (a) Non-locally-binding pointers must have an indirect encoding,
-	 so that the addresses in the .eh_frame section itself become
-	 locally-binding.
-
-     (b) A shared library's .eh_frame section must encode locally-binding
-	 pointers in a relative (relocation-free) form.
-
-   However, LoongArch has traditionally not allowed directives like:
-
-	.long	x-.
-
-   in cases where "x" is in a different section, or is not defined in the
-   same assembly file.  We are therefore unable to emit the PC-relative
-   form required by (b) at assembly time.
-
-   Fortunately, the linker is able to convert absolute addresses into
-   PC-relative addresses on our behalf.  Unfortunately, only certain
-   versions of the linker know how to do this for indirect pointers,
-   and for personality data.  We must fall back on using writable
-   .eh_frame sections for shared libraries if the linker does not
-   support this feature.  */
 #define ASM_PREFERRED_EH_DATA_FORMAT(CODE, GLOBAL) \
   (((GLOBAL) ? DW_EH_PE_indirect : 0) | DW_EH_PE_absptr)
-
-/* Several named LoongArch patterns depend on Pmode.  These patterns have the
-   form <NAME>_si for Pmode == SImode and <NAME>_di for Pmode == DImode.
-   Add the appropriate suffix to generator function NAME and invoke it
-   with arguments ARGS.  */
-#define PMODE_INSN(NAME, ARGS) \
-  (Pmode == SImode ? NAME##_si ARGS : NAME##_di ARGS)
 
 /* Do emit .note.GNU-stack by default.  */
 #ifndef NEED_INDICATE_EXEC_STACK

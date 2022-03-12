@@ -21,10 +21,6 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef LOONGARCH_TUNE_H
 #define LOONGARCH_TUNE_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* RTX costs of various operations on the different architectures.  */
 struct loongarch_rtx_cost_data
 {
@@ -41,21 +37,6 @@ struct loongarch_rtx_cost_data
   unsigned short memory_latency;
 };
 
-/* Default RTX cost initializer.  */
-#define COSTS_N_INSNS(N) ((N) * 4)
-#define DEFAULT_COSTS				\
-    .fp_add		= COSTS_N_INSNS (1),	\
-    .fp_mult_sf		= COSTS_N_INSNS (2),	\
-    .fp_mult_df		= COSTS_N_INSNS (2),	\
-    .fp_div_sf		= COSTS_N_INSNS (4),	\
-    .fp_div_df		= COSTS_N_INSNS (4),	\
-    .int_mult_si	= COSTS_N_INSNS (1),	\
-    .int_mult_di	= COSTS_N_INSNS (1),	\
-    .int_div_si		= COSTS_N_INSNS (1),	\
-    .int_div_di		= COSTS_N_INSNS (1),	\
-    .branch_cost	= 2,			\
-    .memory_latency	= 4
-
 /* Costs to use when optimizing for size.  */
 extern const struct loongarch_rtx_cost_data loongarch_rtx_cost_optimize_size;
 
@@ -66,7 +47,4 @@ struct loongarch_cache {
     int l2d_size;       /* kiB */
 };
 
-#ifdef __cplusplus
-}
-#endif
 #endif /* LOONGARCH_TUNE_H */

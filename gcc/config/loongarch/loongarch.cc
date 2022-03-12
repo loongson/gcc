@@ -122,6 +122,9 @@ enum loongarch_address_type
    ADDRESS_REG
        REG is the base register and OFFSET is the constant offset.
 
+   ADDRESS_REG_REG
+       A base register indexed by (optionally scaled) register.
+
    ADDRESS_SYMBOLIC
        SYMBOL_TYPE is the type of symbol that the address references.  */
 struct loongarch_address_info
@@ -203,13 +206,6 @@ const enum reg_class loongarch_regno_to_class[FIRST_PSEUDO_REGISTER] = {
     FCC_REGS,	FCC_REGS,	FCC_REGS,	FCC_REGS,
     FCC_REGS,	FCC_REGS,	FCC_REGS,	FCC_REGS,
     FRAME_REGS,	FRAME_REGS
-};
-
-/* The value of TARGET_ATTRIBUTE_TABLE.  */
-static const struct attribute_spec loongarch_attribute_table[] = {
-    /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
-       affects_type_identity, handler, exclude }  */
-      { NULL, 0, 0, false, false, false, false, NULL, NULL }
 };
 
 /* Which cost information to use.  */
@@ -401,7 +397,7 @@ loongarch_flatten_aggregate_argument (const_tree type,
    two floating-point registers.  If so, populate FIELDS accordingly.  */
 
 static unsigned
-loongarch_pass_aggregate_in_fpr_pair_p (const_tree type,
+loongarch_pass_aggregate_num_fpr (const_tree type,
 					loongarch_aggregate_field fields[2])
 {
   int n = loongarch_flatten_aggregate_argument (type, fields);
@@ -413,7 +409,7 @@ loongarch_pass_aggregate_in_fpr_pair_p (const_tree type,
   return n > 0 ? n : 0;
 }
 
-/* See whether TYPE is a record whose fields should be returned in one or
+/* See whether TYPE is a record whose fields should be returned in one
    floating-point register and one integer register.  If so, populate
    FIELDS accordingly.  */
 
@@ -504,7 +500,7 @@ loongarch_get_arg_info (struct loongarch_arg_info *info,
 
       /* Pass one- or two-element floating-point aggregates in FPRs.  */
       if ((info->num_fprs
-	   = loongarch_pass_aggregate_in_fpr_pair_p (type, fields))
+	   = loongarch_pass_aggregate_num_fpr (type, fields))
 	  && info->fpr_offset + info->num_fprs <= MAX_ARGS_IN_REGISTERS)
 	switch (info->num_fprs)
 	  {
@@ -1058,10 +1054,7 @@ loongarch_first_stack_step (struct loongarch_frame_info *frame)
 static void
 loongarch_emit_stack_tie (void)
 {
-  if (Pmode == SImode)
-    emit_insn (gen_stack_tiesi (stack_pointer_rtx, hard_frame_pointer_rtx));
-  else
-    emit_insn (gen_stack_tiedi (stack_pointer_rtx, hard_frame_pointer_rtx));
+  emit_insn (gen_stack_tie (Pmode, stack_pointer_rtx, hard_frame_pointer_rtx));
 }
 
 #define PROBE_INTERVAL (1 << STACK_CHECK_PROBE_INTERVAL_EXP)
@@ -1147,7 +1140,7 @@ loongarch_emit_probe_stack_range (HOST_WIDE_INT first, HOST_WIDE_INT size)
 	     probes at FIRST + N * PROBE_INTERVAL for values of N from 1
 	     until it is equal to ROUNDED_SIZE.  */
 
-	  emit_insn (PMODE_INSN (gen_probe_stack_range, (r13, r13, r12, r14)));
+	  emit_insn (gen_probe_stack_range (Pmode, r13, r13, r12, r14));
 	}
 
       /* Step 4: probe at FIRST + SIZE if we cannot assert at compile-time
@@ -1220,7 +1213,6 @@ loongarch_expand_prologue (void)
   struct loongarch_frame_info *frame = &cfun->machine->frame;
   HOST_WIDE_INT size = frame->total_size;
   HOST_WIDE_INT tmp;
-  unsigned mask = frame->mask;
   rtx insn;
 
   if (flag_stack_usage_info)
@@ -1254,7 +1246,6 @@ loongarch_expand_prologue (void)
       loongarch_for_each_saved_reg (size, loongarch_save_reg);
     }
 
-  frame->mask = mask; /* Undo the above fib.  */
 
   /* Set up the frame pointer, if we're using one.  */
   if (frame_pointer_needed)
@@ -1345,8 +1336,7 @@ loongarch_expand_epilogue (bool sibcall_p)
 				       adjust));
 
       rtx dwarf = NULL_RTX;
-      rtx minus_offset = NULL_RTX;
-      minus_offset = GEN_INT (-frame->hard_frame_pointer_offset);
+      rtx minus_offset = GEN_INT (-frame->hard_frame_pointer_offset);
       rtx cfa_adjust_value = gen_rtx_PLUS (Pmode,
 					   hard_frame_pointer_rtx,
 					   minus_offset);
@@ -1565,9 +1555,6 @@ loongarch_global_symbol_noweak_p (const_rtx x)
   if (!decl)
     return !SYMBOL_REF_LOCAL_P (x) || SYMBOL_REF_EXTERNAL_P (x);
 
-  /* Weakref symbols are not TREE_PUBLIC, but their targets are global
-     or weak symbols.  Relocations in the object file will be against
-     the target symbol, so it's that symbol's binding that matters here.  */
   return DECL_P (decl) && TREE_PUBLIC (decl);
 }
 
@@ -1602,17 +1589,13 @@ loongarch_rtx_constant_in_small_data_p (machine_mode mode)
 }
 
 /* Return the method that should be used to access SYMBOL_REF or
-   LABEL_REF X in context CONTEXT.  */
+   LABEL_REF X.  */
 
 static enum loongarch_symbol_type
-loongarch_classify_symbol (const_rtx x,
-			   enum loongarch_symbol_context context  \
-			   ATTRIBUTE_UNUSED)
+loongarch_classify_symbol (const_rtx x)
 {
   if (GET_CODE (x) == LABEL_REF)
-    {
-      return SYMBOL_GOT_DISP;
-    }
+    return SYMBOL_GOT_DISP;
 
   gcc_assert (GET_CODE (x) == SYMBOL_REF);
 
@@ -1625,12 +1608,11 @@ loongarch_classify_symbol (const_rtx x,
   return SYMBOL_GOT_DISP;
 }
 
-/* Return true if X is a symbolic constant that can be used in context
-   CONTEXT.  If it is, store the type of the symbol in *SYMBOL_TYPE.  */
+/* Return true if X is a symbolic constant.  If it is,
+   store the type of the symbol in *SYMBOL_TYPE.  */
 
 bool
-loongarch_symbolic_constant_p (rtx x, enum loongarch_symbol_context context,
-			       enum loongarch_symbol_type *symbol_type)
+loongarch_symbolic_constant_p (rtx x, enum loongarch_symbol_type *symbol_type)
 {
   rtx offset;
 
@@ -1642,7 +1624,7 @@ loongarch_symbolic_constant_p (rtx x, enum loongarch_symbol_context context,
     }
   else if (GET_CODE (x) == SYMBOL_REF || GET_CODE (x) == LABEL_REF)
     {
-      *symbol_type = loongarch_classify_symbol (x, context);
+      *symbol_type = loongarch_classify_symbol (x);
       if (*symbol_type == SYMBOL_TLS)
 	return true;
     }
@@ -1656,8 +1638,6 @@ loongarch_symbolic_constant_p (rtx x, enum loongarch_symbol_context context,
      relocations.  */
   switch (*symbol_type)
     {
-      /* Fall through.  */
-
     case SYMBOL_GOT_DISP:
     case SYMBOL_TLSGD:
     case SYMBOL_TLSLDM:
@@ -1667,10 +1647,10 @@ loongarch_symbolic_constant_p (rtx x, enum loongarch_symbol_context context,
   gcc_unreachable ();
 }
 
-/* Like loongarch_symbol_insns We rely on the fact that, in the worst case.  */
+/* Returns the number of instructions necessary to reference a symbol. */
 
 static int
-loongarch_symbol_insns_1 (enum loongarch_symbol_type type, machine_mode mode)
+loongarch_symbol_insns (enum loongarch_symbol_type type, machine_mode mode)
 {
   switch (type)
     {
@@ -1679,8 +1659,6 @@ loongarch_symbol_insns_1 (enum loongarch_symbol_type type, machine_mode mode)
 	 is used in an address.  */
       if (mode != MAX_MACHINE_MODE)
 	return 0;
-
-      /* Fall through.  */
 
       return 3;
 
@@ -1693,22 +1671,6 @@ loongarch_symbol_insns_1 (enum loongarch_symbol_type type, machine_mode mode)
       return 0;
     }
   gcc_unreachable ();
-}
-
-/* If MODE is MAX_MACHINE_MODE, return the number of instructions needed
-   to load symbols of type TYPE into a register.  Return 0 if the given
-   type of symbol cannot be used as an immediate operand.
-
-   Otherwise, return the number of instructions needed to load or store
-   values of mode MODE to or from addresses of type TYPE.  Return 0 if
-   the given type of symbol is not valid in addresses.
-
-   In both cases, instruction counts are based off BASE_INSN_LENGTH.  */
-
-static int
-loongarch_symbol_insns (enum loongarch_symbol_type type, machine_mode mode)
-{
-  return loongarch_symbol_insns_1 (type, mode) * (1);
 }
 
 /* Implement TARGET_CANNOT_FORCE_CONST_MEM.  */
@@ -1732,7 +1694,7 @@ loongarch_cannot_force_const_mem (machine_mode mode, rtx x)
     return true;
 
   split_const (x, &base, &offset);
-  if (loongarch_symbolic_constant_p (base, SYMBOL_CONTEXT_LEA, &type))
+  if (loongarch_symbolic_constant_p (base, &type))
     {
       /* The same optimization as for CONST_INT.  */
       if (IMM12_INT (offset)
@@ -1791,8 +1753,8 @@ static bool
 loongarch_valid_offset_p (rtx x, machine_mode mode)
 {
   /* Check that X is a signed 12-bit number,
-   * or check that X is a signed 16-bit number
-   * and offset 4 byte aligned.  */
+     or check that X is a signed 16-bit number
+     and offset 4 byte aligned.  */
   if (!(const_arith_operand (x, Pmode)
 	|| ((mode == E_SImode || mode == E_DImode)
 	    && const_imm16_operand (x, Pmode)
@@ -1903,8 +1865,7 @@ loongarch_index_address_p (rtx addr, machine_mode mode ATTRIBUTE_UNUSED)
 }
 
 /* Return the number of instructions needed to load or store a value
-   of mode MODE at address X, assuming that BASE_INSN_LENGTH is the
-   length of one instruction.  Return 0 if X isn't valid for MODE.
+   of mode MODE at address X.  Return 0 if X isn't valid for MODE.
    Assume that multiword moves may need to be split into word moves
    if MIGHT_SPLIT_P, otherwise assume that a single load or store is
    enough.  */
@@ -1996,7 +1957,6 @@ loongarch_14bit_shifted_offset_address_p (rtx x, machine_mode mode)
 }
 
 /* Return the number of instructions needed to load constant X,
-   assuming that BASE_INSN_LENGTH is the length of one instruction.
    Return 0 if X isn't a valid constant.  */
 
 int
@@ -2013,12 +1973,11 @@ loongarch_const_insns (rtx x)
     case CONST_VECTOR:
       /* Fall through.  */
     case CONST_DOUBLE:
-      /* Allow zeros for normal mode, where we can use $0.  */
       return x == CONST0_RTX (GET_MODE (x)) ? 1 : 0;
 
     case CONST:
       /* See if we can refer to X directly.  */
-      if (loongarch_symbolic_constant_p (x, SYMBOL_CONTEXT_LEA, &symbol_type))
+      if (loongarch_symbolic_constant_p (x, &symbol_type))
 	return loongarch_symbol_insns (symbol_type, MAX_MACHINE_MODE);
 
       /* Otherwise try splitting the constant into a base and offset.
@@ -2046,7 +2005,7 @@ loongarch_const_insns (rtx x)
     case SYMBOL_REF:
     case LABEL_REF:
       return loongarch_symbol_insns (
-	loongarch_classify_symbol (x, SYMBOL_CONTEXT_LEA), MAX_MACHINE_MODE);
+	loongarch_classify_symbol (x), MAX_MACHINE_MODE);
 
     default:
       return 0;
@@ -2055,8 +2014,7 @@ loongarch_const_insns (rtx x)
 
 /* X is a doubleword constant that can be handled by splitting it into
    two words and loading each word separately.  Return the number of
-   instructions required to do this, assuming that BASE_INSN_LENGTH
-   is the length of one instruction.  */
+   instructions required to do this.  */
 
 int
 loongarch_split_const_insns (rtx x)
@@ -2070,8 +2028,7 @@ loongarch_split_const_insns (rtx x)
 }
 
 /* Return the number of instructions needed to implement INSN,
-   given that it loads from or stores to MEM.  Assume that
-   BASE_INSN_LENGTH is the length of one instruction.  */
+   given that it loads from or stores to MEM.  */
 
 int
 loongarch_load_store_insns (rtx mem, rtx_insn *insn)
@@ -2089,16 +2046,14 @@ loongarch_load_store_insns (rtx mem, rtx_insn *insn)
     {
       set = single_set (insn);
       if (set
-	  && !loongarch_split_move_insn_p (SET_DEST (set), SET_SRC (set),
-					   insn))
+	  && !loongarch_split_move_insn_p (SET_DEST (set), SET_SRC (set)))
 	might_split_p = false;
     }
 
   return loongarch_address_insns (XEXP (mem, 0), mode, might_split_p);
 }
 
-/* Return the number of instructions needed for an integer division,
-   assuming that BASE_INSN_LENGTH is the length of one instruction.  */
+/* Return the number of instructions needed for an integer division.  */
 
 int
 loongarch_idiv_insns (machine_mode mode ATTRIBUTE_UNUSED)
@@ -2220,10 +2175,7 @@ static GTY (()) rtx loongarch_tls_symbol;
 static rtx
 loongarch_got_load_tls_gd (rtx dest, rtx sym)
 {
-  if (Pmode == DImode)
-    return gen_got_load_tls_gddi (dest, sym);
-  else
-    return gen_got_load_tls_gdsi (dest, sym);
+  return gen_got_load_tls_gd (Pmode, dest, sym);
 }
 
 /* Load an entry from the GOT for a TLS LD access.  */
@@ -2231,10 +2183,7 @@ loongarch_got_load_tls_gd (rtx dest, rtx sym)
 static rtx
 loongarch_got_load_tls_ld (rtx dest, rtx sym)
 {
-  if (Pmode == DImode)
-    return gen_got_load_tls_lddi (dest, sym);
-  else
-    return gen_got_load_tls_ldsi (dest, sym);
+  return gen_got_load_tls_ld (Pmode, dest, sym);
 }
 
 /* Load an entry from the GOT for a TLS IE access.  */
@@ -2242,10 +2191,7 @@ loongarch_got_load_tls_ld (rtx dest, rtx sym)
 static rtx
 loongarch_got_load_tls_ie (rtx dest, rtx sym)
 {
-  if (Pmode == DImode)
-    return gen_got_load_tls_iedi (dest, sym);
-  else
-    return gen_got_load_tls_iesi (dest, sym);
+  return gen_got_load_tls_ie (Pmode, dest, sym);
 }
 
 /* Add in the thread pointer for a TLS LE access.  */
@@ -2253,10 +2199,7 @@ loongarch_got_load_tls_ie (rtx dest, rtx sym)
 static rtx
 loongarch_got_load_tls_le (rtx dest, rtx sym)
 {
-  if (Pmode == DImode)
-    return gen_got_load_tls_ledi (dest, sym);
-  else
-    return gen_got_load_tls_lesi (dest, sym);
+  return gen_got_load_tls_le (Pmode, dest, sym);
 }
 
 /* Return an instruction sequence that calls __tls_get_addr.  SYM is
@@ -2551,13 +2494,10 @@ loongarch_legitimize_move (machine_mode mode, rtx dest, rtx src)
   return false;
 }
 
-/* Return true if OP refers to small data symbols directly, not through
-   a LO_SUM.  CONTEXT is the context in which X appears.  */
+/* Return true if OP refers to small data symbols directly.  */
 
 static int
-loongarch_small_data_pattern_1 (rtx x,
-				enum loongarch_symbol_context context \
-				ATTRIBUTE_UNUSED)
+loongarch_small_data_pattern_1 (rtx x)
 {
   subrtx_var_iterator::array_type array;
   FOR_EACH_SUBRTX_VAR (iter, array, x, ALL)
@@ -2570,7 +2510,7 @@ loongarch_small_data_pattern_1 (rtx x,
 	iter.skip_subrtxes ();
       else if (MEM_P (x))
 	{
-	  if (loongarch_small_data_pattern_1 (XEXP (x, 0), SYMBOL_CONTEXT_MEM))
+	  if (loongarch_small_data_pattern_1 (XEXP (x, 0)))
 	    return true;
 	  iter.skip_subrtxes ();
 	}
@@ -2578,22 +2518,19 @@ loongarch_small_data_pattern_1 (rtx x,
   return false;
 }
 
-/* Return true if OP refers to small data symbols directly, not through
-   a LO_SUM.  */
+/* Return true if OP refers to small data symbols directly.  */
 
 bool
 loongarch_small_data_pattern_p (rtx op)
 {
-  return loongarch_small_data_pattern_1 (op, SYMBOL_CONTEXT_LEA);
+  return loongarch_small_data_pattern_1 (op);
 }
 
 /* Rewrite *LOC so that it refers to small data using explicit
-   relocations.  CONTEXT is the context in which *LOC appears.  */
+   relocations.  */
 
 static void
-loongarch_rewrite_small_data_1 (rtx *loc,
-				enum loongarch_symbol_context context \
-				ATTRIBUTE_UNUSED)
+loongarch_rewrite_small_data_1 (rtx *loc)
 {
   subrtx_ptr_iterator::array_type array;
   FOR_EACH_SUBRTX_PTR (iter, array, loc, ALL)
@@ -2601,7 +2538,7 @@ loongarch_rewrite_small_data_1 (rtx *loc,
       rtx *loc = *iter;
       if (MEM_P (*loc))
 	{
-	  loongarch_rewrite_small_data_1 (&XEXP (*loc, 0), SYMBOL_CONTEXT_MEM);
+	  loongarch_rewrite_small_data_1 (&XEXP (*loc, 0));
 	  iter.skip_subrtxes ();
 	}
     }
@@ -2614,7 +2551,7 @@ rtx
 loongarch_rewrite_small_data (rtx pattern)
 {
   pattern = copy_insn (pattern);
-  loongarch_rewrite_small_data_1 (&pattern, SYMBOL_CONTEXT_LEA);
+  loongarch_rewrite_small_data_1 (&pattern);
   return pattern;
 }
 
@@ -2638,7 +2575,6 @@ loongarch_immediate_operand_p (int code, HOST_WIDE_INT x)
 
     case ROTATE:
     case ROTATERT:
-      /* Likewise rotates, if the target supports rotates at all.  */
       return true;
 
     case AND:
@@ -3137,24 +3073,16 @@ loongarch_address_cost (rtx addr, machine_mode mode,
 rtx
 loongarch_subword (rtx op, bool high_p)
 {
-  unsigned int byte, offset;
+  unsigned int byte;
   machine_mode mode;
 
+  byte = high_p ? UNITS_PER_WORD : 0;
   mode = GET_MODE (op);
   if (mode == VOIDmode)
     mode = TARGET_64BIT ? TImode : DImode;
 
-  if (high_p)
-    byte = UNITS_PER_WORD;
-  else
-    byte = 0;
-
   if (FP_REG_RTX_P (op))
-    {
-      /* Paired FPRs are always ordered little-endian.  */
-      offset = (UNITS_PER_WORD < UNITS_PER_HWFPVALUE ? high_p : byte != 0);
-      return gen_rtx_REG (word_mode, REGNO (op) + offset);
-    }
+    return gen_rtx_REG (word_mode, REGNO (op) + high_p);
 
   if (MEM_P (op))
     return loongarch_rewrite_small_data (adjust_address (op, word_mode, byte));
@@ -3166,8 +3094,7 @@ loongarch_subword (rtx op, bool high_p)
    SPLIT_TYPE describes the split condition.  */
 
 bool
-loongarch_split_move_p (rtx dest, rtx src,
-			enum loongarch_split_type split_type ATTRIBUTE_UNUSED)
+loongarch_split_move_p (rtx dest, rtx src)
 {
   /* FPR-to-FPR moves can be done in a single instruction, if they're
      allowed at all.  */
@@ -3191,12 +3118,11 @@ loongarch_split_move_p (rtx dest, rtx src,
    SPLIT_TYPE describes the split condition.  */
 
 void
-loongarch_split_move (rtx dest, rtx src, enum loongarch_split_type split_type,
-		      rtx insn_)
+loongarch_split_move (rtx dest, rtx src, rtx insn_)
 {
   rtx low_dest;
 
-  gcc_checking_assert (loongarch_split_move_p (dest, src, split_type));
+  gcc_checking_assert (loongarch_split_move_p (dest, src));
   if (FP_REG_RTX_P (dest) || FP_REG_RTX_P (src))
     {
       if (!TARGET_64BIT && GET_MODE (dest) == DImode)
@@ -3255,30 +3181,12 @@ loongarch_split_move (rtx dest, rtx src, enum loongarch_split_type split_type,
     }
 }
 
-/* Return the split type for instruction INSN.  */
-
-static enum loongarch_split_type
-loongarch_insn_split_type (rtx insn)
-{
-  basic_block bb = BLOCK_FOR_INSN (insn);
-  if (bb)
-    {
-      if (optimize_bb_for_speed_p (bb))
-	return SPLIT_FOR_SPEED;
-      else
-	return SPLIT_FOR_SIZE;
-    }
-  /* Once CFG information has been removed, we should trust the optimization
-     decisions made by previous passes and only split where necessary.  */
-  return SPLIT_IF_NECESSARY;
-}
-
 /* Return true if a move from SRC to DEST in INSN should be split.  */
 
 bool
-loongarch_split_move_insn_p (rtx dest, rtx src, rtx insn)
+loongarch_split_move_insn_p (rtx dest, rtx src)
 {
-  return loongarch_split_move_p (dest, src, loongarch_insn_split_type (insn));
+  return loongarch_split_move_p (dest, src);
 }
 
 /* Split a move from SRC to DEST in INSN, given that
@@ -3287,12 +3195,18 @@ loongarch_split_move_insn_p (rtx dest, rtx src, rtx insn)
 void
 loongarch_split_move_insn (rtx dest, rtx src, rtx insn)
 {
-  loongarch_split_move (dest, src, loongarch_insn_split_type (insn), insn);
+  loongarch_split_move (dest, src, insn);
 }
 
-/* Forward declaration.  Used below.  */
+/* Implement TARGET_CONSTANT_ALIGNMENT.  */
+
 static HOST_WIDE_INT
-loongarch_constant_alignment (const_tree exp, HOST_WIDE_INT align);
+loongarch_constant_alignment (const_tree exp, HOST_WIDE_INT align)
+{
+  if (TREE_CODE (exp) == STRING_CST || TREE_CODE (exp) == CONSTRUCTOR)
+    return MAX (align, BITS_PER_WORD);
+  return align;
+}
 
 const char *
 loongarch_output_move_index (rtx x, machine_mode mode, bool ldr)
@@ -3353,6 +3267,7 @@ loongarch_output_move_index_float (rtx x, machine_mode mode, bool ldr)
 
   return insn[ldr][index-2];
 }
+
 /* Return the appropriate instructions to move SRC into DEST.  Assume
    that SRC is operand 1 and DEST is operand 0.  */
 
@@ -3364,7 +3279,7 @@ loongarch_output_move (rtx dest, rtx src)
   machine_mode mode = GET_MODE (dest);
   bool dbl_p = (GET_MODE_SIZE (mode) == 8);
 
-  if (loongarch_split_move_p (dest, src, SPLIT_IF_NECESSARY))
+  if (loongarch_split_move_p (dest, src))
     return "#";
 
   if ((src_code == REG && GP_REG_P (REGNO (src)))
@@ -3926,18 +3841,6 @@ loongarch_va_start (tree valist, rtx nextarg)
 {
   nextarg = plus_constant (Pmode, nextarg, -cfun->machine->varargs_size);
   std_expand_builtin_va_start (valist, nextarg);
-}
-
-/* Start a definition of function NAME.  */
-
-static void
-loongarch_start_function_definition (const char *name)
-{
-  ASM_OUTPUT_TYPE_DIRECTIVE (asm_out_file, name, "function");
-
-  /* Start the definition proper.  */
-  assemble_name (asm_out_file, name);
-  fputs (":\n", asm_out_file);
 }
 
 /* Implement TARGET_FUNCTION_OK_FOR_SIBCALL.  */
@@ -4605,12 +4508,10 @@ loongarch_select_rtx_section (machine_mode mode, rtx x,
 
 /* Implement TARGET_ASM_FUNCTION_RODATA_SECTION.
 
-   The complication here is that, with the combination
-   !TARGET_ABSOLUTE_ABICALLS , jump tables will use
-   absolute addresses, and should therefore not be included in the
-   read-only part of a DSO.  Handle such cases by selecting a normal
-   data section instead of a read-only one.  The logic apes that in
-   default_function_rodata_section.  */
+   The complication here is that jump tables will use absolute addresses,
+   and should therefore not be included in the read-only part of a DSO.
+   Handle such cases by selecting a normal data section instead of a
+   read-only one.  The logic apes that in default_function_rodata_section.  */
 
 static section *
 loongarch_function_rodata_section (tree decl, bool)
@@ -4647,17 +4548,6 @@ loongarch_in_small_data_p (const_tree decl)
      so this is now effectively part of the ABI.  */
   size = int_size_in_bytes (TREE_TYPE (decl));
   return size > 0 && size <= g_switch_value;
-}
-
-/* Implement TARGET_USE_ANCHORS_FOR_SYMBOL_P.  We don't want to use
-   anchors for small data: the GP register acts as an anchor in that
-   case.  We also don't want to use them for PC-relative accesses,
-   where the PC acts as an anchor.  */
-
-static bool
-loongarch_use_anchors_for_symbol_p (const_rtx symbol)
-{
-  return default_use_anchors_for_symbol_p (symbol);
 }
 
 /* The LoongArch debug format wants all automatic variables and arguments
@@ -4742,16 +4632,6 @@ loongarch_output_dwarf_dtprel (FILE *file, int size, rtx x)
   fputs ("+0x8000", file);
 }
 
-/* Implement TARGET_DWARF_FRAME_REG_MODE.  */
-
-static machine_mode
-loongarch_dwarf_frame_reg_mode (int regno)
-{
-  machine_mode mode = default_dwarf_frame_reg_mode (regno);
-
-  return mode;
-}
-
 /* Implement ASM_OUTPUT_ASCII.  */
 
 void
@@ -4791,165 +4671,6 @@ loongarch_output_ascii (FILE *stream, const char *string, size_t len)
     }
   fprintf (stream, "\"\n");
 }
-
-/* Emit either a label, .comm, or .lcomm directive.  When using assembler
-   macros, mark the symbol as written so that loongarch_asm_output_external
-   won't emit an .extern for it.  STREAM is the output file, NAME is the
-   name of the symbol, INIT_STRING is the string that should be written
-   before the symbol and FINAL_STRING is the string that should be
-   written after it.  FINAL_STRING is a printf format that consumes the
-   remaining arguments.  */
-
-void
-loongarch_declare_object (FILE *stream, const char *name,
-			  const char *init_string, const char *final_string,
-			  ...)
-{
-  va_list ap;
-
-  fputs (init_string, stream);
-  assemble_name (stream, name);
-  va_start (ap, final_string);
-  vfprintf (stream, final_string, ap);
-  va_end (ap);
-
-  tree name_tree = get_identifier (name);
-  TREE_ASM_WRITTEN (name_tree) = 1;
-}
-
-/* Declare a common object of SIZE bytes using asm directive INIT_STRING.
-   NAME is the name of the object and ALIGN is the required alignment
-   in bytes.  TAKES_ALIGNMENT_P is true if the directive takes a third
-   alignment argument.  */
-
-void
-loongarch_declare_common_object (FILE *stream, const char *name,
-				 const char *init_string,
-				 unsigned HOST_WIDE_INT size,
-				 unsigned int align, bool takes_alignment_p)
-{
-  if (!takes_alignment_p)
-    {
-      size += (align / BITS_PER_UNIT) - 1;
-      size -= size % (align / BITS_PER_UNIT);
-      loongarch_declare_object (stream, name, init_string,
-				"," HOST_WIDE_INT_PRINT_UNSIGNED "\n", size);
-    }
-  else
-    loongarch_declare_object (stream, name, init_string,
-			      "," HOST_WIDE_INT_PRINT_UNSIGNED ",%u\n", size,
-			      align / BITS_PER_UNIT);
-}
-
-/* Implement ASM_OUTPUT_ALIGNED_DECL_COMMON.  This is usually the same as the
-   elfos.h version.  */
-
-void
-loongarch_output_aligned_decl_common (FILE *stream,
-				      tree decl ATTRIBUTE_UNUSED,
-				      const char *name,
-				      unsigned HOST_WIDE_INT size,
-				      unsigned int align)
-{
-  loongarch_declare_common_object (stream, name, "\n\t.comm\t", size, align,
-				   true);
-}
-
-#ifdef ASM_OUTPUT_SIZE_DIRECTIVE
-extern int size_directive_output;
-
-/* Implement ASM_DECLARE_OBJECT_NAME.  This is like most of the standard ELF
-   definitions except that it uses loongarch_declare_object to emit the label.
-*/
-
-void
-loongarch_declare_object_name (FILE *stream, const char *name,
-			       tree decl ATTRIBUTE_UNUSED)
-{
-#ifdef ASM_OUTPUT_TYPE_DIRECTIVE
-#ifdef USE_GNU_UNIQUE_OBJECT
-  /* As in elfos.h.  */
-  if (USE_GNU_UNIQUE_OBJECT && DECL_ONE_ONLY (decl)
-      && (!DECL_ARTIFICIAL (decl) || !TREE_READONLY (decl)))
-    ASM_OUTPUT_TYPE_DIRECTIVE (stream, name, "gnu_unique_object");
-  else
-#endif
-    ASM_OUTPUT_TYPE_DIRECTIVE (stream, name, "object");
-#endif
-
-  size_directive_output = 0;
-  if (!flag_inhibit_size_directive && DECL_SIZE (decl))
-    {
-      HOST_WIDE_INT size;
-
-      size_directive_output = 1;
-      size = int_size_in_bytes (TREE_TYPE (decl));
-      ASM_OUTPUT_SIZE_DIRECTIVE (stream, name, size);
-    }
-
-  loongarch_declare_object (stream, name, "", ":\n");
-}
-
-/* Implement ASM_FINISH_DECLARE_OBJECT.  This is generic ELF stuff.  */
-
-void
-loongarch_finish_declare_object (FILE *stream, tree decl, int top_level,
-				 int at_end)
-{
-  const char *name;
-
-  name = XSTR (XEXP (DECL_RTL (decl), 0), 0);
-  if (!flag_inhibit_size_directive
-      && DECL_SIZE (decl) != 0
-      && !at_end
-      && top_level
-      && DECL_INITIAL (decl) == error_mark_node
-      && !size_directive_output)
-    {
-      HOST_WIDE_INT size;
-
-      size_directive_output = 1;
-      size = int_size_in_bytes (TREE_TYPE (decl));
-      ASM_OUTPUT_SIZE_DIRECTIVE (stream, name, size);
-    }
-}
-#endif
-
-/* Mark text contents as code or data, mainly for the purpose of correct
-   disassembly.  Emit a local symbol and set its type appropriately for
-   that purpose.  */
-
-void
-loongarch_set_text_contents_type (FILE *file ATTRIBUTE_UNUSED,
-				  const char *prefix ATTRIBUTE_UNUSED,
-				  unsigned long num ATTRIBUTE_UNUSED,
-				  bool function_p ATTRIBUTE_UNUSED)
-{
-#ifdef ASM_OUTPUT_TYPE_DIRECTIVE
-  char buf[(sizeof (num) * 10) / 4 + 2];
-  const char *fnname;
-  char *sname;
-  rtx symbol;
-
-  sprintf (buf, "%lu", num);
-  symbol = XEXP (DECL_RTL (current_function_decl), 0);
-  fnname = targetm.strip_name_encoding (XSTR (symbol, 0));
-  sname = ACONCAT ((prefix, fnname, "_", buf, NULL));
-
-  ASM_OUTPUT_TYPE_DIRECTIVE (file, sname, function_p ? "function" : "object");
-  assemble_name (file, sname);
-  fputs (":\n", file);
-#endif
-}
-
-/* Implement TARGET_ASM_FILE_START.  */
-
-static void
-loongarch_file_start (void)
-{
-  default_file_start ();
-}
-
 
 /* Implement TARGET_FRAME_POINTER_REQUIRED.  */
 
@@ -5007,16 +4728,6 @@ loongarch_set_return_address (rtx address, rtx scratch)
 		       address);
 }
 
-/* Implement ASM_DECLARE_FUNCTION_NAME.  */
-
-void
-loongarch_declare_function_name (FILE *stream ATTRIBUTE_UNUSED,
-				 const char *name,
-				 tree fndecl ATTRIBUTE_UNUSED)
-{
-  loongarch_start_function_definition (name);
-}
-
 /* Return true if register REGNO can store a value of mode MODE.
    The result of this function is cached in loongarch_hard_regno_mode_ok.  */
 
@@ -5035,9 +4746,7 @@ loongarch_hard_regno_mode_ok_uncached (unsigned int regno, machine_mode mode)
   if (GP_REG_P (regno))
     return ((regno - GP_REG_FIRST) & 1) == 0 || size <= UNITS_PER_WORD;
 
-  if (FP_REG_P (regno)
-      && (((regno - FP_REG_FIRST) % MAX_FPRS_PER_FMT) == 0
-	  || (MIN_FPRS_PER_FMT == 1 && size <= UNITS_PER_FPREG)))
+  if (FP_REG_P (regno))
     {
       if (mclass == MODE_FLOAT
 	  || mclass == MODE_COMPLEX_FLOAT
@@ -5061,15 +4770,6 @@ static bool
 loongarch_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
 {
   return loongarch_hard_regno_mode_ok_p[mode][regno];
-}
-
-/* Return nonzero if register OLD_REG can be renamed to register NEW_REG.  */
-
-bool
-loongarch_hard_regno_rename_ok (unsigned int old_reg ATTRIBUTE_UNUSED,
-				unsigned int new_reg ATTRIBUTE_UNUSED)
-{
-  return true;
 }
 
 /* Implement TARGET_HARD_REGNO_NREGS.  */
@@ -5122,15 +4822,9 @@ loongarch_class_max_nregs (enum reg_class rclass, machine_mode mode)
 /* Implement TARGET_CAN_CHANGE_MODE_CLASS.  */
 
 static bool
-loongarch_can_change_mode_class (machine_mode from, machine_mode to,
+loongarch_can_change_mode_class (machine_mode, machine_mode,
 				 reg_class_t rclass)
 {
-  /* Allow conversions between different Loongson integer vectors,
-     and between those vectors and DImode.  */
-  if (GET_MODE_SIZE (from) == 8 && GET_MODE_SIZE (to) == 8
-      && INTEGRAL_MODE_P (from) && INTEGRAL_MODE_P (to))
-    return true;
-
   return !reg_classes_intersect_p (FP_REGS, rclass);
 }
 
@@ -5290,26 +4984,6 @@ loongarch_memory_move_cost (machine_mode mode, reg_class_t rclass, bool in)
 	  + memory_move_secondary_cost (mode, rclass, in));
 }
 
-/* Implement TARGET_SECONDARY_MEMORY_NEEDED.
-
-   This can be achieved using MOVFRH2GR.S/MOVGR2FRH.W when these instructions
-   are available but otherwise moves must go via memory.  Using
-   MOVGR2FR/MOVFR2GR to access the lower-half of these registers would require
-   a forbidden single-precision access.  We require all double-word moves to
-   use memory because adding even and odd floating-point registers classes
-   would have a significant impact on the backend.  */
-
-static bool
-loongarch_secondary_memory_needed (machine_mode mode ATTRIBUTE_UNUSED,
-				   reg_class_t class1, reg_class_t class2)
-{
-  /* Ignore spilled pseudos.  */
-  if (lra_in_progress && (class1 == NO_REGS || class2 == NO_REGS))
-    return false;
-
-  return false;
-}
-
 /* Return the register class required for a secondary register when
    copying between one of the registers in RCLASS and value X, which
    has mode MODE.  X is the source of the move if IN_P, otherwise it
@@ -5375,14 +5049,6 @@ loongarch_scalar_mode_supported_p (scalar_mode mode)
     return true;
 
   return default_scalar_mode_supported_p (mode);
-}
-
-/* Implement TARGET_VECTORIZE_PREFERRED_SIMD_MODE.  */
-
-static machine_mode
-loongarch_preferred_simd_mode (scalar_mode mode ATTRIBUTE_UNUSED)
-{
-  return word_mode;
 }
 
 /* Return the assembly code for INSN, which has the operands given by
@@ -5566,8 +5232,8 @@ loongarch_adjust_cost (rtx_insn *, int dep_type, rtx_insn *, int cost,
 static int
 loongarch_issue_rate (void)
 {
-  if ((unsigned long) __ACTUAL_TUNE < N_TUNE_TYPES)
-    return loongarch_cpu_issue_rate[__ACTUAL_TUNE];
+  if ((unsigned long) LARCH_ACTUAL_TUNE < N_TUNE_TYPES)
+    return loongarch_cpu_issue_rate[LARCH_ACTUAL_TUNE];
   else
     return 1;
 }
@@ -5578,8 +5244,8 @@ loongarch_issue_rate (void)
 static int
 loongarch_multipass_dfa_lookahead (void)
 {
-  if ((unsigned long) __ACTUAL_TUNE < N_ARCH_TYPES)
-    return loongarch_cpu_multipass_dfa_lookahead[__ACTUAL_TUNE];
+  if ((unsigned long) LARCH_ACTUAL_TUNE < N_ARCH_TYPES)
+    return loongarch_cpu_multipass_dfa_lookahead[LARCH_ACTUAL_TUNE];
   else
     return 0;
 }
@@ -5639,100 +5305,6 @@ loongarch_variable_issue (FILE *file ATTRIBUTE_UNUSED,
   cached_can_issue_more = more;
   return more;
 }
-
-/* A structure representing the state of the processor pipeline.
-   Used by the loongarch_sim_* family of functions.  */
-
-struct loongarch_sim
-{
-  /* The maximum number of instructions that can be issued in a cycle.
-     (Caches loongarch_issue_rate.)  */
-  unsigned int issue_rate;
-
-  /* The current simulation time.  */
-  unsigned int time;
-
-  /* How many more instructions can be issued in the current cycle.  */
-  unsigned int insns_left;
-
-  /* LAST_SET[X].INSN is the last instruction to set register X.
-     LAST_SET[X].TIME is the time at which that instruction was issued.
-     INSN is null if no instruction has yet set register X.  */
-  struct
-  {
-    rtx_insn *insn;
-    unsigned int time;
-  } last_set[FIRST_PSEUDO_REGISTER];
-
-  /* The pipeline's current DFA state.  */
-  state_t dfa_state;
-};
-
-/* Reset STATE to the initial simulation state.  */
-
-static void
-loongarch_sim_reset (struct loongarch_sim *state)
-{
-  curr_state = state->dfa_state;
-
-  state->time = 0;
-  state->insns_left = state->issue_rate;
-  memset (&state->last_set, 0, sizeof (state->last_set));
-  state_reset (curr_state);
-
-  targetm.sched.init (0, false, 0);
-  advance_state (curr_state);
-}
-
-/* Initialize STATE before its first use.  DFA_STATE points to an
-   allocated but uninitialized DFA state.  */
-
-static void
-loongarch_sim_init (struct loongarch_sim *state, state_t dfa_state)
-{
-  if (targetm.sched.init_dfa_pre_cycle_insn)
-    targetm.sched.init_dfa_pre_cycle_insn ();
-
-  if (targetm.sched.init_dfa_post_cycle_insn)
-    targetm.sched.init_dfa_post_cycle_insn ();
-
-  state->issue_rate = loongarch_issue_rate ();
-  state->dfa_state = dfa_state;
-  loongarch_sim_reset (state);
-}
-
-/* Set up costs based on the current architecture and tuning settings.  */
-
-static void
-loongarch_set_tuning_info (void)
-{
-  dfa_start ();
-
-  struct loongarch_sim state;
-  loongarch_sim_init (&state, alloca (state_size ()));
-
-  dfa_finish ();
-}
-
-/* Implement TARGET_EXPAND_TO_RTL_HOOK.  */
-
-static void
-loongarch_expand_to_rtl_hook (void)
-{
-  /* We need to call this at a point where we can safely create sequences
-     of instructions, so TARGET_OVERRIDE_OPTIONS is too early.  We also
-     need to call it at a point where the DFA infrastructure is not
-     already in use, so we can't just call it lazily on demand.
-
-     At present, loongarch_tuning_info is only needed during post-expand
-     RTL passes such as split_insns, so this hook should be early enough.
-     We may need to move the call elsewhere if loongarch_tuning_info starts
-     to be used for other things (such as rtx_costs, or expanders that
-     could be called during gimple optimization).  */
-
-  loongarch_set_tuning_info ();
-}
-
 
 /* Given that we have an rtx of the form (prefetch ... WRITE LOCALITY),
    return the first operand of the associated PREF or PREFX insn.  */
@@ -5850,24 +5422,9 @@ loongarch_init_machine_status (void)
 }
 
 static void
-loongarch_option_override_internal (struct gcc_options *opts,
-				    struct gcc_options *opts_set);
-
-/* Implement TARGET_OPTION_OVERRIDE.  */
-
-static void
-loongarch_option_override (void)
-{
-  loongarch_option_override_internal (&global_options, &global_options_set);
-}
-
-static void
-loongarch_option_override_internal (struct gcc_options *opts,
-				    struct gcc_options *opts_set)
+loongarch_option_override_internal (struct gcc_options *opts)
 {
   int i, regno, mode;
-
-  (void) opts_set;
 
   if (flag_pic)
     g_switch_value = 0;
@@ -5877,7 +5434,6 @@ loongarch_option_override_internal (struct gcc_options *opts,
 			   la_opt_cpu_arch, la_opt_cpu_tune, la_opt_fpu,
 			   la_opt_abi_base, la_opt_abi_ext, la_opt_cmodel, 0);
 
-  /* End of code shared with GAS.  */
   if (TARGET_ABI_LP64)
     flag_pcc_struct_return = 0;
 
@@ -5885,7 +5441,7 @@ loongarch_option_override_internal (struct gcc_options *opts,
   if (optimize_size)
     loongarch_cost = &loongarch_rtx_cost_optimize_size;
   else
-    loongarch_cost = &loongarch_cpu_rtx_cost_data[__ACTUAL_TUNE];
+    loongarch_cost = &loongarch_cpu_rtx_cost_data[LARCH_ACTUAL_TUNE];
 
   /* If the user hasn't specified a branch cost, use the processor's
      default.  */
@@ -5932,6 +5488,15 @@ loongarch_option_override_internal (struct gcc_options *opts,
 
   /* Function to allocate machine-dependent function status.  */
   init_machine_status = &loongarch_init_machine_status;
+}
+
+
+/* Implement TARGET_OPTION_OVERRIDE.  */
+
+static void
+loongarch_option_override (void)
+{
+  loongarch_option_override_internal (&global_options);
 }
 
 /* Implement TARGET_CONDITIONAL_REGISTER_USAGE.  */
@@ -6092,15 +5657,6 @@ loongarch_shift_truncation_mask (machine_mode mode)
   return GET_MODE_BITSIZE (mode) - 1;
 }
 
-/* Implement TARGET_SCHED_REASSOCIATION_WIDTH.  */
-
-static int
-loongarch_sched_reassociation_width (unsigned int opc ATTRIBUTE_UNUSED,
-				     machine_mode mode ATTRIBUTE_UNUSED)
-{
-  return 1;
-}
-
 /* Implement HARD_REGNO_CALLER_SAVE_MODE.  */
 
 machine_mode
@@ -6113,14 +5669,6 @@ loongarch_hard_regno_caller_save_mode (unsigned int regno, unsigned int nregs,
     return choose_hard_reg_mode (regno, nregs, NULL);
   else
     return mode;
-}
-
-/* Implement TARGET_CASE_VALUES_THRESHOLD.  */
-
-unsigned int
-loongarch_case_values_threshold (void)
-{
-  return default_case_values_threshold ();
 }
 
 /* Implement TARGET_SPILL_CLASS.  */
@@ -6204,16 +5752,6 @@ loongarch_truly_noop_truncation (poly_uint64 outprec, poly_uint64 inprec)
   return !TARGET_64BIT || inprec <= 32 || outprec > 32;
 }
 
-/* Implement TARGET_CONSTANT_ALIGNMENT.  */
-
-static HOST_WIDE_INT
-loongarch_constant_alignment (const_tree exp, HOST_WIDE_INT align)
-{
-  if (TREE_CODE (exp) == STRING_CST || TREE_CODE (exp) == CONSTRUCTOR)
-    return MAX (align, BITS_PER_WORD);
-  return align;
-}
-
 /* Implement TARGET_STARTING_FRAME_OFFSET.  See loongarch_compute_frame_info
    for details about the frame layout.  */
 
@@ -6280,10 +5818,6 @@ loongarch_starting_frame_offset (void)
 #undef TARGET_PREFERRED_RELOAD_CLASS
 #define TARGET_PREFERRED_RELOAD_CLASS loongarch_preferred_reload_class
 
-#undef TARGET_EXPAND_TO_RTL_HOOK
-#define TARGET_EXPAND_TO_RTL_HOOK loongarch_expand_to_rtl_hook
-#undef TARGET_ASM_FILE_START
-#define TARGET_ASM_FILE_START loongarch_file_start
 #undef TARGET_ASM_FILE_START_FILE_DIRECTIVE
 #define TARGET_ASM_FILE_START_FILE_DIRECTIVE true
 
@@ -6334,9 +5868,6 @@ loongarch_starting_frame_offset (void)
 #undef TARGET_SCALAR_MODE_SUPPORTED_P
 #define TARGET_SCALAR_MODE_SUPPORTED_P loongarch_scalar_mode_supported_p
 
-#undef TARGET_VECTORIZE_PREFERRED_SIMD_MODE
-#define TARGET_VECTORIZE_PREFERRED_SIMD_MODE loongarch_preferred_simd_mode
-
 #undef TARGET_INIT_BUILTINS
 #define TARGET_INIT_BUILTINS loongarch_init_builtins
 #undef TARGET_BUILTIN_DECL
@@ -6356,24 +5887,13 @@ loongarch_starting_frame_offset (void)
 #undef TARGET_LEGITIMATE_CONSTANT_P
 #define TARGET_LEGITIMATE_CONSTANT_P loongarch_legitimate_constant_p
 
-#undef TARGET_ATTRIBUTE_TABLE
-#define TARGET_ATTRIBUTE_TABLE loongarch_attribute_table
-/* All our function attributes are related to how out-of-line copies should
-   be compiled or called.  They don't in themselves prevent inlining.  */
-#undef TARGET_FUNCTION_ATTRIBUTE_INLINABLE_P
-#define TARGET_FUNCTION_ATTRIBUTE_INLINABLE_P hook_bool_const_tree_true
-
 #undef TARGET_USE_BLOCKS_FOR_CONSTANT_P
 #define TARGET_USE_BLOCKS_FOR_CONSTANT_P hook_bool_mode_const_rtx_true
-#undef TARGET_USE_ANCHORS_FOR_SYMBOL_P
-#define TARGET_USE_ANCHORS_FOR_SYMBOL_P loongarch_use_anchors_for_symbol_p
 
 #ifdef HAVE_AS_DTPRELWORD
 #undef TARGET_ASM_OUTPUT_DWARF_DTPREL
 #define TARGET_ASM_OUTPUT_DWARF_DTPREL loongarch_output_dwarf_dtprel
 #endif
-#undef TARGET_DWARF_FRAME_REG_MODE
-#define TARGET_DWARF_FRAME_REG_MODE loongarch_dwarf_frame_reg_mode
 
 #undef TARGET_LEGITIMATE_ADDRESS_P
 #define TARGET_LEGITIMATE_ADDRESS_P loongarch_legitimate_address_p
@@ -6392,12 +5912,6 @@ loongarch_starting_frame_offset (void)
 
 #undef TARGET_SHIFT_TRUNCATION_MASK
 #define TARGET_SHIFT_TRUNCATION_MASK loongarch_shift_truncation_mask
-
-#undef TARGET_SCHED_REASSOCIATION_WIDTH
-#define TARGET_SCHED_REASSOCIATION_WIDTH loongarch_sched_reassociation_width
-
-#undef TARGET_CASE_VALUES_THRESHOLD
-#define TARGET_CASE_VALUES_THRESHOLD loongarch_case_values_threshold
 
 #undef TARGET_ATOMIC_ASSIGN_EXPAND_FENV
 #define TARGET_ATOMIC_ASSIGN_EXPAND_FENV loongarch_atomic_assign_expand_fenv
@@ -6423,9 +5937,6 @@ loongarch_starting_frame_offset (void)
 
 #undef TARGET_CUSTOM_FUNCTION_DESCRIPTORS
 #define TARGET_CUSTOM_FUNCTION_DESCRIPTORS 2
-
-#undef TARGET_SECONDARY_MEMORY_NEEDED
-#define TARGET_SECONDARY_MEMORY_NEEDED loongarch_secondary_memory_needed
 
 #undef TARGET_CAN_CHANGE_MODE_CLASS
 #define TARGET_CAN_CHANGE_MODE_CLASS loongarch_can_change_mode_class
