@@ -3736,6 +3736,9 @@ loongarch_expand_scc (rtx operands[])
   rtx op0 = operands[2];
   rtx op1 = operands[3];
 
+  loongarch_extend_comparands (code, &op0, &op1);
+  op0 = force_reg (word_mode, op0);
+
   gcc_assert (GET_MODE_CLASS (GET_MODE (op0)) == MODE_INT);
 
   if (code == EQ || code == NE)
@@ -5741,14 +5744,6 @@ loongarch_promote_function_mode (const_tree type ATTRIBUTE_UNUSED,
   return mode;
 }
 
-/* Implement TARGET_TRULY_NOOP_TRUNCATION.  */
-
-static bool
-loongarch_truly_noop_truncation (poly_uint64 outprec, poly_uint64 inprec)
-{
-  return !TARGET_64BIT || inprec <= 32 || outprec > 32;
-}
-
 /* Implement TARGET_STARTING_FRAME_OFFSET.  See loongarch_compute_frame_info
    for details about the frame layout.  */
 
@@ -5937,9 +5932,6 @@ loongarch_starting_frame_offset (void)
 
 #undef TARGET_CAN_CHANGE_MODE_CLASS
 #define TARGET_CAN_CHANGE_MODE_CLASS loongarch_can_change_mode_class
-
-#undef TARGET_TRULY_NOOP_TRUNCATION
-#define TARGET_TRULY_NOOP_TRUNCATION loongarch_truly_noop_truncation
 
 #undef TARGET_CONSTANT_ALIGNMENT
 #define TARGET_CONSTANT_ALIGNMENT loongarch_constant_alignment
