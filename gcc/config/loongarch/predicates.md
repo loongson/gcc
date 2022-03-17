@@ -51,29 +51,9 @@
   (and (match_code "const_int")
        (match_test "IN_RANGE (INTVAL (op), 1, 4)")))
 
-(define_predicate "const_uimm3_operand"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (INTVAL (op), 0, 7)")))
-
-(define_predicate "const_uimm4_operand"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (INTVAL (op), 0, 15)")))
-
 (define_predicate "const_uimm5_operand"
   (and (match_code "const_int")
        (match_test "IN_RANGE (INTVAL (op), 0, 31)")))
-
-(define_predicate "const_uimm6_operand"
-  (and (match_code "const_int")
-       (match_test "UIMM6_OPERAND (INTVAL (op))")))
-
-(define_predicate "const_uimm7_operand"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (INTVAL (op), 0, 127)")))
-
-(define_predicate "const_uimm8_operand"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (INTVAL (op), 0, 255)")))
 
 (define_predicate "const_uimm14_operand"
   (and (match_code "const_int")
@@ -83,69 +63,9 @@
   (and (match_code "const_int")
        (match_test "IN_RANGE (INTVAL (op), 0, 32767)")))
 
-(define_predicate "const_imm5_operand"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (INTVAL (op), -16, 15)")))
-
-(define_predicate "const_imm10_operand"
-  (and (match_code "const_int")
-       (match_test "IMM10_OPERAND (INTVAL (op))")))
-
 (define_predicate "const_imm12_operand"
   (and (match_code "const_int")
        (match_test "IMM12_OPERAND (INTVAL (op))")))
-
-(define_predicate "reg_imm10_operand"
-  (ior (match_operand 0 "const_imm10_operand")
-       (match_operand 0 "register_operand")))
-
-(define_predicate "aq8b_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 8, 0)")))
-
-(define_predicate "aq8h_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 8, 1)")))
-
-(define_predicate "aq8w_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 8, 2)")))
-
-(define_predicate "aq8d_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 8, 3)")))
-
-(define_predicate "aq10b_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 10, 0)")))
-
-(define_predicate "aq10h_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 10, 1)")))
-
-(define_predicate "aq10w_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 10, 2)")))
-
-(define_predicate "aq10d_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 10, 3)")))
-
-(define_predicate "aq12b_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 12, 0)")))
-
-(define_predicate "aq12h_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 11, 1)")))
-
-(define_predicate "aq12w_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 10, 2)")))
-
-(define_predicate "aq12d_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 9, 3)")))
 
 (define_predicate "sle_operand"
   (and (match_code "const_int")
@@ -159,14 +79,6 @@
   (and (match_code "const_int,const_double,const_vector")
        (match_test "op == CONST0_RTX (GET_MODE (op))")))
 
-(define_predicate "const_m1_operand"
-  (and (match_code "const_int,const_double,const_vector")
-       (match_test "op == CONSTM1_RTX (GET_MODE (op))")))
-
-(define_predicate "reg_or_m1_operand"
-  (ior (match_operand 0 "const_m1_operand")
-       (match_operand 0 "register_operand")))
-
 (define_predicate "reg_or_0_operand"
   (ior (match_operand 0 "const_0_operand")
        (match_operand 0 "register_operand")))
@@ -179,36 +91,6 @@
   (ior (match_operand 0 "const_1_operand")
        (match_operand 0 "register_operand")))
 
-;; These are used in vec_merge, hence accept bitmask as const_int.
-(define_predicate "const_exp_2_operand"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (exact_log2 (INTVAL (op)), 0, 1)")))
-
-(define_predicate "const_exp_4_operand"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (exact_log2 (INTVAL (op)), 0, 3)")))
-
-(define_predicate "const_exp_8_operand"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (exact_log2 (INTVAL (op)), 0, 7)")))
-
-(define_predicate "const_exp_16_operand"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (exact_log2 (INTVAL (op)), 0, 15)")))
-
-(define_predicate "const_exp_32_operand"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (exact_log2 (INTVAL (op)), 0, 31)")))
-
-;; This is used for indexing into vectors, and hence only accepts const_int.
-(define_predicate "const_0_or_1_operand"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (INTVAL (op), 0, 1)")))
-
-(define_predicate "const_2_or_3_operand"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (INTVAL (op), 2, 3)")))
-
 (define_predicate "const_0_to_3_operand"
   (and (match_code "const_int")
        (match_test "IN_RANGE (INTVAL (op), 0, 3)")))
@@ -217,151 +99,20 @@
   (and (match_code "const_int")
        (match_test "IN_RANGE (INTVAL (op), 0, 7)")))
 
-(define_predicate "const_4_to_7_operand"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (INTVAL (op), 4, 7)")))
-
-(define_predicate "const_8_to_15_operand"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (INTVAL (op), 0, 7)")))
-
-(define_predicate "const_16_to_31_operand"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (INTVAL (op), 0, 7)")))
-
-(define_predicate "qi_mask_operand"
-  (and (match_code "const_int")
-       (match_test "UINTVAL (op) == 0xff")))
-
-(define_predicate "hi_mask_operand"
-  (and (match_code "const_int")
-       (match_test "UINTVAL (op) == 0xffff")))
-
 (define_predicate "lu52i_mask_operand"
   (and (match_code "const_int")
        (match_test "UINTVAL (op) == 0xfffffffffffff")))
 
-(define_predicate "si_mask_operand"
-  (and (match_code "const_int")
-       (match_test "UINTVAL (op) == 0xffffffff")))
-
 (define_predicate "low_bitmask_operand"
   (and (match_code "const_int")
        (match_test "low_bitmask_len (mode, INTVAL (op)) > 12")))
-
-(define_predicate "d_operand"
-  (and (match_code "reg")
-       (match_test "GP_REG_P (REGNO (op))")))
-
-(define_predicate "db4_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_unsigned_immediate_p (INTVAL (op) + 1, 4, 0)")))
-
-(define_predicate "db7_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_unsigned_immediate_p (INTVAL (op) + 1, 7, 0)")))
-
-(define_predicate "db8_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_unsigned_immediate_p (INTVAL (op) + 1, 8, 0)")))
-
-(define_predicate "ib3_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_unsigned_immediate_p (INTVAL (op) - 1, 3, 0)")))
-
-(define_predicate "sb4_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 4, 0)")))
-
-(define_predicate "sb5_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 5, 0)")))
-
-(define_predicate "sb8_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 8, 0)")))
-
-(define_predicate "sd8_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_signed_immediate_p (INTVAL (op), 8, 3)")))
-
-(define_predicate "ub4_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_unsigned_immediate_p (INTVAL (op), 4, 0)")))
-
-(define_predicate "ub8_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_unsigned_immediate_p (INTVAL (op), 8, 0)")))
-
-(define_predicate "uh4_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_unsigned_immediate_p (INTVAL (op), 4, 1)")))
-
-(define_predicate "uw4_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_unsigned_immediate_p (INTVAL (op), 4, 2)")))
-
-(define_predicate "uw5_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_unsigned_immediate_p (INTVAL (op), 5, 2)")))
-
-(define_predicate "uw6_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_unsigned_immediate_p (INTVAL (op), 6, 2)")))
-
-(define_predicate "uw8_operand"
-  (and (match_code "const_int")
-       (match_test "loongarch_unsigned_immediate_p (INTVAL (op), 8, 2)")))
-
-(define_predicate "addiur2_operand"
-  (and (match_code "const_int")
-	(ior (match_test "INTVAL (op) == -1")
-	     (match_test "INTVAL (op) == 1")
-	     (match_test "INTVAL (op) == 4")
-	     (match_test "INTVAL (op) == 8")
-	     (match_test "INTVAL (op) == 12")
-	     (match_test "INTVAL (op) == 16")
-	     (match_test "INTVAL (op) == 20")
-	     (match_test "INTVAL (op) == 24"))))
-
-(define_predicate "addiusp_operand"
-  (and (match_code "const_int")
-       (ior (match_test "(IN_RANGE (INTVAL (op), 2, 257))")
-	    (match_test "(IN_RANGE (INTVAL (op), -258, -3))"))))
-
-(define_predicate "andi16_operand"
-  (and (match_code "const_int")
-	(ior (match_test "IN_RANGE (INTVAL (op), 1, 4)")
-	     (match_test "IN_RANGE (INTVAL (op), 7, 8)")
-	     (match_test "IN_RANGE (INTVAL (op), 15, 16)")
-	     (match_test "IN_RANGE (INTVAL (op), 31, 32)")
-	     (match_test "IN_RANGE (INTVAL (op), 63, 64)")
-	     (match_test "INTVAL (op) == 255")
-	     (match_test "INTVAL (op) == 32768")
-	     (match_test "INTVAL (op) == 65535"))))
-
-(define_predicate "movep_src_register"
-  (and (match_code "reg")
-       (ior (match_test ("IN_RANGE (REGNO (op), 2, 3)"))
-	    (match_test ("IN_RANGE (REGNO (op), 16, 20)")))))
-
-(define_predicate "movep_src_operand"
-  (ior (match_operand 0 "const_0_operand")
-       (match_operand 0 "movep_src_register")))
-
-(define_predicate "fcc_reload_operand"
-  (and (match_code "reg,subreg")
-       (match_test "FCC_REG_P (true_regnum (op))")))
-
-(define_predicate "muldiv_target_operand"
-		(match_operand 0 "register_operand"))
 
 (define_predicate "const_call_insn_operand"
   (match_code "const,symbol_ref,label_ref")
 {
   enum loongarch_symbol_type symbol_type;
 
-  if (!loongarch_symbolic_constant_p (op, SYMBOL_CONTEXT_CALL, &symbol_type))
+  if (!loongarch_symbolic_constant_p (op, &symbol_type))
     return false;
 
   switch (symbol_type)
@@ -386,7 +137,7 @@
 (define_predicate "is_const_call_local_symbol"
   (and (match_operand 0 "const_call_insn_operand")
        (ior (match_test "loongarch_global_symbol_p (op) == 0")
-       (match_test "loongarch_symbol_binds_local_p (op) != 0"))
+	    (match_test "loongarch_symbol_binds_local_p (op) != 0"))
        (match_test "CONSTANT_P (op)")))
 
 (define_predicate "is_const_call_weak_symbol"
@@ -468,42 +219,21 @@
     case CONST:
     case SYMBOL_REF:
     case LABEL_REF:
-      return (loongarch_symbolic_constant_p (op, SYMBOL_CONTEXT_LEA,
-					     &symbol_type));
+      return (loongarch_symbolic_constant_p (op, &symbol_type));
     default:
       return true;
     }
 })
 
-(define_predicate "consttable_operand"
-  (match_test "CONSTANT_P (op)"))
-
 (define_predicate "symbolic_operand"
   (match_code "const,symbol_ref,label_ref")
 {
   enum loongarch_symbol_type type;
-  return loongarch_symbolic_constant_p (op, SYMBOL_CONTEXT_LEA, &type);
+  return loongarch_symbolic_constant_p (op, &type);
 })
-
-(define_predicate "got_disp_operand"
-  (match_code "const,symbol_ref,label_ref")
-{
-  enum loongarch_symbol_type type;
-  return (loongarch_symbolic_constant_p (op, SYMBOL_CONTEXT_LEA, &type)
-	  && type == SYMBOL_GOT_DISP);
-})
-
-(define_predicate "symbol_ref_operand"
-  (match_code "symbol_ref"))
 
 (define_predicate "equality_operator"
   (match_code "eq,ne"))
-
-(define_predicate "extend_operator"
-  (match_code "zero_extend,sign_extend"))
-
-(define_predicate "trap_comparison_operator"
-  (match_code "eq,ne,lt,ltu,ge,geu"))
 
 (define_predicate "order_operator"
   (match_code "lt,ltu,le,leu,ge,geu,gt,gtu"))
@@ -516,10 +246,6 @@
 (define_predicate "small_data_pattern"
   (and (match_code "set,parallel,unspec,unspec_volatile,prefetch")
        (match_test "loongarch_small_data_pattern_p (op)")))
-
-(define_predicate "mem_noofs_operand"
-  (and (match_code "mem")
-       (match_code "reg" "0")))
 
 ;; Return 1 if the operand is in non-volatile memory.
 (define_predicate "non_volatile_mem_operand"

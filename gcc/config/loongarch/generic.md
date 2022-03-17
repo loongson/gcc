@@ -19,17 +19,6 @@
 ;; along with GCC; see the file COPYING3.  If not see
 ;; <http://www.gnu.org/licenses/>.
 
-
-;; Pipeline descriptions.
-;;
-;; generic.md provides a fallback for processors without a specific
-;; pipeline description.  It is derived from the old define_function_unit
-;; version and uses the "alu" and "imuldiv" units declared below.
-;;
-;; Some of the processor-specific files are also derived from old
-;; define_function_unit descriptions and simply override the parts of
-;; generic.md that don't apply.  The other processor-specific files
-;; are self-contained.
 (define_automaton "alu,imuldiv")
 
 (define_cpu_unit "alu" "alu")
@@ -40,9 +29,6 @@
 (define_insn_reservation "ghost" 0
   (eq_attr "type" "ghost")
   "nothing")
-
-;; This file is derived from the old define_function_unit description.
-;; Each reservation can be overridden on a processor-by-processor basis.
 
 (define_insn_reservation "generic_alu" 1
   (eq_attr "type" "unknown,prefetch,prefetchx,condmove,const,arith,

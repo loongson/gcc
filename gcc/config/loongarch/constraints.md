@@ -146,7 +146,7 @@
        (match_test "LU32I_OPERAND (ival)")))
 
 (define_constraint "v"
-  "A nsigned 64-bit constant and low 44-bit is zero (for logic instructions)."
+  "A signed 64-bit constant and low 44-bit is zero (for logic instructions)."
   (and (match_code "const_int")
        (match_test "LU52I_OPERAND (ival)")))
 
@@ -200,5 +200,5 @@
   An address that is held in a general-purpose register.
   The offset is zero"
   (and (match_code "mem")
-       (match_test "REG_P (XEXP (op,0))")))
+       (match_test "REG_P (XEXP (op, 0))")))
 

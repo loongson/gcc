@@ -21,6 +21,21 @@ along with GCC; see the file COPYING3.  If not see
 #include "loongarch-def.h"
 #include "loongarch-str.h"
 
+/* Default RTX cost initializer.  */
+#define COSTS_N_INSNS(N) ((N) * 4)
+#define DEFAULT_COSTS				\
+    .fp_add		= COSTS_N_INSNS (1),	\
+    .fp_mult_sf		= COSTS_N_INSNS (2),	\
+    .fp_mult_df		= COSTS_N_INSNS (4),	\
+    .fp_div_sf		= COSTS_N_INSNS (6),	\
+    .fp_div_df		= COSTS_N_INSNS (8),	\
+    .int_mult_si	= COSTS_N_INSNS (1),	\
+    .int_mult_di	= COSTS_N_INSNS (1),	\
+    .int_div_si		= COSTS_N_INSNS (4),	\
+    .int_div_di		= COSTS_N_INSNS (6),	\
+    .branch_cost	= 2,			\
+    .memory_latency	= 4
+
 /* CPU property tables.  */
 const char*
 loongarch_cpu_strings[N_TUNE_TYPES] = {

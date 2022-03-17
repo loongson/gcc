@@ -22,22 +22,6 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_LOONGARCH_PROTOS_H
 #define GCC_LOONGARCH_PROTOS_H
 
-/* Describes how a symbol is used.
-
-   SYMBOL_CONTEXT_CALL
-       The symbol is used as the target of a call instruction.
-
-   SYMBOL_CONTEXT_LEA
-       The symbol is used in a load-address operation.
-
-   SYMBOL_CONTEXT_MEM
-       The symbol is used as the address in a MEM.  */
-enum loongarch_symbol_context {
-  SYMBOL_CONTEXT_CALL,
-  SYMBOL_CONTEXT_LEA,
-  SYMBOL_CONTEXT_MEM
-};
-
 /* Classifies a SYMBOL_REF, LABEL_REF or UNSPEC address.
 
    SYMBOL_GOT_DISP
@@ -59,41 +43,6 @@ enum loongarch_symbol_type {
 };
 #define NUM_SYMBOL_TYPES (SYMBOL_TLSLDM + 1)
 
-/* Classifies a type of call.
-
-   LARCH_CALL_NORMAL
-	A normal call or call_value pattern.
-
-   LARCH_CALL_SIBCALL
-	A sibcall or sibcall_value pattern.
-
-   LARCH_CALL_EPILOGUE
-	A call inserted in the epilogue.  */
-enum loongarch_call_type {
-  LARCH_CALL_NORMAL,
-  LARCH_CALL_SIBCALL,
-  LARCH_CALL_EPILOGUE
-};
-
-/* Controls the conditions under which certain instructions are split.
-
-   SPLIT_IF_NECESSARY
-	Only perform splits that are necessary for correctness
-	(because no unsplit version exists).
-
-   SPLIT_FOR_SPEED
-	Perform splits that are necessary for correctness or
-	beneficial for code speed.
-
-   SPLIT_FOR_SIZE
-	Perform splits that are necessary for correctness or
-	beneficial for code size.  */
-enum loongarch_split_type {
-  SPLIT_IF_NECESSARY,
-  SPLIT_FOR_SPEED,
-  SPLIT_FOR_SIZE
-};
-
 extern const char *const loongarch_fp_conditions[16];
 
 /* Routines implemented in loongarch.c.  */
@@ -103,8 +52,7 @@ extern void loongarch_expand_prologue (void);
 extern void loongarch_expand_epilogue (bool);
 extern bool loongarch_can_use_return_insn (void);
 
-extern bool loongarch_symbolic_constant_p (rtx, enum loongarch_symbol_context,
-					   enum loongarch_symbol_type *);
+extern bool loongarch_symbolic_constant_p (rtx, enum loongarch_symbol_type *);
 extern int loongarch_regno_mode_ok_for_base_p (int, machine_mode, bool);
 extern int loongarch_address_insns (rtx, machine_mode, bool);
 extern int loongarch_const_insns (rtx);
@@ -123,9 +71,9 @@ extern bool loongarch_legitimize_move (machine_mode, rtx, rtx);
 extern rtx loongarch_legitimize_call_address (rtx);
 
 extern rtx loongarch_subword (rtx, bool);
-extern bool loongarch_split_move_p (rtx, rtx, enum loongarch_split_type);
-extern void loongarch_split_move (rtx, rtx, enum loongarch_split_type, rtx);
-extern bool loongarch_split_move_insn_p (rtx, rtx, rtx);
+extern bool loongarch_split_move_p (rtx, rtx);
+extern void loongarch_split_move (rtx, rtx, rtx);
+extern bool loongarch_split_move_insn_p (rtx, rtx);
 extern void loongarch_split_move_insn (rtx, rtx, rtx);
 extern const char *loongarch_output_move (rtx, rtx);
 extern bool loongarch_cfun_has_cprestore_slot_p (void);
@@ -148,20 +96,6 @@ extern HOST_WIDE_INT loongarch_debugger_offset (rtx, HOST_WIDE_INT);
 
 extern void loongarch_output_external (FILE *, tree, const char *);
 extern void loongarch_output_ascii (FILE *, const char *, size_t);
-extern void loongarch_output_aligned_decl_common (FILE *, tree, const char *,
-						  unsigned HOST_WIDE_INT,
-						  unsigned int);
-extern void loongarch_declare_common_object (FILE *, const char *,
-					     const char *,
-					     unsigned HOST_WIDE_INT,
-					     unsigned int, bool);
-extern void loongarch_declare_object (FILE *, const char *, const char *,
-				      const char *, ...) ATTRIBUTE_PRINTF_4;
-extern void loongarch_declare_object_name (FILE *, const char *, tree);
-extern void loongarch_finish_declare_object (FILE *, tree, int, int);
-extern void loongarch_set_text_contents_type (FILE *, const char *,
-					      unsigned long, bool);
-
 extern bool loongarch_small_data_pattern_p (rtx);
 extern rtx loongarch_rewrite_small_data (rtx);
 extern rtx loongarch_return_addr (int, rtx);
@@ -225,8 +159,6 @@ extern bool loongarch_split_symbol_type (enum loongarch_symbol_type);
 typedef rtx (*mulsidi3_gen_fn) (rtx, rtx, rtx);
 
 extern void loongarch_register_frame_header_opt (void);
-
-extern void loongarch_declare_function_name (FILE *, const char *, tree);
 
 /* Routines implemented in loongarch-c.c.  */
 void loongarch_cpu_cpp_builtins (cpp_reader *);

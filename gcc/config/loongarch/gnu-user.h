@@ -78,7 +78,3 @@ along with GCC; see the file COPYING3.  If not see
        builtin_define ("_GNU_SOURCE"); \
     } \
   while (0)
-
-
-#undef ASM_DECLARE_OBJECT_NAME
-#define ASM_DECLARE_OBJECT_NAME loongarch_declare_object_name
