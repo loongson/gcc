@@ -117,8 +117,7 @@
   "A memory operand whose address is formed by a base register and (optionally scaled)
    index register."
   (and (match_code "mem")
-       (not (match_test "loongarch_14bit_shifted_offset_address_p (XEXP (op, 0), mode)"))
-       (not (match_test "loongarch_12bit_offset_address_p (XEXP (op, 0), mode)"))))
+       (match_test "loongarch_base_index_address_p (XEXP (op, 0), mode)")))
 
 (define_constraint "l"
 "A signed 16-bit constant."

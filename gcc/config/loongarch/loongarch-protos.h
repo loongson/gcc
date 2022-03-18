@@ -149,6 +149,7 @@ extern bool loongarch_signed_immediate_p (unsigned HOST_WIDE_INT, int, int);
 extern bool loongarch_unsigned_immediate_p (unsigned HOST_WIDE_INT, int, int);
 extern bool loongarch_12bit_offset_address_p (rtx, machine_mode);
 extern bool loongarch_14bit_shifted_offset_address_p (rtx, machine_mode);
+extern bool loongarch_base_index_address_p (rtx, machine_mode);
 extern rtx loongarch_expand_thread_pointer (rtx);
 
 extern bool loongarch_eh_uses (unsigned int);

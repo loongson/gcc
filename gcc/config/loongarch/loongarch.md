@@ -548,6 +548,16 @@
    (set_attr "compression" "*,*")
    (set_attr "mode" "<MODE>")])
 
+(define_insn "*addsi3_extended"
+  [(set (match_operand:DI 0 "register_operand" "=r,r")
+	(sign_extend:DI
+	     (plus:SI (match_operand:SI 1 "register_operand" "r,r")
+		      (match_operand:SI 2 "arith_operand" "r,I"))))]
+  "TARGET_64BIT"
+  "add%i2.w\t%0,%1,%2"
+  [(set_attr "alu_type" "add")
+   (set_attr "mode" "SI")])
+
 
 ;;
 ;;  ....................
@@ -575,6 +585,17 @@
   [(set_attr "alu_type" "sub")
    (set_attr "compression" "*")
    (set_attr "mode" "<MODE>")])
+
+
+(define_insn "*subsi3_extended"
+  [(set (match_operand:DI 0 "register_operand" "= r")
+	(sign_extend:DI
+	    (minus:SI (match_operand:SI 1 "reg_or_0_operand" " rJ")
+		      (match_operand:SI 2 "register_operand" "  r"))))]
+  "TARGET_64BIT"
+  "sub.w\t%0,%z1,%2"
+  [(set_attr "type" "arith")
+   (set_attr "mode" "SI")])
 
 ;;
 ;;  ....................
@@ -689,12 +710,6 @@
 ;;
 
 ;; Float division and modulus.
-(define_expand "div<mode>3"
-  [(set (match_operand:ANYF 0 "register_operand")
-	(div:ANYF (match_operand:ANYF 1 "reg_or_1_operand")
-		  (match_operand:ANYF 2 "register_operand")))]
-  "TARGET_HARD_FLOAT")
-
 (define_insn "*div<mode>3"
   [(set (match_operand:ANYF 0 "register_operand" "=f")
 	(div:ANYF (match_operand:ANYF 1 "register_operand" "f")
@@ -1030,7 +1045,7 @@
 (define_insn "neg<mode>2"
   [(set (match_operand:ANYF 0 "register_operand" "=f")
 	(neg:ANYF (match_operand:ANYF 1 "register_operand" "f")))]
-  "TARGET_HARD_FLOAT"
+  ""
   "fneg.<fmt>\t%0,%1"
   [(set_attr "type" "fneg")
    (set_attr "mode" "<UNITMODE>")])
@@ -1247,33 +1262,6 @@
    ld.b\t%0,%1
    ldx.b\t%0,%1"
   [(set_attr "move_type" "signext,load,load")
-   (set_attr "mode" "SI")])
-
-(define_insn "*extenddi_truncate<mode>"
-  [(set (match_operand:DI 0 "register_operand" "=r")
-	(sign_extend:DI
-	    (truncate:SHORT (match_operand:DI 1 "register_operand" "r"))))]
-  "TARGET_64BIT"
-  "ext.w.<size>\t%0,%1"
-  [(set_attr "move_type" "signext")
-   (set_attr "mode" "DI")])
-
-(define_insn "*extendsi_truncate<mode>"
-  [(set (match_operand:SI 0 "register_operand" "=r")
-	(sign_extend:SI
-	    (truncate:SHORT (match_operand:DI 1 "register_operand" "r"))))]
-  "TARGET_64BIT"
-  "ext.w.<size>\t%0,%1"
-  [(set_attr "move_type" "signext")
-   (set_attr "mode" "SI")])
-
-(define_insn "*extendhi_truncateqi"
-  [(set (match_operand:HI 0 "register_operand" "=r")
-	(sign_extend:HI
-	    (truncate:QI (match_operand:DI 1 "register_operand" "r"))))]
-  "TARGET_64BIT"
-  "ext.w.b\t%0,%1"
-  [(set_attr "move_type" "signext")
    (set_attr "mode" "SI")])
 
 (define_insn "extendsfdf2"
@@ -1882,7 +1870,7 @@
 		 (const_int 0))
 	 (match_operand:ANYF 2 "reg_or_0_operand" "f")
 	 (match_operand:ANYF 3 "reg_or_0_operand" "f")))]
-  "TARGET_HARD_FLOAT"
+  ""
   "fsel\t%0,%3,%2,%1"
   [(set_attr "type" "condmove")
    (set_attr "mode" "<ANYF:MODE>")])
@@ -1944,7 +1932,7 @@
   [(set (match_operand:ANYF 0 "register_operand" "=f")
 	(unspec:ANYF [(match_operand:ANYF 1 "register_operand" "f")]
 		      UNSPEC_FRINT))]
-  "TARGET_HARD_FLOAT"
+  ""
   "frint.<fmt>\t%0,%1"
   [(set_attr "type" "fcvt")
    (set_attr "mode" "<MODE>")])
@@ -2256,6 +2244,7 @@
   [(set_attr "type" "shift,shift")
    (set_attr "mode" "<MODE>")])
 
+
 ;; The following templates were added to generate "bstrpick.d + alsl.d"
 ;; instruction pairs.
 ;; It is required that the values of const_immalsl_operand and
@@ -2263,19 +2252,7 @@
 ;;
 ;; (immediate_operand >> const_immalsl_operand) == 0xffffffff
 
-(define_insn "zero_extend_ashift1"
-  [(set (match_operand:DI 0 "register_operand" "=r")
-	(and:DI (ashift:DI (subreg:DI (match_operand:SI 1 "register_operand" "r") 0)
-			   (match_operand 2 "const_immalsl_operand" ""))
-		(match_operand 3 "immediate_operand" "")))]
-  "TARGET_64BIT
-   && ((INTVAL (operands[3]) >> INTVAL (operands[2])) == 0xffffffff)"
-  "bstrpick.d\t%0,%1,31,0\n\talsl.d\t%0,%0,$r0,%2"
-  [(set_attr "type" "arith")
-   (set_attr "mode" "DI")
-   (set_attr "insn_count" "2")])
-
-(define_insn "zero_extend_ashift2"
+(define_insn "zero_extend_ashift"
   [(set (match_operand:DI 0 "register_operand" "=r")
 	(and:DI (ashift:DI (match_operand:DI 1 "register_operand" "r")
 			   (match_operand 2 "const_immalsl_operand" ""))
@@ -2287,20 +2264,7 @@
    (set_attr "mode" "DI")
    (set_attr "insn_count" "2")])
 
-(define_insn "alsl_paired1"
-  [(set (match_operand:DI 0 "register_operand" "=&r")
-	(plus:DI (and:DI (ashift:DI (subreg:DI (match_operand:SI 1 "register_operand" "r") 0)
-				    (match_operand 2 "const_immalsl_operand" ""))
-			 (match_operand 3 "immediate_operand" ""))
-		 (match_operand:DI 4 "register_operand" "r")))]
-  "TARGET_64BIT
-   && ((INTVAL (operands[3]) >> INTVAL (operands[2])) == 0xffffffff)"
-  "bstrpick.d\t%0,%1,31,0\n\talsl.d\t%0,%0,%4,%2"
-  [(set_attr "type" "arith")
-  (set_attr "mode" "DI")
-  (set_attr "insn_count" "2")])
-
-(define_insn "alsl_paired2"
+(define_insn "bstrpick_alsl_paired"
   [(set (match_operand:DI 0 "register_operand" "=&r")
 	(plus:DI (match_operand:DI 1 "register_operand" "r")
 		 (and:DI (ashift:DI (match_operand:DI 2 "register_operand" "r")
@@ -2597,7 +2561,7 @@
   [(set (match_operand:FCC 0 "register_operand" "=z")
 	(fcond:FCC (match_operand:ANYF 1 "register_operand" "f")
 		   (match_operand:ANYF 2 "register_operand" "f")))]
-  "TARGET_HARD_FLOAT"
+  ""
   "fcmp.<fcond>.<fmt>\t%Z0%1,%2"
   [(set_attr "type" "fcmp")
    (set_attr "mode" "FCC")])
@@ -3295,13 +3259,13 @@
 
 (define_insn "@stack_tie<mode>"
   [(set (mem:BLK (scratch))
-	(unspec:BLK [(match_operand:GPR 0 "register_operand" "r")
-		     (match_operand:GPR 1 "register_operand" "r")]
+	(unspec:BLK [(match_operand:X 0 "register_operand" "r")
+		     (match_operand:X 1 "register_operand" "r")]
 		     UNSPEC_TIE))]
   ""
   ""
-  [(set_attr "length" "0")]
-)
+  [(set_attr "length" "0")
+   (set_attr "type" "ghost")])
 
 
 (define_split

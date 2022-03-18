@@ -1956,6 +1956,16 @@ loongarch_14bit_shifted_offset_address_p (rtx x, machine_mode mode)
 	  && LARCH_SHIFT_2_OFFSET_P (INTVAL (addr.offset)));
 }
 
+bool
+loongarch_base_index_address_p (rtx x, machine_mode mode)
+{
+  struct loongarch_address_info addr;
+
+  return (loongarch_classify_address (&addr, x, mode, false)
+	  && addr.type == ADDRESS_REG_REG
+	  && REG_P (addr.offset));
+}
+
 /* Return the number of instructions needed to load constant X,
    Return 0 if X isn't a valid constant.  */
 
@@ -2662,14 +2672,10 @@ loongarch_fp_div_cost (machine_mode mode)
    cost of OP itself.  */
 
 static int
-loongarch_sign_extend_cost (machine_mode mode, rtx op)
+loongarch_sign_extend_cost (rtx op)
 {
   if (MEM_P (op))
     /* Extended loads are as cheap as unextended ones.  */
-    return 0;
-
-  if (TARGET_64BIT && mode == DImode && GET_MODE (op) == SImode)
-    /* A sign extension from SImode to DImode in 64-bit mode is free.  */
     return 0;
 
   return COSTS_N_INSNS (1);
@@ -2679,15 +2685,11 @@ loongarch_sign_extend_cost (machine_mode mode, rtx op)
    cost of OP itself.  */
 
 static int
-loongarch_zero_extend_cost (machine_mode mode, rtx op)
+loongarch_zero_extend_cost (rtx op)
 {
   if (MEM_P (op))
     /* Extended loads are as cheap as unextended ones.  */
     return 0;
-
-  if (TARGET_64BIT && mode == DImode && GET_MODE (op) == SImode)
-    /* We need a shift left by 32 bits and a shift right by 32 bits.  */
-    return COSTS_N_INSNS (2);
 
   /* We can use ANDI.  */
   return COSTS_N_INSNS (1);
@@ -2815,7 +2817,7 @@ loongarch_rtx_costs (rtx x, machine_mode mode, int outer_code,
       if (TARGET_64BIT && mode == DImode && CONST_INT_P (XEXP (x, 1))
 	  && UINTVAL (XEXP (x, 1)) == 0xffffffff)
 	{
-	  *total = (loongarch_zero_extend_cost (mode, XEXP (x, 0))
+	  *total = (loongarch_zero_extend_cost (XEXP (x, 0))
 		    + set_src_cost (XEXP (x, 0), mode, speed));
 	  return true;
 	}
@@ -2981,11 +2983,11 @@ loongarch_rtx_costs (rtx x, machine_mode mode, int outer_code,
       return false;
 
     case SIGN_EXTEND:
-      *total = loongarch_sign_extend_cost (mode, XEXP (x, 0));
+      *total = loongarch_sign_extend_cost (XEXP (x, 0));
       return false;
 
     case ZERO_EXTEND:
-      *total = loongarch_zero_extend_cost (mode, XEXP (x, 0));
+      *total = loongarch_zero_extend_cost (XEXP (x, 0));
       return false;
     case TRUNCATE:
       /* Costings for highpart multiplies.  Matching patterns of the form:
@@ -3387,7 +3389,7 @@ loongarch_output_move (rtx dest, rtx src)
 	      unsigned int align;
 
 	      if (LABEL_REF_P (src))
-		align = 128 /* Whatever.  */;
+		align = 32 /* Whatever.  */;
 	      else if (CONSTANT_POOL_ADDRESS_P (src))
 		align = GET_MODE_ALIGNMENT (get_pool_mode (src));
 	      else if (TREE_CONSTANT_POOL_ADDRESS_P (src))
@@ -3421,9 +3423,9 @@ loongarch_output_move (rtx dest, rtx src)
 	  if (TARGET_CMODEL_EXTREME)
 	    {
 	      sorry ("Normal symbol loading not implemented in extreme mode.");
-	      /* GCC complains.  */
-	      /* return ""; */
+	      gcc_unreachable ();
 	    }
+
 	}
     }
   if (src_code == REG && FP_REG_P (REGNO (src)))
@@ -3697,7 +3699,7 @@ loongarch_emit_int_compare (enum rtx_code *code, rtx *op0, rtx *op1)
     *op1 = force_reg (word_mode, *op1);
 }
 
-/* Like riscv_emit_int_compare, but for floating-point comparisons.  */
+/* Like loongarch_emit_int_compare, but for floating-point comparisons.  */
 
 static void
 loongarch_emit_float_compare (enum rtx_code *code, rtx *op0, rtx *op1)
@@ -5663,15 +5665,6 @@ loongarch_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
   emit_insn (gen_clear_cache (addr, end_addr));
 }
 
-/* Implement TARGET_SHIFT_TRUNCATION_MASK.  We want to keep the default
-   behavior of TARGET_SHIFT_TRUNCATION_MASK for non-vector modes.  */
-
-static unsigned HOST_WIDE_INT
-loongarch_shift_truncation_mask (machine_mode mode)
-{
-  return GET_MODE_BITSIZE (mode) - 1;
-}
-
 /* Implement HARD_REGNO_CALLER_SAVE_MODE.  */
 
 machine_mode
@@ -5693,36 +5686,6 @@ loongarch_spill_class (reg_class_t rclass ATTRIBUTE_UNUSED,
 		       machine_mode mode ATTRIBUTE_UNUSED)
 {
   return NO_REGS;
-}
-
-/* Implement TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS.  */
-
-static reg_class_t
-loongarch_ira_change_pseudo_allocno_class (int regno,
-					   reg_class_t allocno_class,
-					   reg_class_t best_class     \
-					   ATTRIBUTE_UNUSED)
-{
-  /* LRA will allocate an FPR for an integer mode pseudo instead of spilling
-     to memory if an FPR is present in the allocno class.  It is rare that
-     we actually need to place an integer mode value in an FPR so where
-     possible limit the allocation to GR_REGS.  This will slightly pessimize
-     code that involves integer to/from float conversions as these will have
-     to reload into FPRs in LRA.  Such reloads are sometimes eliminated and
-     sometimes only partially eliminated.  We choose to take this penalty
-     in order to eliminate usage of FPRs in code that does not use floating
-     point data.
-
-     This change has a similar effect to increasing the cost of FPR->GPR
-     register moves for integer modes so that they are higher than the cost
-     of memory but changing the allocno class is more reliable.
-
-     This is also similar to forbidding integer mode values in FPRs entirely
-     but this would lead to an inconsistency in the integer to/from float
-     instructions that say integer mode values must be placed in FPRs.  */
-  if (INTEGRAL_MODE_P (PSEUDO_REGNO_MODE (regno)) && allocno_class == ALL_REGS)
-    return GR_REGS;
-  return allocno_class;
 }
 
 /* Implement TARGET_PROMOTE_FUNCTION_MODE.  */
@@ -5909,9 +5872,6 @@ loongarch_starting_frame_offset (void)
 #undef TARGET_TRAMPOLINE_INIT
 #define TARGET_TRAMPOLINE_INIT loongarch_trampoline_init
 
-#undef TARGET_SHIFT_TRUNCATION_MASK
-#define TARGET_SHIFT_TRUNCATION_MASK loongarch_shift_truncation_mask
-
 #undef TARGET_ATOMIC_ASSIGN_EXPAND_FENV
 #define TARGET_ATOMIC_ASSIGN_EXPAND_FENV loongarch_atomic_assign_expand_fenv
 
@@ -5920,9 +5880,6 @@ loongarch_starting_frame_offset (void)
 
 #undef TARGET_SPILL_CLASS
 #define TARGET_SPILL_CLASS loongarch_spill_class
-#undef TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS
-#define TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS \
-  loongarch_ira_change_pseudo_allocno_class
 
 #undef TARGET_HARD_REGNO_NREGS
 #define TARGET_HARD_REGNO_NREGS loongarch_hard_regno_nregs
