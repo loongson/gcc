@@ -267,9 +267,6 @@
 (define_attr "cnv_mode" "unknown,I2S,I2D,S2I,D2I,D2S,S2D"
   (const_string "unknown"))
 
-(define_attr "compression" "none,all"
-  (const_string "none"))
-
 ;; The number of individual instructions that a non-branch pattern generates
 (define_attr "insn_count" ""
   (cond [;; "Ghost" instructions occupy no space.
@@ -545,7 +542,6 @@
   ""
   "add%i2.<d>\t%0,%1,%2";
   [(set_attr "alu_type" "add")
-   (set_attr "compression" "*,*")
    (set_attr "mode" "<MODE>")])
 
 (define_insn "*addsi3_extended"
@@ -583,7 +579,6 @@
   ""
   "sub.<d>\t%0,%z1,%2"
   [(set_attr "alu_type" "sub")
-   (set_attr "compression" "*")
    (set_attr "mode" "<MODE>")])
 
 
@@ -631,6 +626,16 @@
   "mul.d\t%0,%1,%2"
   [(set_attr "type" "imul")
    (set_attr "mode" "DI")])
+
+(define_insn "*mulsi3_extended"
+  [(set (match_operand:DI 0 "register_operand" "=r")
+	(sign_extend:DI
+	    (mult:SI (match_operand:SI 1 "register_operand" "r")
+		     (match_operand:SI 2 "register_operand" "r"))))]
+  "TARGET_64BIT"
+  "mul.w\t%0,%1,%2"
+  [(set_attr "type" "imul")
+   (set_attr "mode" "SI")])
 
 ;;
 ;;  ........................
@@ -1039,7 +1044,6 @@
   ""
   "nor\t%0,%.,%1"
   [(set_attr "alu_type" "not")
-   (set_attr "compression" "*")
    (set_attr "mode" "<MODE>")])
 
 (define_insn "neg<mode>2"
@@ -1066,7 +1070,6 @@
   ""
   "<insn>%i2\t%0,%1,%2"
   [(set_attr "type" "logical")
-   (set_attr "compression" "*,*")
    (set_attr "mode" "<MODE>")])
 
 (define_insn "and<mode>3_extended"
@@ -1129,14 +1132,6 @@
    (set_attr "cnv_mode"	"D2S")
    (set_attr "mode" "SF")])
 
-(define_insn "truncdisi2_extended"
-  [(set (match_operand:SI 0 "nonimmediate_operand" "=ZC")
-	(truncate:SI (match_operand:DI 1 "register_operand" "r")))]
-  "TARGET_64BIT"
-  "stptr.w\t%1,%0"
-  [(set_attr "move_type" "store")
-   (set_attr "mode" "SI")])
-
 
 ;;
 ;;  ....................
@@ -1186,7 +1181,6 @@
    ld.<SHORT:size>u\t%0,%1
    ldx.<SHORT:size>u\t%0,%1"
   [(set_attr "move_type" "pick_ins,load,load")
-   (set_attr "compression" "*,*,*")
    (set_attr "mode" "<GPR:MODE>")])
 
 (define_insn "zero_extendqihi2"
@@ -1615,7 +1609,6 @@
     || reg_or_0_operand (operands[1], SImode))"
   { return loongarch_output_move (operands[0], operands[1]); }
   [(set_attr "move_type" "move,const,load,store,mgtf,fpload,mftg,fpstore,mftg,mgtf")
-   (set_attr "compression" "all,*,*,*,*,*,*,*,*,*")
    (set_attr "mode" "SI")])
 
 ;; 16-bit Integer moves
@@ -1641,7 +1634,6 @@
        || reg_or_0_operand (operands[1], HImode))"
   { return loongarch_output_move (operands[0], operands[1]); }
   [(set_attr "move_type" "move,const,const,load,store,load,store")
-   (set_attr "compression" "all,all,*,*,*,*,*")
    (set_attr "mode" "HI")])
 
 ;; 8-bit Integer moves
@@ -1667,7 +1659,6 @@
        || reg_or_0_operand (operands[1], QImode))"
   { return loongarch_output_move (operands[0], operands[1]); }
   [(set_attr "move_type" "move,const,load,store,load,store")
-   (set_attr "compression" "all,*,*,*,*,*")
    (set_attr "mode" "QI")])
 
 ;; 32-bit floating point moves
@@ -2217,7 +2208,6 @@
   return "<insn>%i2.<d>\t%0,%1,%2";
 }
   [(set_attr "type" "shift")
-   (set_attr "compression" "none")
    (set_attr "mode" "<MODE>")])
 
 (define_insn "*<optab>si3_extend"
@@ -3278,36 +3268,24 @@
 ;; Match paired HI/SI/SF/DFmode load/stores.
 (define_insn "*join2_load_store<JOIN_MODE:mode>"
   [(set (match_operand:JOIN_MODE 0 "nonimmediate_operand"
-  "=r,f,m,m,r,ZC,r,k,f,k")
-	(match_operand:JOIN_MODE 1 "nonimmediate_operand" "m,m,r,f,ZC,r,k,r,k,f"))
+  "=&r,f,m,m,&r,ZC")
+	(match_operand:JOIN_MODE 1 "nonimmediate_operand" "m,m,r,f,ZC,r"))
    (set (match_operand:JOIN_MODE 2 "nonimmediate_operand"
-   "=r,f,m,m,r,ZC,r,k,f,k")
-	(match_operand:JOIN_MODE 3 "nonimmediate_operand" "m,m,r,f,ZC,r,k,r,k,f"))]
+   "=r,f,m,m,r,ZC")
+	(match_operand:JOIN_MODE 3 "nonimmediate_operand" "m,m,r,f,ZC,r"))]
   "reload_completed"
   {
-    bool load_p = (which_alternative == 0 || which_alternative == 1);
-    /* Reg-renaming pass reuses base register if it is dead after bonded loads.
-       Hardware does not bond those loads, even when they are consecutive.
-       However, order of the loads need to be checked for correctness.  */
-    if (!load_p || !reg_overlap_mentioned_p (operands[0], operands[1]))
-      {
-	output_asm_insn (loongarch_output_move (operands[0], operands[1]),
-			 operands);
-	output_asm_insn (loongarch_output_move (operands[2], operands[3]),
-			 &operands[2]);
-      }
-    else
-      {
-	output_asm_insn (loongarch_output_move (operands[2], operands[3]),
-			 &operands[2]);
-	output_asm_insn (loongarch_output_move (operands[0], operands[1]),
-			 operands);
-      }
+    /* The load destination does not overlap the source.  */
+    gcc_assert (!reg_overlap_mentioned_p (operands[0], operands[1]));
+    output_asm_insn (loongarch_output_move (operands[0], operands[1]),
+		     operands);
+    output_asm_insn (loongarch_output_move (operands[2], operands[3]),
+		     &operands[2]);
     return "";
   }
   [(set_attr "move_type"
-  "load,fpload,store,fpstore,load,store,load,store,fpload,fpstore")
-   (set_attr "insn_count" "2,2,2,2,2,2,2,2,2,2")])
+  "load,fpload,store,fpstore,load,store")
+   (set_attr "insn_count" "2,2,2,2,2,2")])
 
 ;; 2 HI/SI/SF/DF loads are bonded.
 (define_peephole2
@@ -3337,30 +3315,21 @@
 
 ;; Match paired HImode loads.
 (define_insn "*join2_loadhi"
-  [(set (match_operand:SI 0 "register_operand" "=r,r")
-	(any_extend:SI (match_operand:HI 1 "non_volatile_mem_operand" "m,k")))
-   (set (match_operand:SI 2 "register_operand" "=r,r")
-	(any_extend:SI (match_operand:HI 3 "non_volatile_mem_operand" "m,k")))]
+  [(set (match_operand:SI 0 "register_operand" "=&r")
+	(any_extend:SI (match_operand:HI 1 "non_volatile_mem_operand" "m")))
+   (set (match_operand:SI 2 "register_operand" "=r")
+	(any_extend:SI (match_operand:HI 3 "non_volatile_mem_operand" "m")))]
   "reload_completed"
   {
-    /* Reg-renaming pass reuses base register if it is dead after bonded loads.
-       Hardware does not bond those loads, even when they are consecutive.
-       However, order of the loads need to be checked for correctness.  */
-    if (!reg_overlap_mentioned_p (operands[0], operands[1]))
-      {
-	output_asm_insn ("ld.h<u>\t%0,%1", operands);
-	output_asm_insn ("ld.h<u>\t%2,%3", operands);
-      }
-    else
-      {
-	output_asm_insn ("ld.h<u>\t%2,%3", operands);
-	output_asm_insn ("ld.h<u>\t%0,%1", operands);
-      }
+    /* The load destination does not overlap the source.  */
+    gcc_assert (!reg_overlap_mentioned_p (operands[0], operands[1]));
+    output_asm_insn ("ld.h<u>\t%0,%1", operands);
+    output_asm_insn ("ld.h<u>\t%2,%3", operands);
 
     return "";
   }
-  [(set_attr "move_type" "load,load")
-   (set_attr "insn_count" "2,2")])
+  [(set_attr "move_type" "load")
+   (set_attr "insn_count" "2")])
 
 
 ;; 2 HI loads are bonded.
