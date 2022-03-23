@@ -24532,7 +24532,7 @@ object boundary as described in the architecture specification. The default is
 
 @item -msmall-data-limit=@var{number}
 @opindex -msmall-data-limit
-Put global and static data smaller than @code{number} bytes into a special
+Put global and static data smaller than @var{number} bytes into a special
 section (on some targets).  The default value is 0.
 
 @item -mmax-inline-memcpy-size=@var{n}
