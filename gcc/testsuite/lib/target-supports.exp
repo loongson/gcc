@@ -286,10 +286,6 @@ proc check_configured_with { pattern } {
 proc check_weak_available { } {
     global target_cpu
 
-    if { [ string first "loongarch" $target_cpu ] >= 0 } {
-        return 1
-    }
-
     # All mips targets should support it
 
     if { [ string first "mips" $target_cpu ] >= 0 } {

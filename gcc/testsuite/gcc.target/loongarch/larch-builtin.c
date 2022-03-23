@@ -7,12 +7,12 @@
 /* { dg-final { scan-assembler-times "test_rdtimel_w:.*rdtimel\\.w.*\\.size	test_rdtimel_w" 1 } } */
 /* { dg-final { scan-assembler-times "test_movfcsr2gr:.*movfcsr2gr.*\\.size	test_movfcsr2gr" 1 } } */
 /* { dg-final { scan-assembler-times "test_movgr2fcsr:.*movgr2fcsr.*\\.size	test_movgr2fcsr" 1 } } */
-/* { dg-final { scan-assembler-times "test_dcacop:.*cacop.*\\.size	test_dcacop" 1 } } */
+/* { dg-final { scan-assembler-times "test_cacop_d:.*cacop.*\\.size	test_cacop_d" 1 } } */
 /* { dg-final { scan-assembler-times "test_cpucfg:.*cpucfg.*\\.size	test_cpucfg" 1 } } */
 /* { dg-final { scan-assembler-times "test_asrtle_d:.*asrtle\\.d.*\\.size	test_asrtle_d" 1 } } */
 /* { dg-final { scan-assembler-times "test_asrtgt_d:.*asrtgt\\.d.*\\.size	test_asrtgt_d" 1 } } */
-/* { dg-final { scan-assembler-times "test_dlddir:.*lddir.*\\.size	test_dlddir" 1 } } */
-/* { dg-final { scan-assembler-times "test_dldpte:.*ldpte.*\\.size	test_dldpte" 1 } } */
+/* { dg-final { scan-assembler-times "test_lddir_d:.*lddir.*\\.size	test_lddir_d" 1 } } */
+/* { dg-final { scan-assembler-times "test_ldpte_d:.*ldpte.*\\.size	test_ldpte_d" 1 } } */
 /* { dg-final { scan-assembler-times "test_crc_w_b_w:.*crc\\.w\\.b\\.w.*\\.size	test_crc_w_b_w" 1 } } */
 /* { dg-final { scan-assembler-times "test_crc_w_h_w:.*crc\\.w\\.h\\.w.*\\.size	test_crc_w_h_w" 1 } } */
 /* { dg-final { scan-assembler-times "test_crc_w_w_w:.*crc\\.w\\.w\\.w.*\\.size	test_crc_w_w_w" 1 } } */
@@ -21,12 +21,12 @@
 /* { dg-final { scan-assembler-times "test_crcc_w_h_w:.*crcc\\.w\\.h\\.w.*\\.size	test_crcc_w_h_w" 1 } } */
 /* { dg-final { scan-assembler-times "test_crcc_w_w_w:.*crcc\\.w\\.w\\.w.*\\.size	test_crcc_w_w_w" 1 } } */
 /* { dg-final { scan-assembler-times "test_crcc_w_d_w:.*crcc\\.w\\.d\\.w.*\\.size	test_crcc_w_d_w" 1 } } */
-/* { dg-final { scan-assembler-times "test_csrrd:.*csrrd.*\\.size	test_csrrd" 1 } } */
-/* { dg-final { scan-assembler-times "test_csrwr:.*csrwr.*\\.size	test_csrwr" 1 } } */
-/* { dg-final { scan-assembler-times "test_csrxchg:.*csrxchg.*\\.size	test_csrxchg" 1 } } */
-/* { dg-final { scan-assembler-times "test_dcsrrd:.*csrrd.*\\.size	test_dcsrrd" 1 } } */
-/* { dg-final { scan-assembler-times "test_dcsrwr:.*csrwr.*\\.size	test_dcsrwr" 1 } } */
-/* { dg-final { scan-assembler-times "test_dcsrxchg:.*csrxchg.*\\.size	test_dcsrxchg" 1 } } */
+/* { dg-final { scan-assembler-times "test_csrrd_w:.*csrrd.*\\.size	test_csrrd_w" 1 } } */
+/* { dg-final { scan-assembler-times "test_csrwr_w:.*csrwr.*\\.size	test_csrwr_w" 1 } } */
+/* { dg-final { scan-assembler-times "test_csrxchg_w:.*csrxchg.*\\.size	test_csrxchg_w" 1 } } */
+/* { dg-final { scan-assembler-times "test_csrrd_d:.*csrrd.*\\.size	test_csrrd_d" 1 } } */
+/* { dg-final { scan-assembler-times "test_csrwr_d:.*csrwr.*\\.size	test_csrwr_d" 1 } } */
+/* { dg-final { scan-assembler-times "test_csrxchg_d:.*csrxchg.*\\.size	test_csrxchg_d" 1 } } */
 /* { dg-final { scan-assembler-times "test_iocsrrd_b:.*iocsrrd\\.b.*\\.size	test_iocsrrd_b" 1 } } */
 /* { dg-final { scan-assembler-times "test_iocsrrd_h:.*iocsrrd\\.h.*\\.size	test_iocsrrd_h" 1 } } */
 /* { dg-final { scan-assembler-times "test_iocsrrd_w:.*iocsrrd\\.w.*\\.size	test_iocsrrd_w" 1 } } */
@@ -39,12 +39,6 @@
 /* { dg-final { scan-assembler-times "test_ibar:.*ibar.*\\.size	test_ibar" 1 } } */
 /* { dg-final { scan-assembler-times "test_syscall:.*syscall.*\\.size	test_syscall" 1 } } */
 /* { dg-final { scan-assembler-times "test_break:.*break.*\\.size	test_break" 1 } } */
-/* { dg-final { scan-assembler-times "test_tlbsrch:.*tlbsrch.*\\.size	test_tlbsrch" 1 } } */
-/* { dg-final { scan-assembler-times "test_tlbrd:.*tlbrd.*\\.size	test_tlbrd" 1 } } */
-/* { dg-final { scan-assembler-times "test_tlbwr:.*tlbwr.*\\.size	test_tlbwr" 1 } } */
-/* { dg-final { scan-assembler-times "test_tlbfill:.*tlbfill.*\\.size	test_tlbfill" 1 } } */
-/* { dg-final { scan-assembler-times "test_tlbclr:.*tlbclr.*\\.size	test_tlbclr" 1 } } */
-/* { dg-final { scan-assembler-times "test_tlbflush:.*tlbflush.*\\.size	test_tlbflush" 1 } } */
 
 #include<larchintrin.h>
 
@@ -79,9 +73,9 @@ test_movgr2fcsr (unsigned int _1)
 }
 
 void
-test_dcacop (unsigned long int _1)
+test_cacop_d (unsigned long int _1)
 {
-  __dcacop (1, _1, 1);
+  __cacop_d (1, _1, 1);
 }
 
 unsigned int
@@ -103,15 +97,15 @@ test_asrtgt_d (long int _1, long int _2)
 }
 
 long int
-test_dlddir (long int _1)
+test_lddir_d (long int _1)
 {
-  return __dlddir (_1, 1);
+  return __lddir_d (_1, 1);
 }
 
 void
-test_dldpte (long int _1)
+test_ldpte_d (long int _1)
 {
-  __dldpte (_1, 1);
+  __ldpte_d (_1, 1);
 }
 
 int
@@ -163,39 +157,39 @@ test_crcc_w_d_w (long int _1, int _2)
 }
 
 unsigned int
-test_csrrd ()
+test_csrrd_w ()
 {
-  return __csrrd (1);
+  return __csrrd_w (1);
 }
 
 unsigned int
-test_csrwr (unsigned int _1)
+test_csrwr_w (unsigned int _1)
 {
-  return __csrwr (_1, 1);
+  return __csrwr_w (_1, 1);
 }
 
 unsigned int
-test_csrxchg (unsigned int _1, unsigned int _2)
+test_csrxchg_w (unsigned int _1, unsigned int _2)
 {
-  return __csrxchg (_1, _2, 1);
+  return __csrxchg_w (_1, _2, 1);
 }
 
 unsigned long int
-test_dcsrrd ()
+test_csrrd_d ()
 {
-  return __dcsrrd (1);
+  return __csrrd_d (1);
 }
 
 unsigned long int
-test_dcsrwr (unsigned long int _1)
+test_csrwr_d (unsigned long int _1)
 {
-  return __dcsrwr (_1, 1);
+  return __csrwr_d (_1, 1);
 }
 
 unsigned long int
-test_dcsrxchg (unsigned long int _1, unsigned long int _2)
+test_csrxchg_d (unsigned long int _1, unsigned long int _2)
 {
-  return __dcsrxchg (_1, _2, 1);
+  return __csrxchg_d (_1, _2, 1);
 }
 
 unsigned char
@@ -268,40 +262,4 @@ void
 test_break ()
 {
   __break (1);
-}
-
-void
-test_tlbsrch ()
-{
-  __tlbsrch ();
-}
-
-void
-test_tlbrd ()
-{
-  __tlbrd ();
-}
-
-void
-test_tlbwr ()
-{
-  __tlbwr ();
-}
-
-void
-test_tlbfill ()
-{
-  __tlbfill ();
-}
-
-void
-test_tlbclr ()
-{
-  __tlbclr ();
-}
-
-void
-test_tlbflush ()
-{
-  __tlbflush ();
 }
