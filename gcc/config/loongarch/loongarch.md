@@ -65,11 +65,6 @@
   UNSPECV_DBAR
   UNSPECV_IBAR
 
-  ;; CPUCFG
-  UNSPECV_CPUCFG
-  UNSPECV_ASRTLE_D
-  UNSPECV_ASRTGT_D
-
   ;; Privileged instructions
   UNSPECV_CSRRD
   UNSPECV_CSRWR
@@ -88,6 +83,12 @@
   UNSPECV_MOVFCSR2GR
   UNSPECV_MOVGR2FCSR
 
+  ;; Others
+  UNSPECV_CPUCFG
+  UNSPECV_ASRTLE_D
+  UNSPECV_ASRTGT_D
+  UNSPECV_SYSCALL
+  UNSPECV_BREAK
 ])
 
 (define_constants
@@ -391,9 +392,6 @@
 ;; This attribute gives the integer mode that has half the size of
 ;; the controlling mode.
 (define_mode_attr HALFMODE [(DF "SI") (DI "SI") (TF "DI")])
-
-;; This attribute gives the integer prefix for some instructions templates.
-(define_mode_attr p [(SI "") (DI "d")])
 
 ;; This code iterator allows signed and unsigned widening multiplications
 ;; to use the same template.
@@ -2043,17 +2041,19 @@
    (match_operand 1 "pmode_register_operand")]
   ""
 {
-  emit_insn (gen_ibar (const0_rtx));
+  emit_insn (gen_loongarch_ibar (const0_rtx));
   DONE;
 })
 
-(define_insn "ibar"
-  [(unspec_volatile:SI [(match_operand 0 "const_uimm15_operand")] UNSPECV_IBAR)]
+(define_insn "loongarch_ibar"
+  [(unspec_volatile:SI
+      [(match_operand 0 "const_uimm15_operand")] UNSPECV_IBAR)]
   ""
   "ibar\t%0")
 
-(define_insn "dbar"
-  [(unspec_volatile:SI [(match_operand 0 "const_uimm15_operand")] UNSPECV_DBAR)]
+(define_insn "loongarch_dbar"
+  [(unspec_volatile:SI
+      [(match_operand 0 "const_uimm15_operand")] UNSPECV_DBAR)]
   ""
   "dbar\t%0")
 
@@ -2061,7 +2061,7 @@
 
 ;; Privileged state instruction
 
-(define_insn "cpucfg"
+(define_insn "loongarch_cpucfg"
   [(set (match_operand:SI 0 "register_operand" "=r")
 	(unspec_volatile:SI [(match_operand:SI 1 "register_operand" "r")]
 			     UNSPECV_CPUCFG))]
@@ -2070,7 +2070,19 @@
   [(set_attr "type" "load")
    (set_attr "mode" "SI")])
 
-(define_insn "asrtle_d"
+(define_insn "loongarch_syscall"
+  [(unspec_volatile:SI
+      [(match_operand 0 "const_uimm15_operand")] UNSPECV_SYSCALL)]
+  ""
+  "syscall\t%0")
+
+(define_insn "loongarch_break"
+  [(unspec_volatile:SI
+      [(match_operand 0 "const_uimm15_operand")] UNSPECV_BREAK)]
+  ""
+  "break\t%0")
+
+(define_insn "loongarch_asrtle_d"
   [(unspec_volatile:DI [(match_operand:DI 0 "register_operand" "r")
 			(match_operand:DI 1 "register_operand" "r")]
 			UNSPECV_ASRTLE_D)]
@@ -2079,7 +2091,7 @@
   [(set_attr "type" "load")
    (set_attr "mode" "DI")])
 
-(define_insn "asrtgt_d"
+(define_insn "loongarch_asrtgt_d"
   [(unspec_volatile:DI [(match_operand:DI 0 "register_operand" "r")
 			(match_operand:DI 1 "register_operand" "r")]
 			UNSPECV_ASRTGT_D)]
@@ -2088,7 +2100,7 @@
   [(set_attr "type" "load")
    (set_attr "mode" "DI")])
 
-(define_insn "<p>csrrd"
+(define_insn "loongarch_csrrd_<d>"
   [(set (match_operand:GPR 0 "register_operand" "=r")
 	(unspec_volatile:GPR [(match_operand  1 "const_uimm14_operand")]
 			      UNSPECV_CSRRD))]
@@ -2097,7 +2109,7 @@
   [(set_attr "type" "load")
    (set_attr "mode" "<MODE>")])
 
-(define_insn "<p>csrwr"
+(define_insn "loongarch_csrwr_<d>"
   [(set (match_operand:GPR 0 "register_operand" "=r")
 	  (unspec_volatile:GPR
 	    [(match_operand:GPR 1 "register_operand" "0")
@@ -2108,7 +2120,7 @@
   [(set_attr "type" "store")
    (set_attr "mode" "<MODE>")])
 
-(define_insn "<p>csrxchg"
+(define_insn "loongarch_csrxchg_<d>"
   [(set (match_operand:GPR 0 "register_operand" "=r")
 	  (unspec_volatile:GPR
 	    [(match_operand:GPR 1 "register_operand" "0")
@@ -2120,7 +2132,7 @@
   [(set_attr "type" "load")
    (set_attr "mode" "<MODE>")])
 
-(define_insn "iocsrrd_<size>"
+(define_insn "loongarch_iocsrrd_<size>"
   [(set (match_operand:QHWD 0 "register_operand" "=r")
 	(unspec_volatile:QHWD [(match_operand:SI 1 "register_operand" "r")]
 			      UNSPECV_IOCSRRD))]
@@ -2129,7 +2141,7 @@
   [(set_attr "type" "load")
    (set_attr "mode" "<MODE>")])
 
-(define_insn "iocsrwr_<size>"
+(define_insn "loongarch_iocsrwr_<size>"
   [(unspec_volatile:QHWD [(match_operand:QHWD 0 "register_operand" "r")
 			  (match_operand:SI 1 "register_operand" "r")]
 			  UNSPECV_IOCSRWR)]
@@ -2138,7 +2150,7 @@
   [(set_attr "type" "load")
    (set_attr "mode" "<MODE>")])
 
-(define_insn "<p>cacop"
+(define_insn "loongarch_cacop_<d>"
   [(unspec_volatile:X [(match_operand 0 "const_uimm5_operand")
 		       (match_operand:X 1 "register_operand" "r")
 		       (match_operand 2 "const_imm12_operand")]
@@ -2148,7 +2160,7 @@
   [(set_attr "type" "load")
    (set_attr "mode" "<MODE>")])
 
-(define_insn "<p>lddir"
+(define_insn "loongarch_lddir_<d>"
   [(unspec_volatile:X [(match_operand:X 0 "register_operand" "r")
 		       (match_operand:X 1 "register_operand" "r")
 		       (match_operand 2 "const_uimm5_operand")]
@@ -2158,7 +2170,7 @@
   [(set_attr "type" "load")
    (set_attr "mode" "<MODE>")])
 
-(define_insn "<p>ldpte"
+(define_insn "loongarch_ldpte_<d>"
   [(unspec_volatile:X [(match_operand:X 0 "register_operand" "r")
 		       (match_operand 1 "const_uimm5_operand")]
 		       UNSPECV_LDPTE)]
@@ -3349,7 +3361,7 @@
 
 (define_mode_iterator QHSD [QI HI SI DI])
 
-(define_insn "crc_w_<size>_w"
+(define_insn "loongarch_crc_w_<size>_w"
   [(set (match_operand:SI 0 "register_operand" "=r")
 	(unspec:SI [(match_operand:QHSD 1 "register_operand" "r")
 		   (match_operand:SI 2 "register_operand" "r")]
@@ -3359,7 +3371,7 @@
   [(set_attr "type" "unknown")
    (set_attr "mode" "<MODE>")])
 
-(define_insn "crcc_w_<size>_w"
+(define_insn "loongarch_crcc_w_<size>_w"
   [(set (match_operand:SI 0 "register_operand" "=r")
 	(unspec:SI [(match_operand:QHSD 1 "register_operand" "r")
 		   (match_operand:SI 2 "register_operand" "r")]

@@ -45,43 +45,40 @@ typedef struct rdtime
 #ifdef __loongarch64
 extern __inline __drdtime_t
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
-__builtin_loongarch_rdtime_d (void)
+__rdtime_d (void)
 {
-  __drdtime_t drdtime;
+  __drdtime_t __drdtime;
   __asm__ volatile (
     "rdtime.d\t%[val],%[tid]\n\t"
-    : [val]"=&r"(drdtime.dvalue),[tid]"=&r"(drdtime.dtimeid)
+    : [val]"=&r"(__drdtime.dvalue),[tid]"=&r"(__drdtime.dtimeid)
     :);
-  return drdtime;
+  return __drdtime;
 }
-#define __rdtime_d __builtin_loongarch_rdtime_d
 #endif
 
 extern __inline __rdtime_t
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
-__builtin_loongarch_rdtimeh_w (void)
+__rdtimeh_w (void)
 {
-  __rdtime_t rdtime;
+  __rdtime_t __rdtime;
   __asm__ volatile (
     "rdtimeh.w\t%[val],%[tid]\n\t"
-    : [val]"=&r"(rdtime.value),[tid]"=&r"(rdtime.timeid)
+    : [val]"=&r"(__rdtime.value),[tid]"=&r"(__rdtime.timeid)
     :);
-  return rdtime;
+  return __rdtime;
 }
-#define __rdtimeh_w __builtin_loongarch_rdtimeh_w
 
 extern __inline __rdtime_t
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
-__builtin_loongarch_rdtimel_w (void)
+__rdtimel_w (void)
 {
-  __rdtime_t rdtime;
+  __rdtime_t __rdtime;
   __asm__ volatile (
     "rdtimel.w\t%[val],%[tid]\n\t"
-    : [val]"=&r"(rdtime.value),[tid]"=&r"(rdtime.timeid)
+    : [val]"=&r"(__rdtime.value),[tid]"=&r"(__rdtime.timeid)
     :);
-  return rdtime;
+  return __rdtime;
 }
-#define __rdtimel_w __builtin_loongarch_rdtimel_w
 
 /* Assembly instruction format:	rj, fcsr.  */
 /* Data types in instruction templates:  USI, UQI.  */
@@ -95,8 +92,8 @@ __builtin_loongarch_rdtimel_w (void)
 #if defined __loongarch64
 /* Assembly instruction format:	ui5, rj, si12.  */
 /* Data types in instruction templates:  VOID, USI, UDI, SI.  */
-#define __dcacop(/*ui5*/ _1, /*unsigned long int*/ _2, /*si12*/ _3) \
-  ((void) __builtin_loongarch_dcacop ((_1), (unsigned long int) (_2), (_3)))
+#define __cacop_d(/*ui5*/ _1, /*unsigned long int*/ _2, /*si12*/ _3) \
+  ((void) __builtin_loongarch_cacop_d ((_1), (unsigned long int) (_2), (_3)))
 #else
 #error "Unsupported ABI."
 #endif
@@ -133,8 +130,8 @@ __asrtgt_d (long int _1, long int _2)
 #if defined __loongarch64
 /* Assembly instruction format:	rd, rj, ui5.  */
 /* Data types in instruction templates:  DI, DI, UQI.  */
-#define __dlddir(/*long int*/ _1, /*ui5*/ _2) \
-  ((long int) __builtin_loongarch_dlddir ((long int) (_1), (_2)))
+#define __lddir_d(/*long int*/ _1, /*ui5*/ _2) \
+  ((long int) __builtin_loongarch_lddir_d ((long int) (_1), (_2)))
 #else
 #error "Unsupported ABI."
 #endif
@@ -142,8 +139,8 @@ __asrtgt_d (long int _1, long int _2)
 #if defined __loongarch64
 /* Assembly instruction format:	rj, ui5.  */
 /* Data types in instruction templates:  VOID, DI, UQI.  */
-#define __dldpte(/*long int*/ _1, /*ui5*/ _2) \
-  ((void) __builtin_loongarch_dldpte ((long int) (_1), (_2)))
+#define __ldpte_d(/*long int*/ _1, /*ui5*/ _2) \
+  ((void) __builtin_loongarch_ldpte_d ((long int) (_1), (_2)))
 #else
 #error "Unsupported ABI."
 #endif
@@ -226,36 +223,37 @@ __crcc_w_d_w (long int _1, int _2)
 
 /* Assembly instruction format:	rd, ui14.  */
 /* Data types in instruction templates:  USI, USI.  */
-#define __csrrd(/*ui14*/ _1) ((unsigned int) __builtin_loongarch_csrrd ((_1)))
+#define __csrrd_w(/*ui14*/ _1) \
+  ((unsigned int) __builtin_loongarch_csrrd_w ((_1)))
 
 /* Assembly instruction format:	rd, ui14.  */
 /* Data types in instruction templates:  USI, USI, USI.  */
-#define __csrwr(/*unsigned int*/ _1, /*ui14*/ _2) \
-  ((unsigned int) __builtin_loongarch_csrwr ((unsigned int) (_1), (_2)))
+#define __csrwr_w(/*unsigned int*/ _1, /*ui14*/ _2) \
+  ((unsigned int) __builtin_loongarch_csrwr_w ((unsigned int) (_1), (_2)))
 
 /* Assembly instruction format:	rd, rj, ui14.  */
 /* Data types in instruction templates:  USI, USI, USI, USI.  */
-#define __csrxchg(/*unsigned int*/ _1, /*unsigned int*/ _2, /*ui14*/ _3) \
-  ((unsigned int) __builtin_loongarch_csrxchg ((unsigned int) (_1), \
+#define __csrxchg_w(/*unsigned int*/ _1, /*unsigned int*/ _2, /*ui14*/ _3) \
+  ((unsigned int) __builtin_loongarch_csrxchg_w ((unsigned int) (_1), \
 					       (unsigned int) (_2), (_3)))
 
 #ifdef __loongarch64
 /* Assembly instruction format:	rd, ui14.  */
 /* Data types in instruction templates:  UDI, USI.  */
-#define __dcsrrd(/*ui14*/ _1) \
-  ((unsigned long int) __builtin_loongarch_dcsrrd ((_1)))
+#define __csrrd_d(/*ui14*/ _1) \
+  ((unsigned long int) __builtin_loongarch_csrrd_d ((_1)))
 
 /* Assembly instruction format:	rd, ui14.  */
 /* Data types in instruction templates:  UDI, UDI, USI.  */
-#define __dcsrwr(/*unsigned long int*/ _1, /*ui14*/ _2) \
-  ((unsigned long int) __builtin_loongarch_dcsrwr ((unsigned long int) (_1), \
+#define __csrwr_d(/*unsigned long int*/ _1, /*ui14*/ _2) \
+  ((unsigned long int) __builtin_loongarch_csrwr_d ((unsigned long int) (_1), \
 						   (_2)))
 
 /* Assembly instruction format:	rd, rj, ui14.  */
 /* Data types in instruction templates:  UDI, UDI, UDI, USI.  */
-#define __dcsrxchg(/*unsigned long int*/ _1, /*unsigned long int*/ _2, \
+#define __csrxchg_d(/*unsigned long int*/ _1, /*unsigned long int*/ _2, \
 		   /*ui14*/ _3) \
-  ((unsigned long int) __builtin_loongarch_dcsrxchg ( \
+  ((unsigned long int) __builtin_loongarch_csrxchg_d ( \
     (unsigned long int) (_1), (unsigned long int) (_2), (_3)))
 #endif
 
@@ -336,72 +334,20 @@ __iocsrwr_d (unsigned long int _1, unsigned int _2)
 #endif
 
 /* Assembly instruction format:	ui15.  */
-/* Data types in instruction templates:  UQI.  */
+/* Data types in instruction templates:  USI.  */
 #define __dbar(/*ui15*/ _1) __builtin_loongarch_dbar ((_1))
 
 /* Assembly instruction format:	ui15.  */
-/* Data types in instruction templates:  UQI.  */
+/* Data types in instruction templates:  USI.  */
 #define __ibar(/*ui15*/ _1) __builtin_loongarch_ibar ((_1))
 
-#define __builtin_loongarch_syscall(a) \
-  { \
-    __asm__ volatile ("syscall %0\n\t" ::"I"(a)); \
-  }
-#define __syscall __builtin_loongarch_syscall
+/* Assembly instruction format:	ui15.  */
+/* Data types in instruction templates:  USI.  */
+#define __syscall(/*ui15*/ _1) __builtin_loongarch_syscall ((_1))
 
-#define __builtin_loongarch_break(a) \
-  { \
-    __asm__ volatile ("break %0\n\t" ::"I"(a)); \
-  }
-#define __break __builtin_loongarch_break
-
-extern __inline void
-__attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
-__builtin_loongarch_tlbsrch (void)
-{
-  __asm__ volatile ("tlbsrch\n\t");
-}
-#define __tlbsrch __builtin_loongarch_tlbsrch
-
-extern __inline void
-__attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
-__builtin_loongarch_tlbrd (void)
-{
-  __asm__ volatile ("tlbrd\n\t");
-}
-#define __tlbrd __builtin_loongarch_tlbrd
-
-extern __inline void
-__attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
-__builtin_loongarch_tlbwr (void)
-{
-  __asm__ volatile ("tlbwr\n\t");
-}
-#define __tlbwr __builtin_loongarch_tlbwr
-
-extern __inline void
-__attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
-__builtin_loongarch_tlbfill (void)
-{
-  __asm__ volatile ("tlbfill\n\t");
-}
-#define __tlbfill __builtin_loongarch_tlbfill
-
-extern __inline void
-__attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
-__builtin_loongarch_tlbclr (void)
-{
-  __asm__ volatile ("tlbclr\n\t");
-}
-#define __tlbclr __builtin_loongarch_tlbclr
-
-extern __inline void
-__attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
-__builtin_loongarch_tlbflush (void)
-{
-  __asm__ volatile ("tlbflush\n\t");
-}
-#define __tlbflush __builtin_loongarch_tlbflush
+/* Assembly instruction format:	ui15.  */
+/* Data types in instruction templates:  USI.  */
+#define __break(/*ui15*/ _1) __builtin_loongarch_break ((_1))
 
 #ifdef __cplusplus
 }
