@@ -231,6 +231,39 @@ struct loongarch_arg_info
   unsigned int fpr_offset;
 };
 
+/* Invoke MACRO (COND) for each fcmp.cond.{s/d} condition.  */
+#define LARCH_FP_CONDITIONS(MACRO) \
+  MACRO (f),	\
+  MACRO (un),	\
+  MACRO (eq),	\
+  MACRO (ueq),	\
+  MACRO (olt),	\
+  MACRO (ult),	\
+  MACRO (ole),	\
+  MACRO (ule),	\
+  MACRO (sf),	\
+  MACRO (ngle),	\
+  MACRO (seq),	\
+  MACRO (ngl),	\
+  MACRO (lt),	\
+  MACRO (nge),	\
+  MACRO (le),	\
+  MACRO (ngt)
+
+/* Enumerates the codes above as LARCH_FP_COND_<X>.  */
+#define DECLARE_LARCH_COND(X) LARCH_FP_COND_##X
+enum loongarch_fp_condition
+{
+  LARCH_FP_CONDITIONS (DECLARE_LARCH_COND)
+};
+#undef DECLARE_LARCH_COND
+
+/* Index X provides the string representation of LARCH_FP_COND_<X>.  */
+#define STRINGIFY(X) #X
+const char *const
+loongarch_fp_conditions[16]= {LARCH_FP_CONDITIONS (STRINGIFY)};
+#undef STRINGIFY
+
 /* Implement TARGET_FUNCTION_ARG_BOUNDARY.  Every parameter gets at
    least PARM_BOUNDARY bits of alignment, but will be given anything up
    to PREFERRED_STACK_BOUNDARY bits if the type requires it.  */

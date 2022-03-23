@@ -41,8 +41,6 @@ along with GCC; see the file COPYING3.  If not see
 #define LARCH_FTYPE_NAME1(A, B) LARCH_##A##_FTYPE_##B
 #define LARCH_FTYPE_NAME2(A, B, C) LARCH_##A##_FTYPE_##B##_##C
 #define LARCH_FTYPE_NAME3(A, B, C, D) LARCH_##A##_FTYPE_##B##_##C##_##D
-#define LARCH_FTYPE_NAME4(A, B, C, D, E) \
-  LARCH_##A##_FTYPE_##B##_##C##_##D##_##E
 
 /* Classifies the prototype of a built-in function.  */
 enum loongarch_function_type
@@ -67,39 +65,6 @@ enum loongarch_builtin_type
 
 };
 
-/* Invoke MACRO (COND) for each fcmp.cond.{s/d} condition.  */
-#define LARCH_FP_CONDITIONS(MACRO) \
-  MACRO (f),	\
-  MACRO (un),	\
-  MACRO (eq),	\
-  MACRO (ueq),	\
-  MACRO (olt),	\
-  MACRO (ult),	\
-  MACRO (ole),	\
-  MACRO (ule),	\
-  MACRO (sf),	\
-  MACRO (ngle),	\
-  MACRO (seq),	\
-  MACRO (ngl),	\
-  MACRO (lt),	\
-  MACRO (nge),	\
-  MACRO (le),	\
-  MACRO (ngt)
-
-/* Enumerates the codes above as LARCH_FP_COND_<X>.  */
-#define DECLARE_LARCH_COND(X) LARCH_FP_COND_##X
-enum loongarch_fp_condition
-{
-  LARCH_FP_CONDITIONS (DECLARE_LARCH_COND)
-};
-#undef DECLARE_LARCH_COND
-
-/* Index X provides the string representation of LARCH_FP_COND_<X>.  */
-#define STRINGIFY(X) #X
-const char *const
-loongarch_fp_conditions[16]= {LARCH_FP_CONDITIONS (STRINGIFY)};
-#undef STRINGIFY
-
 /* Declare an availability predicate for built-in functions that require
  * COND to be true.  NAME is the main part of the predicate's name.  */
 #define AVAIL_ALL(NAME, COND) \
@@ -120,9 +85,6 @@ struct loongarch_builtin_description
   /* The code of the main .md file instruction.  See loongarch_builtin_type
      for more information.  */
   enum insn_code icode;
-
-  /* The floating-point comparison code to use with ICODE, if any.  */
-  enum loongarch_fp_condition cond;
 
   /* The name of the built-in function.  */
   const char *name;
@@ -154,10 +116,10 @@ AVAIL_ALL (hard_float, TARGET_HARD_FLOAT_ABI)
 
    AVAIL is the name of the availability predicate, without the leading
    loongarch_builtin_avail_.  */
-#define LARCH_BUILTIN(INSN, COND, NAME, BUILTIN_TYPE, FUNCTION_TYPE, AVAIL) \
+#define LARCH_BUILTIN(INSN, NAME, BUILTIN_TYPE, FUNCTION_TYPE, AVAIL) \
   { \
-    CODE_FOR_loongarch_##INSN, LARCH_FP_COND_##COND, \
-      "__builtin_loongarch_" NAME, BUILTIN_TYPE, FUNCTION_TYPE, \
+    CODE_FOR_loongarch_##INSN, "__builtin_loongarch_" NAME, \
+      BUILTIN_TYPE, FUNCTION_TYPE, \
       loongarch_builtin_avail_##AVAIL \
   }
 
@@ -165,51 +127,14 @@ AVAIL_ALL (hard_float, TARGET_HARD_FLOAT_ABI)
    mapped to instruction CODE_FOR_loongarch_<INSN>,  FUNCTION_TYPE and AVAIL
    are as for LARCH_BUILTIN.  */
 #define DIRECT_BUILTIN(INSN, FUNCTION_TYPE, AVAIL) \
-  LARCH_BUILTIN (INSN, f, #INSN, LARCH_BUILTIN_DIRECT, FUNCTION_TYPE, AVAIL)
+  LARCH_BUILTIN (INSN, #INSN, LARCH_BUILTIN_DIRECT, FUNCTION_TYPE, AVAIL)
 
 /* Define __builtin_loongarch_<INSN>, which is a LARCH_BUILTIN_DIRECT_NO_TARGET
    function mapped to instruction CODE_FOR_loongarch_<INSN>,  FUNCTION_TYPE
    and AVAIL are as for LARCH_BUILTIN.  */
 #define DIRECT_NO_TARGET_BUILTIN(INSN, FUNCTION_TYPE, AVAIL) \
-  LARCH_BUILTIN (INSN, f, #INSN, LARCH_BUILTIN_DIRECT_NO_TARGET, \
+  LARCH_BUILTIN (INSN, #INSN, LARCH_BUILTIN_DIRECT_NO_TARGET, \
 		 FUNCTION_TYPE, AVAIL)
-
-/* Loongson support crc.  */
-#define CODE_FOR_loongarch_crc_w_b_w CODE_FOR_crc_w_b_w
-#define CODE_FOR_loongarch_crc_w_h_w CODE_FOR_crc_w_h_w
-#define CODE_FOR_loongarch_crc_w_w_w CODE_FOR_crc_w_w_w
-#define CODE_FOR_loongarch_crc_w_d_w CODE_FOR_crc_w_d_w
-#define CODE_FOR_loongarch_crcc_w_b_w CODE_FOR_crcc_w_b_w
-#define CODE_FOR_loongarch_crcc_w_h_w CODE_FOR_crcc_w_h_w
-#define CODE_FOR_loongarch_crcc_w_w_w CODE_FOR_crcc_w_w_w
-#define CODE_FOR_loongarch_crcc_w_d_w CODE_FOR_crcc_w_d_w
-
-/* Privileged state instruction.  */
-#define CODE_FOR_loongarch_cpucfg CODE_FOR_cpucfg
-#define CODE_FOR_loongarch_asrtle_d CODE_FOR_asrtle_d
-#define CODE_FOR_loongarch_asrtgt_d CODE_FOR_asrtgt_d
-#define CODE_FOR_loongarch_csrrd CODE_FOR_csrrd
-#define CODE_FOR_loongarch_dcsrrd CODE_FOR_dcsrrd
-#define CODE_FOR_loongarch_csrwr CODE_FOR_csrwr
-#define CODE_FOR_loongarch_dcsrwr CODE_FOR_dcsrwr
-#define CODE_FOR_loongarch_csrxchg CODE_FOR_csrxchg
-#define CODE_FOR_loongarch_dcsrxchg CODE_FOR_dcsrxchg
-#define CODE_FOR_loongarch_iocsrrd_b CODE_FOR_iocsrrd_b
-#define CODE_FOR_loongarch_iocsrrd_h CODE_FOR_iocsrrd_h
-#define CODE_FOR_loongarch_iocsrrd_w CODE_FOR_iocsrrd_w
-#define CODE_FOR_loongarch_iocsrrd_d CODE_FOR_iocsrrd_d
-#define CODE_FOR_loongarch_iocsrwr_b CODE_FOR_iocsrwr_b
-#define CODE_FOR_loongarch_iocsrwr_h CODE_FOR_iocsrwr_h
-#define CODE_FOR_loongarch_iocsrwr_w CODE_FOR_iocsrwr_w
-#define CODE_FOR_loongarch_iocsrwr_d CODE_FOR_iocsrwr_d
-#define CODE_FOR_loongarch_lddir CODE_FOR_lddir
-#define CODE_FOR_loongarch_dlddir CODE_FOR_dlddir
-#define CODE_FOR_loongarch_ldpte CODE_FOR_ldpte
-#define CODE_FOR_loongarch_dldpte CODE_FOR_dldpte
-#define CODE_FOR_loongarch_cacop CODE_FOR_cacop
-#define CODE_FOR_loongarch_dcacop CODE_FOR_dcacop
-#define CODE_FOR_loongarch_dbar CODE_FOR_dbar
-#define CODE_FOR_loongarch_ibar CODE_FOR_ibar
 
 static const struct loongarch_builtin_description loongarch_builtins[] = {
 #define LARCH_MOVFCSR2GR 0
@@ -217,18 +142,15 @@ static const struct loongarch_builtin_description loongarch_builtins[] = {
 #define LARCH_MOVGR2FCSR 1
   DIRECT_NO_TARGET_BUILTIN (movgr2fcsr, LARCH_VOID_FTYPE_UQI_USI, hard_float),
 
-  DIRECT_NO_TARGET_BUILTIN (cacop, LARCH_VOID_FTYPE_USI_USI_SI, default),
-  DIRECT_NO_TARGET_BUILTIN (dcacop, LARCH_VOID_FTYPE_USI_UDI_SI, default),
+  DIRECT_NO_TARGET_BUILTIN (cacop_w, LARCH_VOID_FTYPE_USI_USI_SI, default),
+  DIRECT_NO_TARGET_BUILTIN (cacop_d, LARCH_VOID_FTYPE_USI_UDI_SI, default),
   DIRECT_NO_TARGET_BUILTIN (dbar, LARCH_VOID_FTYPE_USI, default),
   DIRECT_NO_TARGET_BUILTIN (ibar, LARCH_VOID_FTYPE_USI, default),
 
-  DIRECT_BUILTIN (cpucfg, LARCH_USI_FTYPE_USI, default),
-  DIRECT_NO_TARGET_BUILTIN (asrtle_d, LARCH_VOID_FTYPE_DI_DI, default),
-  DIRECT_NO_TARGET_BUILTIN (asrtgt_d, LARCH_VOID_FTYPE_DI_DI, default),
-  DIRECT_BUILTIN (dlddir, LARCH_DI_FTYPE_DI_UQI, default),
-  DIRECT_BUILTIN (lddir, LARCH_SI_FTYPE_SI_UQI, default),
-  DIRECT_NO_TARGET_BUILTIN (dldpte, LARCH_VOID_FTYPE_DI_UQI, default),
-  DIRECT_NO_TARGET_BUILTIN (ldpte, LARCH_VOID_FTYPE_SI_UQI, default),
+  DIRECT_BUILTIN (lddir_d, LARCH_DI_FTYPE_DI_UQI, default),
+  DIRECT_BUILTIN (lddir_w, LARCH_SI_FTYPE_SI_UQI, default),
+  DIRECT_NO_TARGET_BUILTIN (ldpte_d, LARCH_VOID_FTYPE_DI_UQI, default),
+  DIRECT_NO_TARGET_BUILTIN (ldpte_w, LARCH_VOID_FTYPE_SI_UQI, default),
 
   /* CRC Instrinsic */
 
@@ -241,12 +163,12 @@ static const struct loongarch_builtin_description loongarch_builtins[] = {
   DIRECT_BUILTIN (crcc_w_w_w, LARCH_SI_FTYPE_SI_SI, default),
   DIRECT_BUILTIN (crcc_w_d_w, LARCH_SI_FTYPE_DI_SI, default),
 
-  DIRECT_BUILTIN (csrrd, LARCH_USI_FTYPE_USI, default),
-  DIRECT_BUILTIN (dcsrrd, LARCH_UDI_FTYPE_USI, default),
-  DIRECT_BUILTIN (csrwr, LARCH_USI_FTYPE_USI_USI, default),
-  DIRECT_BUILTIN (dcsrwr, LARCH_UDI_FTYPE_UDI_USI, default),
-  DIRECT_BUILTIN (csrxchg, LARCH_USI_FTYPE_USI_USI_USI, default),
-  DIRECT_BUILTIN (dcsrxchg, LARCH_UDI_FTYPE_UDI_UDI_USI, default),
+  DIRECT_BUILTIN (csrrd_w, LARCH_USI_FTYPE_USI, default),
+  DIRECT_BUILTIN (csrrd_d, LARCH_UDI_FTYPE_USI, default),
+  DIRECT_BUILTIN (csrwr_w, LARCH_USI_FTYPE_USI_USI, default),
+  DIRECT_BUILTIN (csrwr_d, LARCH_UDI_FTYPE_UDI_USI, default),
+  DIRECT_BUILTIN (csrxchg_w, LARCH_USI_FTYPE_USI_USI_USI, default),
+  DIRECT_BUILTIN (csrxchg_d, LARCH_UDI_FTYPE_UDI_UDI_USI, default),
   DIRECT_BUILTIN (iocsrrd_b, LARCH_UQI_FTYPE_USI, default),
   DIRECT_BUILTIN (iocsrrd_h, LARCH_UHI_FTYPE_USI, default),
   DIRECT_BUILTIN (iocsrrd_w, LARCH_USI_FTYPE_USI, default),
@@ -255,6 +177,12 @@ static const struct loongarch_builtin_description loongarch_builtins[] = {
   DIRECT_NO_TARGET_BUILTIN (iocsrwr_h, LARCH_VOID_FTYPE_UHI_USI, default),
   DIRECT_NO_TARGET_BUILTIN (iocsrwr_w, LARCH_VOID_FTYPE_USI_USI, default),
   DIRECT_NO_TARGET_BUILTIN (iocsrwr_d, LARCH_VOID_FTYPE_UDI_USI, default),
+
+  DIRECT_BUILTIN (cpucfg, LARCH_USI_FTYPE_USI, default),
+  DIRECT_NO_TARGET_BUILTIN (asrtle_d, LARCH_VOID_FTYPE_DI_DI, default),
+  DIRECT_NO_TARGET_BUILTIN (asrtgt_d, LARCH_VOID_FTYPE_DI_DI, default),
+  DIRECT_NO_TARGET_BUILTIN (syscall, LARCH_VOID_FTYPE_USI, default),
+  DIRECT_NO_TARGET_BUILTIN (break, LARCH_VOID_FTYPE_USI, default),
 };
 
 /* Index I is the function declaration for loongarch_builtins[I], or null if
@@ -264,25 +192,10 @@ static GTY (()) tree loongarch_builtin_decls[ARRAY_SIZE (loongarch_builtins)];
    using the instruction code or return null if not defined for the target.  */
 static GTY (()) int loongarch_get_builtin_decl_index[NUM_INSN_CODES];
 
-/* Return a type for 'const volatile void *'.  */
-
-static tree
-loongarch_build_cvpointer_type (void)
-{
-  static tree cache;
-
-  if (cache == NULL_TREE)
-    cache = build_pointer_type (build_qualified_type (void_type_node,
-						      TYPE_QUAL_CONST
-						       | TYPE_QUAL_VOLATILE));
-  return cache;
-}
-
 /* Source-level argument types.  */
 #define LARCH_ATYPE_VOID void_type_node
 #define LARCH_ATYPE_INT integer_type_node
 #define LARCH_ATYPE_POINTER ptr_type_node
-#define LARCH_ATYPE_CVPOINTER loongarch_build_cvpointer_type ()
 
 /* Standard mode-based argument types.  */
 #define LARCH_ATYPE_QI intQI_type_node

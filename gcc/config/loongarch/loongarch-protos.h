@@ -43,8 +43,6 @@ enum loongarch_symbol_type {
 };
 #define NUM_SYMBOL_TYPES (SYMBOL_TLSLDM + 1)
 
-extern const char *const loongarch_fp_conditions[16];
-
 /* Routines implemented in loongarch.c.  */
 extern rtx loongarch_emit_move (rtx, rtx);
 extern HOST_WIDE_INT loongarch_initial_elimination_offset (int, int);
