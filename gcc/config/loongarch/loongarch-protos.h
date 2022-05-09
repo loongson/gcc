@@ -118,6 +118,7 @@ extern const char *loongarch_output_equal_conditional_branch (rtx_insn *,
 							      bool);
 extern const char *loongarch_output_division (const char *, rtx *);
 extern const char *loongarch_output_probe_stack_range (rtx, rtx, rtx);
+extern const char *loongarch_output_call (int, int, rtx, rtx_insn *);
 extern bool loongarch_hard_regno_rename_ok (unsigned int, unsigned int);
 extern int loongarch_dspalu_bypass_p (rtx, rtx);
 extern rtx loongarch_prefetch_cookie (rtx, rtx);

@@ -2832,42 +2832,7 @@
 	 (match_operand 1 "" ""))]
   "SIBLING_CALL_P (insn)"
 {
-  switch (which_alternative)
-    {
-    case 0:
-      return "jr\t%0";
-    case 1:
-      if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r12,(%%pcrel(%0+0x20000))>>18\n\t"
-	       "jirl\t$r0,$r12,%%pcrel(%0+4)-(%%pcrel(%0+4+0x20000)>>18<<18)";
-      else if (TARGET_CMODEL_EXTREME)
-	return "la.local\t$r12,$r13,%0\n\tjr\t$r12";
-      else
-	return "b\t%0";
-    case 2:
-      if (TARGET_CMODEL_TINY_STATIC)
-	return "b\t%0";
-      else if (TARGET_CMODEL_EXTREME)
-	return "la.global\t$r12,$r13,%0\n\tjr\t$r12";
-      else
-	return "la.global\t$r12,%0\n\tjr\t$r12";
-    case 3:
-      if (TARGET_CMODEL_EXTREME)
-	return "la.global\t$r12,$r13,%0\n\tjr\t$r12";
-      else
-	return "la.global\t$r12,%0\n\tjr\t$r12";
-    case 4:
-      if (TARGET_CMODEL_NORMAL || TARGET_CMODEL_TINY)
-	return "b\t%%plt(%0)";
-      else if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r12,(%%plt(%0)+0x20000)>>18\n\t"
-	       "jirl\t$r0,$r12,%%plt(%0)+4-((%%plt(%0)+(4+0x20000))>>18<<18)";
-      else
-	/* Cmodel extreme and tiny static not support plt.  */
-	gcc_unreachable ();
-    default:
-      gcc_unreachable ();
-    }
+  return loongarch_output_call (1, which_alternative, operands[0], NULL);
 }
   [(set_attr "jirl" "indirect,direct,direct,direct,direct")])
 
@@ -2908,42 +2873,7 @@
 	      (match_operand 2 "" "")))]
   "SIBLING_CALL_P (insn)"
 {
-  switch (which_alternative)
-  {
-    case 0:
-      return "jr\t%1";
-    case 1:
-      if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r12,%%pcrel(%1+0x20000)>>18\n\t"
-	       "jirl\t$r0,$r12,%%pcrel(%1+4)-((%%pcrel(%1+4+0x20000))>>18<<18)";
-      else if (TARGET_CMODEL_EXTREME)
-	return "la.local\t$r12,$r13,%1\n\tjr\t$r12";
-      else
-	return "b\t%1";
-    case 2:
-      if (TARGET_CMODEL_TINY_STATIC)
-	return "b\t%1";
-      else if (TARGET_CMODEL_EXTREME)
-	return "la.global\t$r12,$r13,%1\n\tjr\t$r12";
-      else
-	return "la.global\t$r12,%1\n\tjr\t$r12";
-    case 3:
-      if (TARGET_CMODEL_EXTREME)
-	return "la.global\t$r12,$r13,%1\n\tjr\t$r12";
-      else
-	return "la.global\t$r12,%1\n\tjr\t$r12";
-    case 4:
-      if (TARGET_CMODEL_NORMAL || TARGET_CMODEL_TINY)
-	return " b\t%%plt(%1)";
-      else if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r12,(%%plt(%1)+0x20000)>>18\n\t"
-	       "jirl\t$r0,$r12,%%plt(%1)+4-((%%plt(%1)+(4+0x20000))>>18<<18)";
-      else
-	/* Cmodel extreme and tiny static not support plt.  */
-	gcc_unreachable ();
-    default:
-      gcc_unreachable ();
-  }
+  return loongarch_output_call (1, which_alternative, operands[1], NULL);
 }
   [(set_attr "jirl" "indirect,direct,direct,direct,direct")])
 
@@ -2956,42 +2886,7 @@
 	      (match_dup 2)))]
   "SIBLING_CALL_P (insn)"
 {
-  switch (which_alternative)
-  {
-    case 0:
-      return "jr\t%1";
-    case 1:
-      if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r12,%%pcrel(%1+0x20000)>>18\n\t"
-	       "jirl\t$r0,$r12,%%pcrel(%1+4)-(%%pcrel(%1+4+0x20000)>>18<<18)";
-      else if (TARGET_CMODEL_EXTREME)
-	return "la.local\t$r12,$r13,%1\n\tjr\t$r12";
-      else
-	return "b\t%1";
-    case 2:
-      if (TARGET_CMODEL_TINY_STATIC)
-	return "b\t%1";
-      else if (TARGET_CMODEL_EXTREME)
-	return "la.global\t$r12,$r13,%1\n\tjr\t$r12";
-      else
-	return "la.global\t$r12,%1\n\tjr\t$r12";
-    case 3:
-      if (TARGET_CMODEL_EXTREME)
-	return "la.global\t$r12,$r13,%1\n\tjr\t$r12";
-      else
-	return "la.global\t$r12,%1\n\tjr\t$r12";
-    case 4:
-      if (TARGET_CMODEL_NORMAL || TARGET_CMODEL_TINY)
-	return "b\t%%plt(%1)";
-      else if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r12,(%%plt(%1)+0x20000)>>18\n\t"
-	       "jirl\t$r0,$r12,%%plt(%1)+4-((%%plt(%1)+(4+0x20000))>>18<<18)";
-      else
-	/* Cmodel extreme and tiny static not support plt.  */
-	gcc_unreachable ();
-    default:
-      gcc_unreachable ();
-  }
+  return loongarch_output_call (1, which_alternative, operands[1], NULL);
 }
   [(set_attr "jirl" "indirect,direct,direct,direct,direct")])
 
@@ -3014,42 +2909,7 @@
    (clobber (reg:SI RETURN_ADDR_REGNUM))]
   ""
 {
-  switch (which_alternative)
-    {
-    case 0:
-      return "jirl\t$r1,%0,0";
-    case 1:
-      if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r1,%%pcrel(%0+0x20000)>>18\n\t"
-	       "jirl\t$r1,$r1,%%pcrel(%0+4)-(%%pcrel(%0+4+0x20000)>>18<<18)";
-      else if (TARGET_CMODEL_EXTREME)
-	return "la.local\t$r1,$r12,%0\n\tjirl\t$r1,$r1,0";
-      else
-	return "bl\t%0";
-    case 2:
-      if (TARGET_CMODEL_TINY_STATIC)
-	return "bl\t%0";
-      else if (TARGET_CMODEL_EXTREME)
-	return "la.global\t$r1,$r12,%0\n\tjirl\t$r1,$r1,0";
-      else
-	return "la.global\t$r1,%0\n\tjirl\t$r1,$r1,0";
-    case 3:
-      if (TARGET_CMODEL_EXTREME)
-	return "la.global\t$r1,$r12,%0\n\tjirl\t$r1,$r1,0";
-      else
-	return "la.global\t$r1,%0\n\tjirl\t$r1,$r1,0";
-    case 4:
-      if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r1,(%%plt(%0)+0x20000)>>18\n\t"
-	       "jirl\t$r1,$r1,%%plt(%0)+4-((%%plt(%0)+(4+0x20000))>>18<<18)";
-      else if (TARGET_CMODEL_NORMAL || TARGET_CMODEL_TINY)
-	return "bl\t%%plt(%0)";
-      else
-	/* Cmodel extreme and tiny static not support plt.  */
-	gcc_unreachable ();
-    default:
-      gcc_unreachable ();
-    }
+  return loongarch_output_call (0, which_alternative, operands[0], insn);
 }
   [(set_attr "jirl" "indirect,direct,direct,direct,direct")
    (set_attr "insn_count" "1,2,3,3,2")])
@@ -3090,42 +2950,7 @@
    (clobber (reg:SI RETURN_ADDR_REGNUM))]
   ""
 {
-  switch (which_alternative)
-    {
-    case 0:
-      return "jirl\t$r1,%1,0";
-    case 1:
-      if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r1,%%pcrel(%1+0x20000)>>18\n\t"
-	       "jirl\t$r1,$r1,%%pcrel(%1+4)-(%%pcrel(%1+4+0x20000)>>18<<18)";
-      else if (TARGET_CMODEL_EXTREME)
-	return "la.local\t$r1,$r12,%1\n\tjirl\t$r1,$r1,0";
-      else
-	return "bl\t%1";
-    case 2:
-      if (TARGET_CMODEL_TINY_STATIC)
-	return "bl\t%1";
-      else if (TARGET_CMODEL_EXTREME)
-	return "la.global\t$r1,$r12,%1\n\tjirl\t$r1,$r1,0";
-      else
-	return "la.global\t$r1,%1\n\tjirl\t$r1,$r1,0";
-    case 3:
-      if (TARGET_CMODEL_EXTREME)
-	return "la.global\t$r1,$r12,%1\n\tjirl\t$r1,$r1,0";
-      else
-	return "la.global\t$r1,%1\n\tjirl\t$r1,$r1,0";
-    case 4:
-      if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r1,(%%plt(%1)+0x20000)>>18\n\t"
-	       "jirl\t$r1,$r1,%%plt(%1)+4-((%%plt(%1)+(4+0x20000))>>18<<18)";
-      else if (TARGET_CMODEL_NORMAL || TARGET_CMODEL_TINY)
-	return "bl\t%%plt(%1)";
-      else
-	/* Cmodel extreme and tiny static not support plt.  */
-	gcc_unreachable ();
-    default:
-      gcc_unreachable ();
-    }
+  return loongarch_output_call (0, which_alternative, operands[1], insn);
 }
   [(set_attr "jirl" "indirect,direct,direct,direct,direct")
    (set_attr "insn_count" "1,2,3,3,2")])
@@ -3140,42 +2965,7 @@
    (clobber (reg:SI RETURN_ADDR_REGNUM))]
   ""
 {
-  switch (which_alternative)
-    {
-    case 0:
-      return "jirl\t$r1,%1,0";
-    case 1:
-      if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r1,%%pcrel(%1+0x20000)>>18\n\t"
-	       "jirl\t$r1,$r1,%%pcrel(%1+4)-(%%pcrel(%1+4+0x20000)>>18<<18)";
-      else if (TARGET_CMODEL_EXTREME)
-	return "la.local\t$r1,$r12,%1\n\tjirl\t$r1,$r1,0";
-      else
-	return "bl\t%1";
-    case 2:
-      if (TARGET_CMODEL_TINY_STATIC)
-	return "bl\t%1";
-      else if (TARGET_CMODEL_EXTREME)
-	return "la.global\t$r1,$r12,%1\n\tjirl\t$r1,$r1,0 ";
-      else
-	return "la.global\t$r1,%1\n\tjirl\t$r1,$r1,0";
-    case 3:
-      if (TARGET_CMODEL_EXTREME)
-	return "la.global\t$r1,$r12,%1\n\tjirl\t$r1,$r1,0";
-      else
-	return "la.global\t$r1,%1\n\tjirl\t$r1,$r1,0";
-    case 4:
-      if (TARGET_CMODEL_LARGE)
-	return "pcaddu18i\t$r1,(%%plt(%1)+0x20000)>>18\n\t"
-	       "jirl\t$r1,$r1,%%plt(%1)+4-((%%plt(%1)+(4+0x20000))>>18<<18)";
-      else if (TARGET_CMODEL_NORMAL || TARGET_CMODEL_TINY)
-	return "bl\t%%plt(%1)";
-      else
-	/* Cmodel extreme and tiny static not support plt.  */
-	gcc_unreachable ();
-    default:
-      gcc_unreachable ();
-    }
+  return loongarch_output_call (0, which_alternative, operands[1], insn);
 }
   [(set_attr "jirl" "indirect,direct,direct,direct,direct")
    (set_attr "insn_count" "1,2,3,3,2")])

@@ -67,6 +67,112 @@ along with GCC; see the file COPYING3.  If not see
 /* This file should be included last.  */
 #include "target-def.h"
 
+static tree loongarch_handle_movable (tree *, tree, tree, int, bool *);
+
+/* The value of TARGET_ATTRIBUTE_TABLE.  */
+static const struct attribute_spec loongarch_attribute_table[] = {
+    /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
+       affects_type_identity, handler, exclude }  */
+
+    /* The attribute tells the variable may be moved far from codes.  */
+      { "movable", 0, 0, true, false, false, false, loongarch_handle_movable, NULL },
+      { NULL, 0, 0, false, false, false, false, NULL, NULL }
+};
+
+static bool
+loongarch_has_movable_attr (const_rtx x)
+{
+  if (GET_CODE (x) == LABEL_REF)
+    return false;
+  const_tree decl = SYMBOL_REF_DECL (x);
+  if (!decl)
+    return false;
+  if (lookup_attribute ("movable", DECL_ATTRIBUTES (decl)))
+    return true;
+  return false;
+}
+
+static tree
+loongarch_handle_movable (tree *node, tree name ATTRIBUTE_UNUSED,
+				      tree args ATTRIBUTE_UNUSED,
+				      int flags ATTRIBUTE_UNUSED,
+				      bool *no_add_attrs)
+{
+  tree decl = *node;
+  if (TREE_CODE (decl) == VAR_DECL)
+    *no_add_attrs = false;
+  return NULL_TREE;
+}
+
+/* Output call instructions.  */
+const char *
+loongarch_output_call (int sibcall, int alter, rtx op, rtx_insn *insn)
+{
+  static const char *output_call_buf[] = {
+    "jirl\t$r1,%0,0",
+    "call.inter\t$r1,%0",
+    "la.local\t$r12,$r13,%0\n\tjirl\t$r1,$r12,0",
+    "bl\t%0",
+    "la.global\t$r12,$r13,%0\n\tjirl\t$r1,$r12,0",
+    "la.global\t$r12,%0\n\tjirl\t$r1,$r12,0",
+  };
+  static const char *output_call_buf_no_link[] = {
+    "jirl\t$r0,%0,0",
+    "call.sib\t$r12,%0",
+    "la.local\t$r12,$r13,%0\n\tjirl\t$r0,$r12,0",
+    "b\t%0",
+    "la.global\t$r12,$r13,%0\n\tjirl\t$r0,$r12,0",
+    "la.global\t$r12,%0\n\tjirl\t$r0,$r12,0",
+  };
+  const char **buf;
+  rtx *xop = &op;
+
+  if (sibcall)
+    buf = output_call_buf_no_link;
+  else
+    buf = output_call_buf;
+
+  switch (alter)
+    {
+    case 0:
+      output_asm_insn (buf[0], xop);
+      break;
+    case 1:
+      if (TARGET_CMODEL_LARGE)
+	output_asm_insn (buf[1], xop);
+      else if (TARGET_CMODEL_EXTREME)
+	output_asm_insn (buf[2], xop);
+      else
+	output_asm_insn (buf[3], xop);
+      break;
+    case 2:
+      if (TARGET_CMODEL_TINY_STATIC)
+	output_asm_insn (buf[3], xop);
+      else if (TARGET_CMODEL_EXTREME)
+	output_asm_insn (buf[4], xop);
+      else
+	output_asm_insn (buf[5], xop);
+      break;
+    case 3:
+      if (TARGET_CMODEL_EXTREME)
+	output_asm_insn (buf[4], xop);
+      else
+	output_asm_insn (buf[5], xop);
+      break;
+    case 4:
+      if (TARGET_CMODEL_NORMAL || TARGET_CMODEL_TINY)
+	output_asm_insn (buf[3], xop);
+      else if (TARGET_CMODEL_LARGE)
+	output_asm_insn (buf[1], xop);
+      else
+	sorry ("cmodel extreme and tiny static not support plt");
+      break;
+    default:
+      gcc_unreachable ();
+    }
+  return "";
+}
+
 /* True if X is an UNSPEC wrapper around a SYMBOL_REF or LABEL_REF.  */
 #define UNSPEC_ADDRESS_P(X)					\
   (GET_CODE (X) == UNSPEC					\
@@ -3452,7 +3558,9 @@ loongarch_output_move (rtx dest, rtx src)
 	      || TARGET_CMODEL_NORMAL
 	      || TARGET_CMODEL_LARGE)
 	    {
-	      if (!loongarch_global_symbol_p (src)
+	      if (loongarch_has_movable_attr (src))
+		return "la.global\t%0,%1";
+	      else if (!loongarch_global_symbol_p (src)
 		  || loongarch_symbol_binds_local_p (src))
 		return "la.local\t%0,%1";
 	      else
