@@ -219,7 +219,14 @@
     case CONST:
     case SYMBOL_REF:
     case LABEL_REF:
-      return (loongarch_symbolic_constant_p (op, &symbol_type));
+      return (loongarch_symbolic_constant_p (op, &symbol_type))
+	      &&!loongarch_split_symbol_type(symbol_type);
+
+    case HIGH:
+      op = XEXP (op, 0);
+      return (loongarch_symbolic_constant_p (op, &symbol_type)
+	      && loongarch_split_symbol_type(symbol_type));
+
     default:
       return true;
     }

@@ -57,6 +57,8 @@
   ;; CRC
   UNSPEC_CRC
   UNSPEC_CRCC
+
+  UNSPEC_PCADDU12I
 ])
 
 (define_c_enum "unspecv" [
@@ -1921,6 +1923,31 @@
   "lu52i.d\t%0,%1,%X3>>52"
   [(set_attr "type" "arith")
    (set_attr "mode" "DI")])
+
+(define_insn "pcaddu12i<mode>"
+  [(set (match_operand:P           0 "register_operand" "=r")
+ (unspec:P
+     [(match_operand:P      1 "symbolic_operand" "")
+     (match_operand:P 2 "const_int_operand")
+     (pc)]
+     UNSPEC_PCADDU12I))]
+  ""
+  ".LA%2: pcaddu12i\t%0,%1"
+  [(set_attr "type" "arith")
+   (set_attr "mode" "<MODE>")])
+
+;; Instructions for adding the low 12 bits of an address to a register.
+;; Operand 2 is the address: loongarch_print_operand works out which relocation
+;; should be applied.
+
+(define_insn "*low<mode>"
+  [(set (match_operand:P           0 "register_operand" "=r")
+ (lo_sum:P (match_operand:P 1 "register_operand" " r")
+     (match_operand:P 2 "symbolic_operand" "")))]
+  ""
+  "addi.<d>\t%0,%1,%L2"
+  [(set_attr "type" "arith")
+   (set_attr "mode" "<MODE>")])
 
 ;; Convert floating-point numbers to integers
 (define_insn "frint_<fmt>"
