@@ -37,6 +37,8 @@ along with GCC; see the file COPYING3.  If not see
    */
 enum loongarch_symbol_type {
   SYMBOL_GOT_DISP,
+  SYMBOL_PCREL,
+  SYMBOL_ABSOLUTE,
   SYMBOL_TLS,
   SYMBOL_TLSGD,
   SYMBOL_TLSLDM,
