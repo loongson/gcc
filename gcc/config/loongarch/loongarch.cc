@@ -1642,7 +1642,7 @@ loongarch_classify_symbol (const_rtx x)
 
   if (GET_CODE (x) == SYMBOL_REF
       && !loongarch_symbol_binds_local_p(x)
-      && flag_pic)
+      && (flag_pic || SYMBOL_REF_WEAK (x)))
     return SYMBOL_GOT_DISP;
 
   return SYMBOL_PCREL;
