@@ -94,6 +94,11 @@
    A constant call global and noplt address."
   (match_operand 0 "is_const_call_global_noplt_symbol"))
 
+(define_constraint "b"
+  "@internal
+   A constant call no local address."
+  (match_operand 0 "is_const_call_no_local_symbol"))
+
 (define_constraint "c"
   "@internal
    A constant call local address."

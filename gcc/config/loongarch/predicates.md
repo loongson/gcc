@@ -112,7 +112,7 @@
 {
   enum loongarch_symbol_type symbol_type;
 
-  if (!loongarch_symbolic_constant_p (op, &symbol_type))
+  if (!loongarch_call_symbolic_constant_p (op, &symbol_type))
     return false;
 
   switch (symbol_type)
@@ -138,6 +138,13 @@
   (and (match_operand 0 "const_call_insn_operand")
        (ior (match_test "loongarch_global_symbol_p (op) == 0")
 	    (match_test "loongarch_symbol_binds_local_p (op) != 0"))
+       (match_test "CONSTANT_P (op)")))
+
+(define_predicate "is_const_call_no_local_symbol"
+  (and (match_operand 0 "const_call_insn_operand")
+       (ior (match_test "loongarch_global_symbol_p (op) != 0")
+	    (match_test "loongarch_symbol_binds_local_p (op) == 0")
+       (match_test "loongarch_weak_symbol_p (op) != 0"))
        (match_test "CONSTANT_P (op)")))
 
 (define_predicate "is_const_call_weak_symbol"
