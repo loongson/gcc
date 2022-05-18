@@ -1663,6 +1663,63 @@ loongarch_classify_symbolic_expression (rtx x)
   return loongarch_classify_symbol (x);
 }
 
+/* Return the method that should be used to access SYMBOL_REF or
+   LABEL_REF X.  */
+
+static enum loongarch_symbol_type
+loongarch_call_classify_symbol (const_rtx x)
+{
+  if (SYMBOL_REF_TLS_MODEL (x))
+    return SYMBOL_TLS;
+
+  if (GET_CODE (x) == SYMBOL_REF)
+    return SYMBOL_GOT_DISP;
+
+  return SYMBOL_PCREL;
+}
+
+/* Return true if X is a symbolic constant.  If it is,
+   store the type of the symbol in *SYMBOL_TYPE.  */
+
+bool
+loongarch_call_symbolic_constant_p (rtx x, enum loongarch_symbol_type *symbol_type)
+{
+  rtx offset;
+
+  split_const (x, &x, &offset);
+  if (UNSPEC_ADDRESS_P (x))
+    {
+      *symbol_type = UNSPEC_ADDRESS_TYPE (x);
+      x = UNSPEC_ADDRESS (x);
+    }
+  else if (SYMBOL_REF_P (x) || LABEL_REF_P (x))
+    {
+      *symbol_type = loongarch_call_classify_symbol (x);
+      if (*symbol_type == SYMBOL_TLS)
+	return true;
+    }
+  else
+    return false;
+
+  if (offset == const0_rtx)
+    return true;
+
+  /* Check whether a nonzero offset is valid for the underlying
+     relocations.  */
+  switch (*symbol_type)
+    {
+    case SYMBOL_PCREL:
+    case SYMBOL_ABSOLUTE:
+      return sext_hwi (INTVAL (offset), 32) == INTVAL (offset);
+
+    case SYMBOL_GOT_DISP:
+    case SYMBOL_TLSGD:
+    case SYMBOL_TLSLDM:
+    case SYMBOL_TLS:
+      return false;
+    }
+  gcc_unreachable ();
+}
 /* Return true if X is a symbolic constant.  If it is,
    store the type of the symbol in *SYMBOL_TYPE.  */
 
