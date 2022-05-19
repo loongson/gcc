@@ -3588,7 +3588,8 @@ loongarch_output_move (rtx dest, rtx src)
 	    case 2:
 	      return "st.h\t%z1,%0";
 	    case 4:
-	      if (const_arith_operand (offset, Pmode))
+	      if (const_arith_operand (offset, Pmode)
+		  || GET_CODE (offset) == LO_SUM)
 		return "st.w\t%z1,%0";
 	      else
 		return "stptr.w\t%z1,%0";
@@ -3626,7 +3627,8 @@ loongarch_output_move (rtx dest, rtx src)
 	    case 2:
 	      return "ld.hu\t%0,%1";
 	    case 4:
-	      if (const_arith_operand (offset, Pmode))
+	      if (const_arith_operand (offset, Pmode)
+		  || GET_CODE (offset) == LO_SUM)
 		return "ld.w\t%0,%1";
 	      else
 		return "ldptr.w\t%0,%1";
@@ -4582,8 +4584,7 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_reloc)
       break;
 
     case SYMBOL_PCREL:
-      reloc = hi_reloc ? "%pcrel_hi" : "%pcrel_lo";
-//      shift = hi_reloc ? "<<32>>44" : ">>12<<12";
+      reloc = hi_reloc ? "%pcala32_hi20" : "%pcala32_lo12";
 
       break;
 #if 0
@@ -4696,8 +4697,8 @@ loongarch_print_operand (FILE *file, rtx op, int letter)
     case 'h':
       if (code == HIGH)
 	op = XEXP (op, 0);
-      output_addr_const (file, loongarch_strip_unspec_address (op));
-//      loongarch_print_operand_reloc (file, op, true /* hi_reloc.  */);
+      //output_addr_const (file, loongarch_strip_unspec_address (op));
+      loongarch_print_operand_reloc (file, op, true /* hi_reloc.  */);
       break;
 
     case 'L':
