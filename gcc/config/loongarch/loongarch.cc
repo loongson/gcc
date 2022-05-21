@@ -1637,10 +1637,13 @@ loongarch_classify_symbol (const_rtx x)
   if (SYMBOL_REF_TLS_MODEL (x))
     return SYMBOL_TLS;
 
-  if (flag_pic)
-    return SYMBOL_GOT_DISP;
+  if (LABEL_REF_P (x))
+    return SYMBOL_PCREL;
 
-  if (GET_CODE (x) == SYMBOL_REF
+//  if (flag_pic)
+//    return SYMBOL_GOT_DISP;
+
+  if (SYMBOL_REF_P (x)
       && !loongarch_symbol_binds_local_p(x)
       && (flag_pic || SYMBOL_REF_WEAK (x)))
     return SYMBOL_GOT_DISP;
@@ -1896,7 +1899,7 @@ loongarch_split_symbol_type (enum loongarch_symbol_type symbol_type)
   if (symbol_type == SYMBOL_TLS)
     return true;
 
-  return symbol_type == SYMBOL_ABSOLUTE || symbol_type == SYMBOL_PCREL;
+  return symbol_type == SYMBOL_ABSOLUTE || symbol_type == SYMBOL_PCREL || symbol_type == SYMBOL_GOT_DISP;
 }
 
 /* Return true if a LO_SUM can address a value of mode MODE when the
@@ -2569,34 +2572,31 @@ loongarch_split_symbol (rtx temp, rtx addr, machine_mode mode, rtx *low_out)
 
       case SYMBOL_PCREL:
 	  {
-	    static unsigned seqno;
-	    char buf[32];
-	    rtx label;
-
 	    if (temp == NULL)
 	      temp = gen_reg_rtx (Pmode);
-
-#if 0
-
-	    ssize_t bytes = snprintf (buf, sizeof (buf), ".LA%u", seqno);
-	    gcc_assert ((size_t) bytes < sizeof (buf));
-
-	    label = gen_rtx_SYMBOL_REF (Pmode, ggc_strdup (buf));
-	    SYMBOL_REF_FLAGS (label) |= SYMBOL_FLAG_LOCAL;
-
-	    if (Pmode == DImode)
-	      emit_insn (gen_pcaddu12idi (temp, copy_rtx (addr), GEN_INT (seqno)));
-	    else
-	      emit_insn (gen_pcaddu12isi (temp, copy_rtx (addr), GEN_INT (seqno)));
-#endif
 
 	    rtx high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
 	    high = loongarch_force_temporary (temp, high);
 	    *low_out = gen_rtx_LO_SUM (Pmode, high, addr);
-
-	    seqno++;
 	  }
 	break;
+
+      case SYMBOL_GOT_DISP:
+	  {
+	    if (temp == NULL)
+	      temp = gen_reg_rtx (Pmode);
+
+	    rtx high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
+	    high = loongarch_force_temporary (temp, high);
+	    *low_out = gen_rtx_UNSPEC (DImode,
+				       gen_rtvec (1,
+						  gen_rtx_MEM (DImode,
+							       gen_rtx_LO_SUM (DImode,
+									       high,
+									       addr))),
+				       UNSPEC_GOT128M);
+	    break;
+	  }
 
       default:
 	gcc_unreachable ();
@@ -3594,7 +3594,8 @@ loongarch_output_move (rtx dest, rtx src)
 	      else
 		return "stptr.w\t%z1,%0";
 	    case 8:
-	      if (const_arith_operand (offset, Pmode))
+	      if (const_arith_operand (offset, Pmode)
+		  || GET_CODE (offset) == LO_SUM)
 		return "st.d\t%z1,%0";
 	      else
 		return "stptr.d\t%z1,%0";
@@ -3633,7 +3634,8 @@ loongarch_output_move (rtx dest, rtx src)
 	      else
 		return "ldptr.w\t%0,%1";
 	    case 8:
-	      if (const_arith_operand (offset, Pmode))
+	      if (const_arith_operand (offset, Pmode)
+		  || GET_CODE (offset) == LO_SUM)
 		return "ld.d\t%0,%1";
 	      else
 		return "ldptr.d\t%0,%1";
@@ -4584,7 +4586,7 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_reloc)
       break;
 
     case SYMBOL_PCREL:
-      reloc = hi_reloc ? "%pcala32_hi20" : "%pcala32_lo12";
+      reloc = hi_reloc ? "%pcrel32_hi20" : "%pcrel_lo12s";
 
       break;
 #if 0
@@ -4592,6 +4594,11 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_reloc)
       reloc = hi_reloc ? "%tprel_hi" : "%tprel_lo";
       break;
 #endif
+
+    case SYMBOL_GOT_DISP:
+      reloc = hi_reloc ? "%got32_hi20" : "%pcrel_lo12s";
+      break;
+
     default:
       gcc_unreachable ();
     }
