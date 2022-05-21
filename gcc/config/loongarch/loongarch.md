@@ -59,6 +59,7 @@
   UNSPEC_CRCC
 
   UNSPEC_PCADDU12I
+  UNSPEC_GOT128M
 ])
 
 (define_c_enum "unspecv" [
@@ -1948,6 +1949,17 @@
   "addi.<d>\t%0,%1,%L2"
   [(set_attr "type" "arith")
    (set_attr "mode" "<MODE>")])
+
+(define_insn "ld_got_128m_<mode>"
+  [(set (match_operand:GPR 0 "register_operand" "=r")
+	(unspec:GPR [(mem:GPR (lo_sum:GPR
+				(match_operand:GPR 1 "register_operand" "r")
+				(match_operand:GPR 2 "symbolic_operand")))]
+	UNSPEC_GOT128M))]
+  ""
+  "ld.d\t%0,%1,%L2"
+  [(set_attr "type" "move")]
+)
 
 ;; Convert floating-point numbers to integers
 (define_insn "frint_<fmt>"
