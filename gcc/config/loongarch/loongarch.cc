@@ -3645,7 +3645,7 @@ loongarch_output_move (rtx dest, rtx src)
 	}
 
       if (src_code == HIGH)
-	return "pcalau12i\t%0,%h1";
+	return "pcaddu12i\t%0,%h1";
 
       if (src_code == CONST_INT)
 	{
