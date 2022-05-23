@@ -1740,7 +1740,8 @@ loongarch_symbolic_constant_p (rtx x, enum loongarch_symbol_type *symbol_type)
       *symbol_type = UNSPEC_ADDRESS_TYPE (x);
       x = UNSPEC_ADDRESS (x);
     }
-  else if (SYMBOL_REF_P (x) || LABEL_REF_P (x))
+  else if ((SYMBOL_REF_P (x) || LABEL_REF_P (x))
+	    && INTVAL (offset) == 0)
     {
       *symbol_type = loongarch_classify_symbol (x);
       if (*symbol_type == SYMBOL_TLS)
