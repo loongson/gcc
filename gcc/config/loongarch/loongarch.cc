@@ -3649,7 +3649,7 @@ loongarch_output_move (rtx dest, rtx src)
 	}
 
       if (src_code == HIGH)
-	return "pcaddu12i\t%0,%h1";
+	return "pcalau12i\t%0,%h1";
 
       if (src_code == CONST_INT)
 	{
@@ -4590,17 +4590,12 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_reloc)
       break;
 
     case SYMBOL_PCREL:
-      reloc = hi_reloc ? "%pcrel32_hi20" : "%pcrel_lo12s";
+      reloc = hi_reloc ? "%pcala32_hi20" : "%pcala_lo12";
 
       break;
-#if 0
-    case SYMBOL_TLS_LE:
-      reloc = hi_reloc ? "%tprel_hi" : "%tprel_lo";
-      break;
-#endif
 
     case SYMBOL_GOT_DISP:
-      reloc = hi_reloc ? "%got32_hi20" : "%pcrel_lo12s";
+      reloc = hi_reloc ? "%pgot32_hi20" : "%pgot32_lo12";
       break;
 
     default:
