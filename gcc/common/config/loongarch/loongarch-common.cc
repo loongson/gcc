@@ -34,6 +34,7 @@ along with GCC; see the file COPYING3.  If not see
 static const struct default_options loongarch_option_optimization_table[] =
 {
   { OPT_LEVELS_ALL, OPT_fasynchronous_unwind_tables, NULL, 1 },
+  { OPT_LEVELS_ALL, OPT_fpic, NULL, 1 },
   { OPT_LEVELS_NONE, 0, NULL, 0 }
 };
 
