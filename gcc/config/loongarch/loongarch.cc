@@ -1744,8 +1744,6 @@ loongarch_symbolic_constant_p (rtx x, enum loongarch_symbol_type *symbol_type)
 	    && INTVAL (offset) == 0)
     {
       *symbol_type = loongarch_classify_symbol (x);
-      if (*symbol_type == SYMBOL_TLS)
-	return true;
     }
   else
     return false;
@@ -1793,7 +1791,7 @@ loongarch_symbol_insns (enum loongarch_symbol_type type, machine_mode mode)
 
     case SYMBOL_TLS:
       /* We don't treat a bare TLS symbol as a constant.  */
-      return 0;
+      return 2;
     }
   gcc_unreachable ();
 }
@@ -2553,7 +2551,7 @@ loongarch_force_address (rtx x, machine_mode mode)
    is guaranteed to be a legitimate address for mode MODE.  */
 
 bool
-loongarch_split_symbol (rtx temp, rtx addr, machine_mode mode, rtx *low_out)
+loongarch_split_symbol (rtx dest, rtx addr, machine_mode mode, rtx *low_out)
 {
   enum loongarch_symbol_type symbol_type;
 
@@ -2563,42 +2561,74 @@ loongarch_split_symbol (rtx temp, rtx addr, machine_mode mode, rtx *low_out)
       || !loongarch_split_symbol_type (symbol_type))
     return false;
 
+  if (dest == NULL)
+    dest = gen_reg_rtx (Pmode);
+
   if (low_out)
     switch (symbol_type)
       {
       case SYMBOL_ABSOLUTE:
 	  {
 	    rtx high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
-	    high = loongarch_force_temporary (temp, high);
+	    high = loongarch_force_temporary (dest, high);
 	    *low_out = gen_rtx_LO_SUM (Pmode, high, addr);
 	  }
 	break;
 
       case SYMBOL_PCREL:
 	  {
-	    if (temp == NULL)
-	      temp = gen_reg_rtx (Pmode);
-
 	    rtx high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
-	    high = loongarch_force_temporary (temp, high);
-	    *low_out = gen_rtx_LO_SUM (Pmode, high, addr);
+	    emit_move_insn (dest, high);
+	    rtx low = gen_rtx_LO_SUM (Pmode, dest, addr);
+	    emit_move_insn (dest, low);
+	  }
+	break;
+
+      case SYMBOL_TLS:
+	  {
+	    switch (SYMBOL_REF_TLS_MODEL (addr))
+	      {
+	      case TLS_MODEL_LOCAL_DYNAMIC:
+		  {
+		    rtx ra = gen_rtx_REG (Pmode, GP_RETURN);
+		    rtx_insn *insn = loongarch_call_tls_get_addr (addr, SYMBOL_TLSLDM, ra);
+		    emit_libcall_block (insn, dest, ra, addr);
+		  }
+		break;
+	      case TLS_MODEL_GLOBAL_DYNAMIC:
+		  {
+		    rtx ra = gen_rtx_REG (Pmode, GP_RETURN);
+		    rtx_insn *insn = loongarch_call_tls_get_addr (addr, SYMBOL_TLSGD, ra);
+		    emit_libcall_block (insn, dest, ra, addr);
+		  }
+		break;
+	      case TLS_MODEL_INITIAL_EXEC:
+		  {
+		    rtx high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
+		    rtx tp = gen_rtx_REG (Pmode, THREAD_POINTER_REGNUM);
+		    emit_move_insn (dest, high);
+		    emit_insn (gen_ld_got_128m_di (dest, dest, addr));
+		    emit_insn (gen_adddi3 (dest, dest, tp));
+		  }
+		break;
+	      case TLS_MODEL_LOCAL_EXEC:
+		  {
+		    rtx tp = gen_rtx_REG (Pmode, THREAD_POINTER_REGNUM);
+		    emit_insn (loongarch_got_load_tls_le (dest, addr));
+		    emit_insn (gen_add3_insn (dest, dest, tp));
+		  }
+		break;
+	      default:
+		gcc_unreachable ();
+	      }
 	  }
 	break;
 
       case SYMBOL_GOT_DISP:
 	  {
-	    if (temp == NULL)
-	      temp = gen_reg_rtx (Pmode);
-
 	    rtx high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
-	    high = loongarch_force_temporary (temp, high);
-	    *low_out = gen_rtx_UNSPEC (DImode,
-				       gen_rtvec (1,
-						  gen_rtx_MEM (DImode,
-							       gen_rtx_LO_SUM (DImode,
-									       high,
-									       addr))),
-				       UNSPEC_GOT128M);
+	    emit_move_insn (dest, high);
+	    emit_insn (gen_ld_got_128m_di (dest, dest, addr));
 	    break;
 	  }
 
@@ -2620,13 +2650,6 @@ loongarch_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 {
   rtx base, addr;
   HOST_WIDE_INT offset;
-
-  if (loongarch_tls_symbol_p (x))
-    return loongarch_legitimize_tls_address (x);
-
-  /* See if the address can split into a high part and a LO_SUM.  */
-  if (loongarch_split_symbol (NULL, x, mode, &addr))
-    return loongarch_force_address (addr, mode);
 
   /* Handle BASE + OFFSET using loongarch_add_offset.  */
   loongarch_split_plus (x, &base, &offset);
@@ -2717,17 +2740,7 @@ loongarch_legitimize_const_move (machine_mode mode, rtx dest, rtx src)
 
   /* Split moves of symbolic constants into high/low pairs.  */
   if (loongarch_split_symbol (dest, src, MAX_MACHINE_MODE, &src))
-    {
-      loongarch_emit_set (dest, src);
-      return;
-    }
-
-  /* Generate the appropriate access sequences for TLS symbols.  */
-  if (loongarch_tls_symbol_p (src))
-    {
-      loongarch_emit_move (dest, loongarch_legitimize_tls_address (src));
-      return;
-    }
+    return;
 
   /* If we have (const (plus symbol offset)), and that expression cannot
      be forced into memory, load the symbol first and add in the offset.
@@ -4598,45 +4611,36 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_reloc)
       reloc = hi_reloc ? "%pgot32_hi20" : "%pgot32_lo12";
       break;
 
+    case SYMBOL_TLS:
+       {
+	 enum tls_model model = SYMBOL_REF_TLS_MODEL (op);
+	 switch (model)
+	   {
+	   case TLS_MODEL_LOCAL_DYNAMIC:
+	     reloc = hi_reloc ? "%tprel_hi" : "%tprel_lo";
+	     break;
+	   case TLS_MODEL_GLOBAL_DYNAMIC:
+	     reloc = hi_reloc ? "%gd32_hi20" : "%pcrel_lo12s";
+	     break;
+	   case TLS_MODEL_INITIAL_EXEC:
+	     reloc = hi_reloc ? "%ie32_hi20" : "%pcrel_lo12s";
+	     break;
+	   case TLS_MODEL_LOCAL_EXEC:
+	     reloc = hi_reloc ? "%tprel_hi" : "%tprel_lo";
+	     break;
+	   default:
+	     gcc_unreachable ();
+	   }
+       }
+     break;
+
     default:
       gcc_unreachable ();
     }
 
-#if 0
   fprintf (file, "%s(", reloc);
   output_addr_const (file, loongarch_strip_unspec_address (op));
-  fputc (')', file); 
-#endif
-
-  fprintf (file, "%s(", reloc);
-  output_addr_const (file, loongarch_strip_unspec_address (op));
-  //fprintf (file, "+0x800");
   fputc (')', file);
-//  fprintf (file, "%s", shift);
-
-#if 0
-
-  if (hi_reloc)
-    {
-      fprintf (file, "%s(", reloc);
-      output_addr_const (file, loongarch_strip_unspec_address (op));
-      fprintf (file, "+0x800");
-      fputc (')', file);
-      fprintf (file, "%s", shift);
-    }
-  else
-    {
-      fprintf (file, "%s(", reloc);
-      output_addr_const (file, loongarch_strip_unspec_address (op));
-
-      fprintf (file, "+4)-(");
-      fprintf (file, "%s(", reloc);
-      output_addr_const (file, loongarch_strip_unspec_address (op));
-      fprintf (file, "+4+0x800");
-      fputc (')', file);
-      fprintf (file, "%s)", shift);
-    }
-#endif
 }
 
 /* Implement TARGET_PRINT_OPERAND.  The LoongArch-specific operand codes are:
