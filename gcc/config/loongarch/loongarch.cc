@@ -1740,7 +1740,8 @@ loongarch_symbolic_constant_p (rtx x, enum loongarch_symbol_type *symbol_type)
       *symbol_type = UNSPEC_ADDRESS_TYPE (x);
       x = UNSPEC_ADDRESS (x);
     }
-  else if (SYMBOL_REF_P (x) || LABEL_REF_P (x))
+  else if ((SYMBOL_REF_P (x) || LABEL_REF_P (x))
+	    && INTVAL (offset) == 0)
     {
       *symbol_type = loongarch_classify_symbol (x);
     }
@@ -1790,7 +1791,7 @@ loongarch_symbol_insns (enum loongarch_symbol_type type, machine_mode mode)
 
     case SYMBOL_TLS:
       /* We don't treat a bare TLS symbol as a constant.  */
-      return 1;
+      return 2;
     }
   gcc_unreachable ();
 }
@@ -2576,23 +2577,16 @@ loongarch_split_symbol (rtx dest, rtx addr, machine_mode mode, rtx *low_out)
 
       case SYMBOL_PCREL:
 	  {
-	    rtx tmp_reg = dest;
-	    machine_mode mode = GET_MODE (dest);
-	    gcc_assert (mode == Pmode);
-
-	    if (can_create_pseudo_p ())
-	      tmp_reg = gen_reg_rtx (mode);
-
-	    emit_move_insn (tmp_reg, gen_rtx_HIGH (mode, copy_rtx (addr)));
-	    rtx low = gen_rtx_LO_SUM (Pmode, tmp_reg, addr);
+	    rtx high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
+	    emit_move_insn (dest, high);
+	    rtx low = gen_rtx_LO_SUM (Pmode, dest, addr);
 	    emit_move_insn (dest, low);
 	  }
 	break;
 
       case SYMBOL_TLS:
 	  {
-	    enum tls_model model = SYMBOL_REF_TLS_MODEL (addr);
-	    switch (model)
+	    switch (SYMBOL_REF_TLS_MODEL (addr))
 	      {
 	      case TLS_MODEL_LOCAL_DYNAMIC:
 		  {
@@ -2635,15 +2629,9 @@ loongarch_split_symbol (rtx dest, rtx addr, machine_mode mode, rtx *low_out)
 
       case SYMBOL_GOT_DISP:
 	  {
-	    rtx tmp_reg = dest;
-	    machine_mode mode = GET_MODE (dest);
-	    gcc_assert (mode == Pmode);
-
-	    if (can_create_pseudo_p ())
-	      tmp_reg = gen_reg_rtx (mode);
-
-	    emit_move_insn (tmp_reg, gen_rtx_HIGH (mode, copy_rtx(addr)));
-	    emit_insn (gen_ld_got_128m_di (dest, tmp_reg, addr));
+	    rtx high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
+	    emit_move_insn (dest, high);
+	    emit_insn (gen_ld_got_128m_di (dest, dest, addr));
 	    break;
 	  }
 
@@ -6111,18 +6099,6 @@ loongarch_starting_frame_offset (void)
   return crtl->outgoing_args_size;
 }
 
-/* Implement TARGET_PRECOMPUTE_TLS_P.
-
-   TLS symbols are in the TOC, which is maintained in the
-   constant pool.  TLS symbols need to be pre-computed, but
-   must be considered legitimate constants.  */
-
-static bool
-loongarch_precompute_tls_p (machine_mode mode ATTRIBUTE_UNUSED, rtx x)
-{
-  return tls_referenced_p (x);
-}
-
 /* Initialize the GCC target structure.  */
 #undef TARGET_ASM_ALIGNED_HI_OP
 #define TARGET_ASM_ALIGNED_HI_OP "\t.half\t"
@@ -6304,9 +6280,6 @@ loongarch_precompute_tls_p (machine_mode mode ATTRIBUTE_UNUSED, rtx x)
 
 #undef  TARGET_HAVE_SPECULATION_SAFE_VALUE
 #define TARGET_HAVE_SPECULATION_SAFE_VALUE speculation_safe_value_not_needed
-
-#undef TARGET_PRECOMPUTE_TLS_P
-#define TARGET_PRECOMPUTE_TLS_P loongarch_precompute_tls_p
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
