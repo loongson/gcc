@@ -1787,9 +1787,10 @@ loongarch_symbol_insns (enum loongarch_symbol_type type, machine_mode mode)
 
     case SYMBOL_ABSOLUTE:
     case SYMBOL_PCREL:
+      return 2;
     case SYMBOL_TLSGD:
     case SYMBOL_TLSLDM:
-      return 1;
+      return 3;
 
     case SYMBOL_TLS:
       /* We don't treat a bare TLS symbol as a constant.  */
