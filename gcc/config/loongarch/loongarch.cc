@@ -2604,14 +2604,11 @@ loongarch_split_symbol (rtx dest, rtx addr, machine_mode mode, rtx *low_out)
 		break;
 	      case TLS_MODEL_INITIAL_EXEC:
 		  {
-//		    rtx high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
-//		    rtx tp = gen_rtx_REG (Pmode, THREAD_POINTER_REGNUM);
-//		    emit_move_insn (dest, high);
-//		    emit_insn (gen_ld_got_128m_di (dest, dest, addr));
-//		    emit_insn (gen_adddi3 (dest, dest, tp));
+		    rtx high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
 		    rtx tp = gen_rtx_REG (Pmode, THREAD_POINTER_REGNUM);
-		    emit_insn (loongarch_got_load_tls_ie (dest, addr));
-		    emit_insn (gen_add3_insn (dest, dest, tp));
+		    emit_move_insn (dest, high);
+		    emit_insn (gen_ld_got_128m_di (dest, dest, addr));
+		    emit_insn (gen_adddi3 (dest, dest, tp));
 		  }
 		break;
 	      case TLS_MODEL_LOCAL_EXEC:
