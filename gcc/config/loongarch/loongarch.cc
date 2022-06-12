@@ -1716,12 +1716,13 @@ loongarch_call_symbolic_constant_p (rtx x, enum loongarch_symbol_type *symbol_ty
     {
     case SYMBOL_PCREL:
     case SYMBOL_ABSOLUTE:
-      return sext_hwi (INTVAL (offset), 32) == INTVAL (offset);
-
-    case SYMBOL_GOT_DISP:
+    case SYMBOL_TLS_IE:
     case SYMBOL_TLSGD:
     case SYMBOL_TLSLDM:
+      return sext_hwi (INTVAL (offset), 32) == INTVAL (offset);
+
     case SYMBOL_TLS:
+    case SYMBOL_GOT_DISP:
       return false;
     }
   gcc_unreachable ();
@@ -1758,12 +1759,13 @@ loongarch_symbolic_constant_p (rtx x, enum loongarch_symbol_type *symbol_type)
     {
     case SYMBOL_PCREL:
     case SYMBOL_ABSOLUTE:
-      return sext_hwi (INTVAL (offset), 32) == INTVAL (offset);
-
-    case SYMBOL_GOT_DISP:
+    case SYMBOL_TLS_IE:
     case SYMBOL_TLSGD:
     case SYMBOL_TLSLDM:
+      return sext_hwi (INTVAL (offset), 32) == INTVAL (offset);
+
     case SYMBOL_TLS:
+    case SYMBOL_GOT_DISP:
       return false;
     }
   gcc_unreachable ();
@@ -1786,6 +1788,7 @@ loongarch_symbol_insns (enum loongarch_symbol_type type, machine_mode mode)
 
     case SYMBOL_ABSOLUTE:
     case SYMBOL_PCREL:
+    case SYMBOL_TLS_IE:
       return 2;
     case SYMBOL_TLSGD:
     case SYMBOL_TLSLDM:
@@ -1900,10 +1903,22 @@ loongarch_valid_offset_p (rtx x, machine_mode mode)
 bool
 loongarch_split_symbol_type (enum loongarch_symbol_type symbol_type)
 {
-  if (symbol_type == SYMBOL_TLS)
-    return true;
+  switch (symbol_type)
+    {
+    case SYMBOL_ABSOLUTE:
+    case SYMBOL_PCREL:
+    case SYMBOL_GOT_DISP:
+    case SYMBOL_TLS_IE:
+    case SYMBOL_TLSGD:
+    case SYMBOL_TLSLDM:
+      return true;
 
-  return symbol_type == SYMBOL_ABSOLUTE || symbol_type == SYMBOL_PCREL || symbol_type == SYMBOL_GOT_DISP;
+    case SYMBOL_TLS:
+      return false;
+
+    default:
+      gcc_unreachable ();
+    }
 }
 
 /* Return true if a LO_SUM can address a value of mode MODE when the
@@ -2420,6 +2435,7 @@ loongarch_call_tls_get_addr (rtx sym, enum loongarch_symbol_type type, rtx v0)
 {
   rtx loc, a0;
   rtx_insn *insn;
+  rtx tmp = gen_reg_rtx (Pmode);
 
   a0 = gen_rtx_REG (Pmode, GP_ARG_FIRST);
 
@@ -2430,12 +2446,9 @@ loongarch_call_tls_get_addr (rtx sym, enum loongarch_symbol_type type, rtx v0)
 
   start_sequence ();
 
-  if (type == SYMBOL_TLSLDM)
-    emit_insn (loongarch_got_load_tls_ld (a0, loc));
-  else if (type == SYMBOL_TLSGD)
-    emit_insn (loongarch_got_load_tls_gd (a0, loc));
-  else
-    gcc_unreachable ();
+  rtx high = gen_rtx_HIGH (Pmode, copy_rtx (loc));
+  high = loongarch_force_temporary (tmp, high);
+  emit_move_insn (a0, gen_rtx_LO_SUM (Pmode, high, loc));
 
   insn = emit_call_insn (gen_call_value_internal (v0, loongarch_tls_symbol,
 						  const0_rtx));
@@ -2455,7 +2468,7 @@ loongarch_call_tls_get_addr (rtx sym, enum loongarch_symbol_type type, rtx v0)
 static rtx
 loongarch_legitimize_tls_address (rtx loc)
 {
-  rtx dest, tp, tmp;
+  rtx dest, tp, tmp, tmp1, tmp2, tmp3;
   enum tls_model model = SYMBOL_REF_TLS_MODEL (loc);
   rtx_insn *insn;
 
@@ -2476,12 +2489,18 @@ loongarch_legitimize_tls_address (rtx loc)
       break;
 
     case TLS_MODEL_INITIAL_EXEC:
-      /* la.tls.ie; tp-relative add  */
-      tp = gen_rtx_REG (Pmode, THREAD_POINTER_REGNUM);
-      tmp = gen_reg_rtx (Pmode);
-      emit_insn (loongarch_got_load_tls_ie (tmp, loc));
-      dest = gen_reg_rtx (Pmode);
-      emit_insn (gen_add3_insn (dest, tmp, tp));
+	{
+	  /* la.tls.ie; tp-relative add  */
+	  tp = gen_rtx_REG (Pmode, THREAD_POINTER_REGNUM);
+	  tmp1 = gen_reg_rtx (Pmode);
+	  tmp2 = loongarch_unspec_address (loc, SYMBOL_TLS_IE);
+	  tmp3 = gen_reg_rtx (Pmode);
+	  rtx high = gen_rtx_HIGH (Pmode, copy_rtx (tmp2));
+	  dest = gen_reg_rtx (Pmode);
+	  high = loongarch_force_temporary (tmp3, high);
+	  emit_insn (gen_ld_got_128m_di (tmp1, high, tmp2));
+	  emit_insn (gen_add3_insn (dest, tmp1, tp));
+	}
       break;
 
     case TLS_MODEL_LOCAL_EXEC:
@@ -4596,6 +4615,18 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_reloc)
 
     case SYMBOL_GOT_DISP:
       reloc = hi_reloc ? "%pgot32_hi20" : "%pgot32_lo12";
+      break;
+
+    case SYMBOL_TLS_IE:
+      reloc = hi_reloc ? "%pie32_hi20" : "%pie32_lo12";
+      break;
+
+    case SYMBOL_TLSGD:
+      reloc = hi_reloc ? "%pgd32_hi20" : "%pgd32_lo12";
+      break;
+
+    case SYMBOL_TLSLDM:
+      reloc = hi_reloc ? "%pgd32_hi20" : "%pgd32_lo12";
       break;
 
     default:
