@@ -27,9 +27,13 @@ along with GCC; see the file COPYING3.  If not see
    SYMBOL_GOT_DISP
        The symbol's value will be loaded directly from the GOT.
 
+   SYMBOL_PCREL
+       The symbol's value will be loaded directly from data section.
+
    SYMBOL_TLS
        A thread-local symbol.
 
+   SYMBOL_TLS_IE
    SYMBOL_TLSGD
    SYMBOL_TLSLDM
        UNSPEC wrappers around SYMBOL_TLS, corresponding to the
@@ -40,6 +44,7 @@ enum loongarch_symbol_type {
   SYMBOL_PCREL,
   SYMBOL_ABSOLUTE,
   SYMBOL_TLS,
+  SYMBOL_TLS_IE,
   SYMBOL_TLSGD,
   SYMBOL_TLSLDM,
 };
