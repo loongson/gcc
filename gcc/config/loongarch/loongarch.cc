@@ -1640,9 +1640,6 @@ loongarch_classify_symbol (const_rtx x)
   if (SYMBOL_REF_TLS_MODEL (x))
     return SYMBOL_TLS;
 
-//  if (flag_pic)
-//    return SYMBOL_GOT_DISP;
-
   if (SYMBOL_REF_P (x)
       && !loongarch_symbol_binds_local_p(x)
       && (flag_pic || SYMBOL_REF_WEAK (x)))
@@ -2088,11 +2085,8 @@ loongarch_address_insns (rtx x, machine_mode mode, bool might_split_p)
     switch (addr.type)
       {
       case ADDRESS_REG:
-	return factor;
-
       case ADDRESS_REG_REG:
-	return factor;
-
+      case ADDRESS_LO_SUM:
       case ADDRESS_CONST_INT:
 	return factor;
 
@@ -2392,30 +2386,6 @@ loongarch_add_offset (rtx temp, rtx reg, HOST_WIDE_INT offset)
 
 /* The __tls_get_attr symbol.  */
 static GTY (()) rtx loongarch_tls_symbol;
-
-/* Load an entry from the GOT for a TLS GD access.  */
-
-static rtx
-loongarch_got_load_tls_gd (rtx dest, rtx sym)
-{
-  return gen_got_load_tls_gd (Pmode, dest, sym);
-}
-
-/* Load an entry from the GOT for a TLS LD access.  */
-
-static rtx
-loongarch_got_load_tls_ld (rtx dest, rtx sym)
-{
-  return gen_got_load_tls_ld (Pmode, dest, sym);
-}
-
-/* Load an entry from the GOT for a TLS IE access.  */
-
-static rtx
-loongarch_got_load_tls_ie (rtx dest, rtx sym)
-{
-  return gen_got_load_tls_ie (Pmode, dest, sym);
-}
 
 /* Add in the thread pointer for a TLS LE access.  */
 
@@ -4600,7 +4570,6 @@ static void
 loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_reloc)
 {
   const char *reloc;
-  const char *shift;
 
   switch (loongarch_classify_symbolic_expression (op))
     {
@@ -4633,41 +4602,9 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_reloc)
       gcc_unreachable ();
     }
 
-#if 0
   fprintf (file, "%s(", reloc);
   output_addr_const (file, loongarch_strip_unspec_address (op));
-  fputc (')', file); 
-#endif
-
-  fprintf (file, "%s(", reloc);
-  output_addr_const (file, loongarch_strip_unspec_address (op));
-  //fprintf (file, "+0x800");
   fputc (')', file);
-//  fprintf (file, "%s", shift);
-
-#if 0
-
-  if (hi_reloc)
-    {
-      fprintf (file, "%s(", reloc);
-      output_addr_const (file, loongarch_strip_unspec_address (op));
-      fprintf (file, "+0x800");
-      fputc (')', file);
-      fprintf (file, "%s", shift);
-    }
-  else
-    {
-      fprintf (file, "%s(", reloc);
-      output_addr_const (file, loongarch_strip_unspec_address (op));
-
-      fprintf (file, "+4)-(");
-      fprintf (file, "%s(", reloc);
-      output_addr_const (file, loongarch_strip_unspec_address (op));
-      fprintf (file, "+4+0x800");
-      fputc (')', file);
-      fprintf (file, "%s)", shift);
-    }
-#endif
 }
 
 /* Implement TARGET_PRINT_OPERAND.  The LoongArch-specific operand codes are:
