@@ -112,18 +112,24 @@
 {
   enum loongarch_symbol_type symbol_type;
 
-  if (!loongarch_call_symbolic_constant_p (op, &symbol_type))
+  if (!loongarch_symbolic_constant_p (op, &symbol_type))
     return false;
+
+  /* Split symbol to hi/lo if return false.
+     If defined TARGET_CMODEL_LARGE, all symbol would be splited,
+     else if offset is not zero, the symbol would be splited.  */
 
   switch (symbol_type)
     {
+    case SYMBOL_PCREL:
+      {
+	rtx offset, x = op;
+	split_const (x, &x, &offset);
+	if (offset != const0_rtx)
+	  return false;
+      }
     case SYMBOL_GOT_DISP:
-      /* Without explicit relocs, there is no special syntax for
-	 loading the address of a call destination into a register.
-	 Using "la.global JIRL_REGS,foo; jirl JIRL_REGS" would prevent the lazy
-	 binding of "foo", so keep the address of global symbols with the jirl
-	 macro.  */
-      return 1;
+      return TARGET_CMODEL_LARGE ? false: 1;
 
     default:
       return false;
