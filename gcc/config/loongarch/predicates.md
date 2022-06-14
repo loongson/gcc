@@ -112,7 +112,7 @@
 {
   enum loongarch_symbol_type symbol_type;
 
-  if (!loongarch_symbolic_constant_p (op, &symbol_type))
+  if (!loongarch_call_symbolic_constant_p (op, &symbol_type))
     return false;
 
   switch (symbol_type)
