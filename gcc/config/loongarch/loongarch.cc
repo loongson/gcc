@@ -1694,7 +1694,6 @@ loongarch_symbolic_constant_p (rtx x, enum loongarch_symbol_type *symbol_type)
   switch (*symbol_type)
     {
     case SYMBOL_PCREL:
-    case SYMBOL_ABSOLUTE:
     case SYMBOL_TLS_IE:
     case SYMBOL_TLSGD:
     case SYMBOL_TLSLDM:
@@ -1722,7 +1721,6 @@ loongarch_symbol_insns (enum loongarch_symbol_type type, machine_mode mode)
 
       return 3;
 
-    case SYMBOL_ABSOLUTE:
     case SYMBOL_PCREL:
     case SYMBOL_TLS_IE:
       return 2;
@@ -1841,7 +1839,6 @@ loongarch_split_symbol_type (enum loongarch_symbol_type symbol_type)
 {
   switch (symbol_type)
     {
-    case SYMBOL_ABSOLUTE:
     case SYMBOL_PCREL:
     case SYMBOL_GOT_DISP:
     case SYMBOL_TLS_IE:
@@ -2484,6 +2481,7 @@ bool
 loongarch_split_symbol (rtx temp, rtx addr, machine_mode mode, rtx *low_out)
 {
   enum loongarch_symbol_type symbol_type;
+  rtx high, temp1;
 
   if ((GET_CODE (addr) == HIGH && mode == MAX_MACHINE_MODE)
       || !loongarch_symbolic_constant_p (addr, &symbol_type)
@@ -2491,44 +2489,35 @@ loongarch_split_symbol (rtx temp, rtx addr, machine_mode mode, rtx *low_out)
       || !loongarch_split_symbol_type (symbol_type))
     return false;
 
+  if (temp == NULL)
+    temp = gen_reg_rtx (Pmode);
+
+  high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
+  high = loongarch_force_temporary (temp, high);
+
+  if (TARGET_CMODEL_LARGE)
+    {
+      temp1 = gen_reg_rtx (Pmode);
+      emit_insn (gen_lui_h_lo20 (high, high, addr));
+      emit_insn (gen_lui_h_hi12 (temp1, high, addr));
+    }
+  else
+    temp1 = high;
+
   if (low_out)
     switch (symbol_type)
       {
-      case SYMBOL_ABSOLUTE:
-	  {
-	    rtx high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
-	    high = loongarch_force_temporary (temp, high);
-	    *low_out = gen_rtx_LO_SUM (Pmode, high, addr);
-	  }
-	break;
-
       case SYMBOL_PCREL:
-	  {
-	    if (temp == NULL)
-	      temp = gen_reg_rtx (Pmode);
-
-	    rtx high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
-	    high = loongarch_force_temporary (temp, high);
-	    *low_out = gen_rtx_LO_SUM (Pmode, high, addr);
-	  }
+	*low_out = gen_rtx_LO_SUM (Pmode, temp1, addr);
 	break;
 
       case SYMBOL_GOT_DISP:
-	  {
-	    if (temp == NULL)
-	      temp = gen_reg_rtx (Pmode);
-
-	    rtx high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
-	    high = loongarch_force_temporary (temp, high);
-	    *low_out = gen_rtx_UNSPEC (DImode,
-				       gen_rtvec (1,
-						  gen_rtx_MEM (DImode,
-							       gen_rtx_LO_SUM (DImode,
-									       high,
-									       addr))),
-				       UNSPEC_GOT128M);
-	    break;
-	  }
+	{
+	  rtx low = gen_rtx_LO_SUM (DImode, temp1, addr);
+	  rtx mem = gen_rtx_MEM (DImode, low);
+	  *low_out = gen_rtx_UNSPEC (DImode, gen_rtvec (1, mem), UNSPEC_GOT128M);
+	  break;
+	}
 
       default:
 	gcc_unreachable ();
@@ -3577,7 +3566,10 @@ loongarch_output_move (rtx dest, rtx src)
 	}
 
       if (src_code == HIGH)
-	return "pcalau12i\t%0,%h1";
+	if (TARGET_CMODEL_LARGE)
+	  return "lu12i.w\t%0,%h1";
+	else
+	  return "pcalau12i\t%0,%h1";
 
       if (src_code == CONST_INT)
 	{
@@ -3592,56 +3584,8 @@ loongarch_output_move (rtx dest, rtx src)
 	  else
 	    gcc_unreachable ();
 	}
-
-      if (symbolic_operand (src, VOIDmode))
-	{
-	  if ((TARGET_CMODEL_TINY && (!loongarch_global_symbol_p (src)
-				      || loongarch_symbol_binds_local_p (src)))
-	      || (TARGET_CMODEL_TINY_STATIC && !loongarch_weak_symbol_p (src)))
-	    {
-	      /* The symbol must be aligned to 4 byte.  */
-	      unsigned int align;
-
-	      if (LABEL_REF_P (src))
-		align = 32 /* Whatever.  */;
-	      else if (CONSTANT_POOL_ADDRESS_P (src))
-		align = GET_MODE_ALIGNMENT (get_pool_mode (src));
-	      else if (TREE_CONSTANT_POOL_ADDRESS_P (src))
-		{
-		  tree exp = SYMBOL_REF_DECL (src);
-		  align = TYPE_ALIGN (TREE_TYPE (exp));
-		  align = loongarch_constant_alignment (exp, align);
-		}
-	      else if (SYMBOL_REF_DECL (src))
-		align = DECL_ALIGN (SYMBOL_REF_DECL (src));
-	      else if (SYMBOL_REF_HAS_BLOCK_INFO_P (src)
-		       && SYMBOL_REF_BLOCK (src) != NULL)
-		align = SYMBOL_REF_BLOCK (src)->alignment;
-	      else
-		align = BITS_PER_UNIT;
-
-	      if (align % (4 * 8) == 0)
-		return "pcaddi\t%0,%%pcrel(%1)>>2";
-	    }
-	  if (TARGET_CMODEL_TINY
-	      || TARGET_CMODEL_TINY_STATIC
-	      || TARGET_CMODEL_NORMAL
-	      || TARGET_CMODEL_LARGE)
-	    {
-	      if (!loongarch_global_symbol_p (src)
-		  || loongarch_symbol_binds_local_p (src))
-		return "la.local\t%0,%1";
-	      else
-		return "la.global\t%0,%1";
-	    }
-	  if (TARGET_CMODEL_EXTREME)
-	    {
-	      sorry ("Normal symbol loading not implemented in extreme mode.");
-	      gcc_unreachable ();
-	    }
-
-	}
     }
+
   if (src_code == REG && FP_REG_P (REGNO (src)))
     {
       if (dest_code == REG && FP_REG_P (REGNO (dest)))
@@ -3659,6 +3603,7 @@ loongarch_output_move (rtx dest, rtx src)
 	  return dbl_p ? "fst.d\t%1,%0" : "fst.s\t%1,%0";
 	}
     }
+
   if (dest_code == REG && FP_REG_P (REGNO (dest)))
     {
       if (src_code == MEM)
@@ -3673,6 +3618,7 @@ loongarch_output_move (rtx dest, rtx src)
 	  return dbl_p ? "fld.d\t%0,%1" : "fld.s\t%0,%1";
 	}
     }
+
   gcc_unreachable ();
 }
 
@@ -4506,23 +4452,44 @@ loongarch_memmodel_needs_release_fence (enum memmodel model)
    in context CONTEXT.  HI_RELOC indicates a high-part reloc.  */
 
 static void
-loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_reloc)
+loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_part, bool hi_reloc)
 {
   const char *reloc;
 
   switch (loongarch_classify_symbolic_expression (op))
     {
-    case SYMBOL_ABSOLUTE:
-      reloc = hi_reloc ? "%hi" : "%lo";
-      break;
-
     case SYMBOL_PCREL:
-      reloc = hi_reloc ? "%pcala32_hi20" : "%pcala_lo12";
+      if (TARGET_CMODEL_LARGE)
+	{
+	  if (hi_part)
+	    reloc = hi_reloc ? "%h_hi12" : "%h_lo20";
+	  else
+	    reloc = hi_reloc ? "%l_hi20" : "%l_lo12";
+	}
+      else
+	{
+	  if (hi_part)
+	    gcc_unreachable ();
 
+	  reloc = hi_reloc ? "%pcala32_hi20" : "%pcala_lo12";
+	}
       break;
 
     case SYMBOL_GOT_DISP:
-      reloc = hi_reloc ? "%pgot32_hi20" : "%pgot32_lo12";
+      if (TARGET_CMODEL_LARGE)
+	{
+	  if (hi_part)
+	    reloc = hi_reloc ? "%gh_hi12" : "%gh_lo20";
+	  else
+	    reloc = hi_reloc ? "%gl_hi20" : "%gl_lo12";
+	}
+      else
+	{
+	  if (hi_part)
+	    gcc_unreachable ();
+
+	  reloc = hi_reloc ? "%pgot32_hi20" : "%pgot32_lo12";
+	}
       break;
 
     case SYMBOL_TLS_IE:
@@ -4610,12 +4577,19 @@ loongarch_print_operand (FILE *file, rtx op, int letter)
     case 'h':
       if (code == HIGH)
 	op = XEXP (op, 0);
-      //output_addr_const (file, loongarch_strip_unspec_address (op));
-      loongarch_print_operand_reloc (file, op, true /* hi_reloc.  */);
+      loongarch_print_operand_reloc (file, op, false /* hi_part */, true /* hi_reloc.  */);
+      break;
+
+    case 'H':
+      loongarch_print_operand_reloc (file, op, true /* hi_part */, true /* hi_reloc.  */);
       break;
 
     case 'L':
-      loongarch_print_operand_reloc(file, op, false /* lo_reloc.  */);
+      loongarch_print_operand_reloc(file, op, false /* hi_part */, false/* lo_reloc.  */);
+      break;
+
+    case 'R':
+      loongarch_print_operand_reloc(file, op, true /* hi_part */, false /* lo_reloc.  */);
       break;
 
     case 'm':
@@ -4695,7 +4669,7 @@ loongarch_print_operand (FILE *file, rtx op, int letter)
 
     case 'A':
       if (loongarch_memmodel_needs_rel_acq_fence ((enum memmodel) INTVAL (op)))
-	fputs ("_db", file);
+       fputs ("_db", file);
       break;
 
     case 'G':
@@ -4769,7 +4743,7 @@ loongarch_print_operand_address (FILE *file, machine_mode /* mode  */, rtx x)
 
       case ADDRESS_LO_SUM:
 	fprintf (file, "%s,", reg_names[REGNO (addr.reg)]);
-	loongarch_print_operand_reloc (file, addr.offset, false);
+	loongarch_print_operand_reloc (file, addr.offset, false, false);
 	return;
 
       case ADDRESS_CONST_INT:

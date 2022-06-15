@@ -57,6 +57,8 @@
 
   UNSPEC_PCADDU12I
   UNSPEC_GOT128M
+  UNSPEC_LUI_H_LO20
+  UNSPEC_LUI_H_HI12
 ])
 
 (define_c_enum "unspecv" [
@@ -1923,9 +1925,9 @@
    (set_attr "mode" "DI")])
 
 (define_insn "pcaddu12i<mode>"
-  [(set (match_operand:P           0 "register_operand" "=r")
+  [(set (match_operand:P 0 "register_operand" "=r")
  (unspec:P
-     [(match_operand:P      1 "symbolic_operand" "")
+     [(match_operand:P 1 "symbolic_operand" "")
      (match_operand:P 2 "const_int_operand")
      (pc)]
      UNSPEC_PCADDU12I))]
@@ -1939,7 +1941,7 @@
 ;; should be applied.
 
 (define_insn "*low<mode>"
-  [(set (match_operand:P           0 "register_operand" "=r")
+  [(set (match_operand:P 0 "register_operand" "=r")
  (lo_sum:P (match_operand:P 1 "register_operand" " r")
      (match_operand:P 2 "symbolic_operand" "")))]
   ""
@@ -1954,7 +1956,27 @@
 				(match_operand:GPR 2 "symbolic_operand")))]
 	UNSPEC_GOT128M))]
   ""
-  "ld.d\t%0,%1,%L2"
+  "ld.<d>\t%0,%1,%L2"
+  [(set_attr "type" "move")]
+)
+
+(define_insn "lui_h_lo20"
+  [(set (match_operand:DI 0 "register_operand" "=r")
+	(unspec:DI [(match_operand:DI 1 "register_operand" "0")
+		    (match_operand:DI 2 "symbolic_operand")]
+	UNSPEC_LUI_H_LO20))]
+  "TARGET_64BIT"
+  "lu32i.d\t%0,%R2"
+  [(set_attr "type" "move")]
+)
+
+(define_insn "lui_h_hi12"
+  [(set (match_operand:DI 0 "register_operand" "=r")
+	(unspec:DI [(match_operand:DI 1 "register_operand" "r")
+		    (match_operand:DI 2 "symbolic_operand")]
+	UNSPEC_LUI_H_HI12))]
+  "TARGET_64BIT"
+  "lu52i.d\t%0,%1,%H2"
   [(set_attr "type" "move")]
 )
 
