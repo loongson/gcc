@@ -100,6 +100,10 @@ along with GCC; see the file COPYING3.  If not see
    ADDRESS_REG_REG
        A base register indexed by (optionally scaled) register.
 
+   ADDRESS_LO_SUM
+       A LO_SUM rtx. The first operand is a valid base register and the second
+       operand is a symbolic address.
+
    ADDRESS_CONST_INT
        A signed 16-bit constant address.
 
@@ -108,26 +112,14 @@ along with GCC; see the file COPYING3.  If not see
 enum loongarch_address_type
 {
   ADDRESS_REG,
-  ADDRESS_LO_SUM,
   ADDRESS_REG_REG,
+  ADDRESS_LO_SUM,
   ADDRESS_CONST_INT,
   ADDRESS_SYMBOLIC
 };
 
 
-/* Information about an address described by loongarch_address_type.
-
-   ADDRESS_CONST_INT
-       No fields are used.
-
-   ADDRESS_REG
-       REG is the base register and OFFSET is the constant offset.
-
-   ADDRESS_REG_REG
-       A base register indexed by (optionally scaled) register.
-
-   ADDRESS_SYMBOLIC
-       SYMBOL_TYPE is the type of symbol that the address references.  */
+/* Information about an address described by loongarch_address_type.  */
 struct loongarch_address_info
 {
   enum loongarch_address_type type;
@@ -3566,10 +3558,12 @@ loongarch_output_move (rtx dest, rtx src)
 	}
 
       if (src_code == HIGH)
-	if (TARGET_CMODEL_LARGE)
-	  return "lu12i.w\t%0,%h1";
-	else
-	  return "pcalau12i\t%0,%h1";
+	{
+	  if (TARGET_CMODEL_LARGE)
+	    return "lu12i.w\t%0,%h1";
+	  else
+	    return "pcalau12i\t%0,%h1";
+	}
 
       if (src_code == CONST_INT)
 	{
@@ -4515,27 +4509,30 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_part, bool hi_reloc)
 
 /* Implement TARGET_PRINT_OPERAND.  The LoongArch-specific operand codes are:
 
-   'X'	Print CONST_INT OP in hexadecimal format.
-   'x'	Print the low 16 bits of CONST_INT OP in hexadecimal format.
-   'd'	Print CONST_INT OP in decimal.
-   'm'	Print one less than CONST_INT OP in decimal.
-   'y'	Print exact log2 of CONST_INT OP in decimal.
+   'A'	Print a _DB suffix if the memory model requires a release.
+   'b'	Print the address of a memory operand, without offset.
    'C'	Print the integer branch condition for comparison OP.
-   'N'	Print the inverse of the integer branch condition for comparison OP.
+   'd'	Print CONST_INT OP in decimal.
    'F'	Print the FPU branch condition for comparison OP.
-   'W'	Print the inverse of the FPU branch condition for comparison OP.
+   'G'	Print a DBAR insn if the memory model requires a release.
+   'H'  Print address 52-61bit relocation associated with OP.
+   'h'  Print the high-part relocation associated with OP.
+   'i'	Print i if the operand is not a register.
+   'L'  Print the low-part relocation associated with OP.
+   'm'	Print one less than CONST_INT OP in decimal.
+   'N'	Print the inverse of the integer branch condition for comparison OP.
    'T'	Print 'f' for (eq:CC ...), 't' for (ne:CC ...),
 	      'z' for (eq:?I ...), 'n' for (ne:?I ...).
    't'	Like 'T', but with the EQ/NE cases reversed
-   'Y'	Print loongarch_fp_conditions[INTVAL (OP)]
-   'Z'	Print OP and a comma for 8CC, otherwise print nothing.
-   'z'	Print $0 if OP is zero, otherwise print OP normally.
-   'b'	Print the address of a memory operand, without offset.
    'V'	Print exact log2 of CONST_INT OP element 0 of a replicated
 	  CONST_VECTOR in decimal.
-   'A'	Print a _DB suffix if the memory model requires a release.
-   'G'	Print a DBAR insn if the memory model requires a release.
-   'i'	Print i if the operand is not a register.  */
+   'W'	Print the inverse of the FPU branch condition for comparison OP.
+   'X'	Print CONST_INT OP in hexadecimal format.
+   'x'	Print the low 16 bits of CONST_INT OP in hexadecimal format.
+   'Y'	Print loongarch_fp_conditions[INTVAL (OP)]
+   'y'	Print exact log2 of CONST_INT OP in decimal.
+   'Z'	Print OP and a comma for 8CC, otherwise print nothing.
+   'z'	Print $0 if OP is zero, otherwise print OP normally.  */
 
 static void
 loongarch_print_operand (FILE *file, rtx op, int letter)
@@ -4553,18 +4550,13 @@ loongarch_print_operand (FILE *file, rtx op, int letter)
 
   switch (letter)
     {
-    case 'X':
-      if (CONST_INT_P (op))
-	fprintf (file, HOST_WIDE_INT_PRINT_HEX, INTVAL (op));
-      else
-	output_operand_lossage ("invalid use of '%%%c'", letter);
+    case 'A':
+      if (loongarch_memmodel_needs_rel_acq_fence ((enum memmodel) INTVAL (op)))
+       fputs ("_db", file);
       break;
 
-    case 'x':
-      if (CONST_INT_P (op))
-	fprintf (file, HOST_WIDE_INT_PRINT_HEX, INTVAL (op) & 0xffff);
-      else
-	output_operand_lossage ("invalid use of '%%%c'", letter);
+    case 'C':
+      loongarch_print_int_branch_condition (file, code, letter);
       break;
 
     case 'd':
@@ -4572,6 +4564,15 @@ loongarch_print_operand (FILE *file, rtx op, int letter)
 	fprintf (file, HOST_WIDE_INT_PRINT_DEC, INTVAL (op));
       else
 	output_operand_lossage ("invalid use of '%%%c'", letter);
+      break;
+
+    case 'F':
+      loongarch_print_float_branch_condition (file, code, letter);
+      break;
+
+    case 'G':
+      if (loongarch_memmodel_needs_release_fence ((enum memmodel) INTVAL (op)))
+	fputs ("dbar\t0", file);
       break;
 
     case 'h':
@@ -4584,12 +4585,13 @@ loongarch_print_operand (FILE *file, rtx op, int letter)
       loongarch_print_operand_reloc (file, op, true /* hi_part */, true /* hi_reloc.  */);
       break;
 
-    case 'L':
-      loongarch_print_operand_reloc(file, op, false /* hi_part */, false/* lo_reloc.  */);
+    case 'i':
+      if (code != REG)
+	fputs ("i", file);
       break;
 
-    case 'R':
-      loongarch_print_operand_reloc(file, op, true /* hi_part */, false /* lo_reloc.  */);
+    case 'L':
+      loongarch_print_operand_reloc(file, op, false /* hi_part */, false/* lo_reloc.  */);
       break;
 
     case 'm':
@@ -4599,17 +4601,21 @@ loongarch_print_operand (FILE *file, rtx op, int letter)
 	output_operand_lossage ("invalid use of '%%%c'", letter);
       break;
 
-    case 'y':
-      if (CONST_INT_P (op))
-	{
-	  int val = exact_log2 (INTVAL (op));
-	  if (val != -1)
-	    fprintf (file, "%d", val);
-	  else
-	    output_operand_lossage ("invalid use of '%%%c'", letter);
-	}
-      else
-	output_operand_lossage ("invalid use of '%%%c'", letter);
+    case 'N':
+      loongarch_print_int_branch_condition (file, reverse_condition (code),
+					    letter);
+      break;
+
+    case 'R':
+      loongarch_print_operand_reloc(file, op, true /* hi_part */, false /* lo_reloc.  */);
+      break;
+
+    case 't':
+    case 'T':
+      {
+	int truth = (code == NE) == (letter == 'T');
+	fputc ("zfnt"[truth * 2 + FCC_REG_P (REGNO (XEXP (op, 0)))], file);
+      }
       break;
 
     case 'V':
@@ -4627,30 +4633,36 @@ loongarch_print_operand (FILE *file, rtx op, int letter)
 	output_operand_lossage ("invalid use of '%%%c'", letter);
       break;
 
-    case 'C':
-      loongarch_print_int_branch_condition (file, code, letter);
-      break;
-
-    case 'N':
-      loongarch_print_int_branch_condition (file, reverse_condition (code),
-					    letter);
-      break;
-
-    case 'F':
-      loongarch_print_float_branch_condition (file, code, letter);
-      break;
-
     case 'W':
       loongarch_print_float_branch_condition (file, reverse_condition (code),
 					      letter);
       break;
 
-    case 'T':
-    case 't':
-      {
-	int truth = (code == NE) == (letter == 'T');
-	fputc ("zfnt"[truth * 2 + FCC_REG_P (REGNO (XEXP (op, 0)))], file);
-      }
+    case 'x':
+      if (CONST_INT_P (op))
+	fprintf (file, HOST_WIDE_INT_PRINT_HEX, INTVAL (op) & 0xffff);
+      else
+	output_operand_lossage ("invalid use of '%%%c'", letter);
+      break;
+
+    case 'X':
+      if (CONST_INT_P (op))
+	fprintf (file, HOST_WIDE_INT_PRINT_HEX, INTVAL (op));
+      else
+	output_operand_lossage ("invalid use of '%%%c'", letter);
+      break;
+
+    case 'y':
+      if (CONST_INT_P (op))
+	{
+	  int val = exact_log2 (INTVAL (op));
+	  if (val != -1)
+	    fprintf (file, "%d", val);
+	  else
+	    output_operand_lossage ("invalid use of '%%%c'", letter);
+	}
+      else
+	output_operand_lossage ("invalid use of '%%%c'", letter);
       break;
 
     case 'Y':
@@ -4665,21 +4677,6 @@ loongarch_print_operand (FILE *file, rtx op, int letter)
     case 'Z':
       loongarch_print_operand (file, op, 0);
       fputc (',', file);
-      break;
-
-    case 'A':
-      if (loongarch_memmodel_needs_rel_acq_fence ((enum memmodel) INTVAL (op)))
-       fputs ("_db", file);
-      break;
-
-    case 'G':
-      if (loongarch_memmodel_needs_release_fence ((enum memmodel) INTVAL (op)))
-	fputs ("dbar\t0", file);
-      break;
-
-    case 'i':
-      if (code != REG)
-	fputs ("i", file);
       break;
 
     default:
