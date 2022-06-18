@@ -127,9 +127,23 @@
 	split_const (x, &x, &offset);
 	if (offset != const0_rtx)
 	  return false;
+
+	if (TARGET_CMODEL_LARGE
+	    || (!loongarch_symbol_binds_local_p (op) && !flag_plt))
+	  return false;
+	else
+	  return 1;
       }
+
     case SYMBOL_GOT_DISP:
-      return TARGET_CMODEL_LARGE ? false: 1;
+      {
+	if (TARGET_CMODEL_LARGE || !flag_plt)
+	  return false;
+	else if (!TARGET_EXPLICIT_RELOCS && loongarch_weak_symbol_p (op))
+	  return false;
+	else
+	  return 1;
+      }
 
     default:
       return false;
@@ -232,8 +246,8 @@
     case CONST:
     case SYMBOL_REF:
     case LABEL_REF:
-      return (loongarch_symbolic_constant_p (op, &symbol_type))
-	      &&!loongarch_split_symbol_type(symbol_type);
+      return (loongarch_symbolic_constant_p (op, &symbol_type)
+	      && (!TARGET_EXPLICIT_RELOCS || !loongarch_split_symbol_type(symbol_type)));
 
     case HIGH:
       op = XEXP (op, 0);

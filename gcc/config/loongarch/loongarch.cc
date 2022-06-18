@@ -2475,6 +2475,12 @@ loongarch_split_symbol (rtx temp, rtx addr, machine_mode mode, rtx *low_out)
   enum loongarch_symbol_type symbol_type;
   rtx high, temp1;
 
+  if (!TARGET_EXPLICIT_RELOCS)
+    {
+      *low_out = addr;
+      return true;
+    }
+
   if ((GET_CODE (addr) == HIGH && mode == MAX_MACHINE_MODE)
       || !loongarch_symbolic_constant_p (addr, &symbol_type)
       || loongarch_symbol_insns (symbol_type, mode) == 0
@@ -3578,6 +3584,15 @@ loongarch_output_move (rtx dest, rtx src)
 	  else
 	    gcc_unreachable ();
 	}
+    }
+
+  if (dest_code == REG && symbolic_operand (src, VOIDmode))
+    {
+      if (!loongarch_global_symbol_p (src)
+	  || loongarch_symbol_binds_local_p (src))
+	return "la.local\t%0,%1";
+      else
+	return "la.global\t%0,%1";
     }
 
   if (src_code == REG && FP_REG_P (REGNO (src)))
