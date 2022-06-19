@@ -138,9 +138,7 @@
     case SYMBOL_GOT_DISP:
       {
 	if (TARGET_CMODEL_LARGE || !flag_plt)
-	  return false;
-	else if (!TARGET_EXPLICIT_RELOCS && loongarch_weak_symbol_p (op))
-	  return false;
+	  return loongarch_symbol_binds_local_p (op) ? 1 : false;
 	else
 	  return 1;
       }

@@ -46,7 +46,10 @@
   UNSPEC_BITREV_8B
 
   ;; TLS
+  UNSPEC_TLS_GD
+  UNSPEC_TLS_LD
   UNSPEC_TLS_LE
+  UNSPEC_TLS_IE
 
   ;; Stack tie
   UNSPEC_TIE
@@ -1944,7 +1947,7 @@
   [(set (match_operand:P 0 "register_operand" "=r")
  (lo_sum:P (match_operand:P 1 "register_operand" " r")
      (match_operand:P 2 "symbolic_operand" "")))]
-  ""
+  "TARGET_EXPLICIT_RELOCS"
   "addi.<d>\t%0,%1,%L2"
   [(set_attr "type" "arith")
    (set_attr "mode" "<MODE>")])
@@ -1955,7 +1958,7 @@
 				(match_operand:GPR 1 "register_operand" "r")
 				(match_operand:GPR 2 "symbolic_operand")))]
 	UNSPEC_GOT128M))]
-  ""
+  "TARGET_EXPLICIT_RELOCS"
   "ld.<d>\t%0,%1,%L2"
   [(set_attr "type" "move")]
 )
@@ -2035,6 +2038,26 @@
 
 ;; Thread-Local Storage
 
+(define_insn "@got_load_tls_gd<mode>"
+  [(set (match_operand:P 0 "register_operand" "=r")
+	(unspec:P
+	    [(match_operand:P 1 "symbolic_operand" "")]
+	    UNSPEC_TLS_GD))]
+  ""
+  "la.tls.gd\t%0,%1"
+  [(set_attr "got" "load")
+   (set_attr "mode" "<MODE>")])
+
+(define_insn "@got_load_tls_ld<mode>"
+  [(set (match_operand:P 0 "register_operand" "=r")
+	(unspec:P
+	    [(match_operand:P 1 "symbolic_operand" "")]
+	    UNSPEC_TLS_LD))]
+  ""
+  "la.tls.ld\t%0,%1"
+  [(set_attr "got" "load")
+   (set_attr "mode" "<MODE>")])
+
 (define_insn "@got_load_tls_le<mode>"
   [(set (match_operand:P 0 "register_operand" "=r")
 	(unspec:P
@@ -2042,6 +2065,16 @@
 	    UNSPEC_TLS_LE))]
   ""
   "la.tls.le\t%0,%1"
+  [(set_attr "got" "load")
+   (set_attr "mode" "<MODE>")])
+
+(define_insn "@got_load_tls_ie<mode>"
+  [(set (match_operand:P 0 "register_operand" "=r")
+	(unspec:P
+	    [(match_operand:P 1 "symbolic_operand" "")]
+	    UNSPEC_TLS_IE))]
+  ""
+  "la.tls.ie\t%0,%1"
   [(set_attr "got" "load")
    (set_attr "mode" "<MODE>")])
 
