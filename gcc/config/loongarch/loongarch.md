@@ -62,6 +62,7 @@
   UNSPEC_GOT128M
   UNSPEC_LUI_H_LO20
   UNSPEC_LUI_H_HI12
+  UNSPEC_ORI_L_LO12
 ])
 
 (define_c_enum "unspecv" [
@@ -1980,6 +1981,16 @@
 	UNSPEC_LUI_H_HI12))]
   "TARGET_64BIT"
   "lu52i.d\t%0,%1,%H2"
+  [(set_attr "type" "move")]
+)
+
+(define_insn "ori_l_lo12"
+  [(set (match_operand:DI 0 "register_operand" "=r")
+	(unspec:DI [(match_operand:DI 1 "register_operand" "r")
+		    (match_operand:DI 2 "symbolic_operand")]
+	UNSPEC_ORI_L_LO12))]
+  "TARGET_64BIT"
+  "ori\t%0,%1,%L2"
   [(set_attr "type" "move")]
 )
 

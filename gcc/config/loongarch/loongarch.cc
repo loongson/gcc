@@ -1697,6 +1697,7 @@ loongarch_symbolic_constant_p (rtx x, enum loongarch_symbol_type *symbol_type)
     {
     case SYMBOL_PCREL:
     case SYMBOL_TLS_IE:
+    case SYMBOL_TLS_LE:
     case SYMBOL_TLSGD:
     case SYMBOL_TLSLDM:
       return sext_hwi (INTVAL (offset), 32) == INTVAL (offset);
@@ -1725,6 +1726,7 @@ loongarch_symbol_insns (enum loongarch_symbol_type type, machine_mode mode)
 
     case SYMBOL_PCREL:
     case SYMBOL_TLS_IE:
+    case SYMBOL_TLS_LE:
       return 2;
     case SYMBOL_TLSGD:
     case SYMBOL_TLSLDM:
@@ -1844,6 +1846,7 @@ loongarch_split_symbol_type (enum loongarch_symbol_type symbol_type)
     case SYMBOL_PCREL:
     case SYMBOL_GOT_DISP:
     case SYMBOL_TLS_IE:
+    case SYMBOL_TLS_LE:
     case SYMBOL_TLSGD:
     case SYMBOL_TLSLDM:
       return true;
@@ -2453,12 +2456,25 @@ loongarch_legitimize_tls_address (rtx loc)
       break;
 
     case TLS_MODEL_LOCAL_EXEC:
-      /* la.tls.le; tp-relative add  */
-      tp = gen_rtx_REG (Pmode, THREAD_POINTER_REGNUM);
-      tmp = gen_reg_rtx (Pmode);
-      emit_insn (loongarch_got_load_tls_le (tmp, loc));
-      dest = gen_reg_rtx (Pmode);
-      emit_insn (gen_add3_insn (dest, tmp, tp));
+	{
+	  /* la.tls.le; tp-relative add  */
+	  tp = gen_rtx_REG (Pmode, THREAD_POINTER_REGNUM);
+	  tmp1 = gen_reg_rtx (Pmode);
+	  dest = gen_reg_rtx (Pmode);
+
+	  if (TARGET_EXPLICIT_RELOCS)
+	    {
+	      tmp2 = loongarch_unspec_address (loc, SYMBOL_TLS_LE);
+	      tmp3 = gen_reg_rtx (Pmode);
+	      rtx high = gen_rtx_HIGH (Pmode, copy_rtx (tmp2));
+	      high = loongarch_force_temporary (tmp3, high);
+	      emit_insn (gen_ori_l_lo12 (tmp1, high, tmp2));
+	    }
+	  else
+	    emit_insn (loongarch_got_load_tls_le (tmp1, loc));
+	  emit_insn (gen_add3_insn (dest, tmp1, tp));
+
+	}
       break;
 
     default:
@@ -3613,7 +3629,14 @@ loongarch_output_move (rtx dest, rtx src)
 
       if (src_code == HIGH)
 	{
-	  if (TARGET_CMODEL_LARGE)
+	  rtx offset, x;
+	  split_const (XEXP (src, 0), &x, &offset);
+	  enum loongarch_symbol_type type;
+
+	  if (UNSPEC_ADDRESS_P (x))
+	     type = UNSPEC_ADDRESS_TYPE (x);
+
+	  if (TARGET_CMODEL_LARGE || type == SYMBOL_TLS_LE)
 	    return "lu12i.w\t%0,%h1";
 	  else
 	    return "pcalau12i\t%0,%h1";
@@ -4556,6 +4579,10 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_part, bool hi_reloc)
 
     case SYMBOL_TLS_IE:
       reloc = hi_reloc ? "%pie32_hi20" : "%pie32_lo12";
+      break;
+
+    case SYMBOL_TLS_LE:
+      reloc = hi_reloc ? "%ple32_hi20" : "%ple32_lo12";
       break;
 
     case SYMBOL_TLSGD:

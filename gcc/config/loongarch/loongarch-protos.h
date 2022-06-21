@@ -44,6 +44,7 @@ enum loongarch_symbol_type {
   SYMBOL_PCREL,
   SYMBOL_TLS,
   SYMBOL_TLS_IE,
+  SYMBOL_TLS_LE,
   SYMBOL_TLSGD,
   SYMBOL_TLSLDM,
 };
