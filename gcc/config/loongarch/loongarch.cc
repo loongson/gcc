@@ -4547,16 +4547,16 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_part, bool hi_reloc)
       if (TARGET_CMODEL_LARGE)
 	{
 	  if (hi_part)
-	    reloc = hi_reloc ? "%h_hi12" : "%h_lo20";
+	    reloc = hi_reloc ? "%abs64_hi12" : "%abs64_lo20";
 	  else
-	    reloc = hi_reloc ? "%l_hi20" : "%l_lo12";
+	    reloc = hi_reloc ? "%abs_hi20" : "%abs_lo12";
 	}
       else
 	{
 	  if (hi_part)
 	    gcc_unreachable ();
 
-	  reloc = hi_reloc ? "%pcala32_hi20" : "%pcala_lo12";
+	  reloc = hi_reloc ? "%pc_hi20" : "%pc_lo12";
 	}
       break;
 
@@ -4564,33 +4564,33 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_part, bool hi_reloc)
       if (TARGET_CMODEL_LARGE)
 	{
 	  if (hi_part)
-	    reloc = hi_reloc ? "%gh_hi12" : "%gh_lo20";
+	    reloc = hi_reloc ? "%got64_hi12" : "%got64_lo20";
 	  else
-	    reloc = hi_reloc ? "%gl_hi20" : "%gl_lo12";
+	    reloc = hi_reloc ? "%got64_hi20" : "%got64_lo12";
 	}
       else
 	{
 	  if (hi_part)
 	    gcc_unreachable ();
 
-	  reloc = hi_reloc ? "%pgot32_hi20" : "%pgot32_lo12";
+	  reloc = hi_reloc ? "%got_pc_hi20" : "%got_pc_lo12";
 	}
       break;
 
     case SYMBOL_TLS_IE:
-      reloc = hi_reloc ? "%pie32_hi20" : "%pie32_lo12";
+      reloc = hi_reloc ? "%ie_pc_hi20" : "%got_pc_lo12";
       break;
 
     case SYMBOL_TLS_LE:
-      reloc = hi_reloc ? "%ple32_hi20" : "%ple32_lo12";
+      reloc = hi_reloc ? "%le_hi20" : "%le_lo12";
       break;
 
     case SYMBOL_TLSGD:
-      reloc = hi_reloc ? "%pgd32_hi20" : "%pgd32_lo12";
+      reloc = hi_reloc ? "%gd_pc_hi20" : "%got_pc_lo12";
       break;
 
     case SYMBOL_TLSLDM:
-      reloc = hi_reloc ? "%pgd32_hi20" : "%pgd32_lo12";
+      reloc = hi_reloc ? "%ld_pc_hi20" : "%got_pc_lo12";
       break;
 
     default:
