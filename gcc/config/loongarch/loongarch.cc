@@ -1626,6 +1626,9 @@ loongarch_rtx_constant_in_small_data_p (machine_mode mode)
 static enum loongarch_symbol_type
 loongarch_classify_symbol (const_rtx x)
 {
+
+  const_tree decl = SYMBOL_REF_DECL (x);
+
   if (LABEL_REF_P (x))
     return TARGET_EXPLICIT_RELOCS ? SYMBOL_PCREL : SYMBOL_GOT_DISP;
 
@@ -1635,9 +1638,13 @@ loongarch_classify_symbol (const_rtx x)
   if (!TARGET_EXPLICIT_RELOCS && SYMBOL_REF_P (x))
     return SYMBOL_GOT_DISP;
 
+  /* nopic and noplt, the undefined function is loaded from got table.  */
   if (SYMBOL_REF_P (x)
       && !loongarch_symbol_binds_local_p(x)
-      && (flag_pic || SYMBOL_REF_WEAK (x)))
+      && ((flag_pic || SYMBOL_REF_WEAK (x))
+	  || (!flag_pic && !flag_plt
+	      && SYMBOL_REF_FUNCTION_P (x)
+	      && DECL_EXTERNAL (decl))))
     return SYMBOL_GOT_DISP;
 
   return SYMBOL_PCREL;
@@ -3630,8 +3637,12 @@ loongarch_output_move (rtx dest, rtx src)
   if (!TARGET_EXPLICIT_RELOCS
       && dest_code == REG && symbolic_operand (src, VOIDmode))
     {
+      const_tree decl = SYMBOL_REF_DECL (src);
+
       if (!loongarch_global_symbol_p (src)
-	  || loongarch_symbol_binds_local_p (src))
+	  || loongarch_symbol_binds_local_p (src)
+	  || (!flag_pic && !loongarch_weak_symbol_p (src)
+	      && !(SYMBOL_REF_FUNCTION_P (src) && DECL_EXTERNAL (decl))))
 	return "la.local\t%0,%1";
       else
 	return "la.global\t%0,%1";
