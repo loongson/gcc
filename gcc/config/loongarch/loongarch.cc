@@ -1638,7 +1638,12 @@ loongarch_classify_symbol (const_rtx x)
   if (!TARGET_EXPLICIT_RELOCS && SYMBOL_REF_P (x))
     return SYMBOL_GOT_DISP;
 
-  /* nopic and noplt, the undefined function is loaded from got table.  */
+  /* The following situations will return SYMBOL_GOT_DISP.
+     Symbols also satisfy not a local symbol and one of the following.
+     1. flag_pic is true.
+     2. Is a WEAK symbol.
+     3. flag_pic and flag_plt is all false, and symbol is an
+	extern function.  */
   if (SYMBOL_REF_P (x)
       && !loongarch_symbol_binds_local_p(x)
       && ((flag_pic || SYMBOL_REF_WEAK (x))
@@ -2447,7 +2452,7 @@ loongarch_legitimize_tls_address (rtx loc)
 	      tmp3 = gen_reg_rtx (Pmode);
 	      rtx high = gen_rtx_HIGH (Pmode, copy_rtx (tmp2));
 	      high = loongarch_force_temporary (tmp3, high);
-	      emit_insn (gen_ld_got_128m_di (tmp1, high, tmp2));
+	      emit_insn (gen_ld_from_got (Pmode, tmp1, high, tmp2));
 	    }
 	  else
 	    emit_insn (loongarch_got_load_tls_ie (tmp1, loc));
@@ -2468,7 +2473,7 @@ loongarch_legitimize_tls_address (rtx loc)
 	      tmp3 = gen_reg_rtx (Pmode);
 	      rtx high = gen_rtx_HIGH (Pmode, copy_rtx (tmp2));
 	      high = loongarch_force_temporary (tmp3, high);
-	      emit_insn (gen_ori_l_lo12 (tmp1, high, tmp2));
+	      emit_insn (gen_ori_l_lo12 (Pmode, tmp1, high, tmp2));
 	    }
 	  else
 	    emit_insn (loongarch_got_load_tls_le (tmp1, loc));
@@ -2529,7 +2534,9 @@ loongarch_force_address (rtx x, machine_mode mode)
    If so, and if LOW_OUT is nonnull, emit the high part and store the
    low part in *LOW_OUT.  Leave *LOW_OUT unchanged otherwise.
 
-   TEMP is as for riscv_force_temporary and is used to load the high
+   Return false if build with '-mno-explicit-relocs'.
+
+   TEMP is as for loongarch_force_temporary and is used to load the high
    part into a register.
 
    When MODE is MAX_MACHINE_MODE, the low part is guaranteed to be
@@ -2554,11 +2561,13 @@ loongarch_split_symbol (rtx temp, rtx addr, machine_mode mode, rtx *low_out)
   if (temp == NULL)
     temp = gen_reg_rtx (Pmode);
 
+  /* Get the 12-31 bits of the address.  */
   high = gen_rtx_HIGH (Pmode, copy_rtx (addr));
   high = loongarch_force_temporary (temp, high);
 
-  if (TARGET_CMODEL_LARGE)
+  if (TARGET_CMODEL_LARGE && TARGET_64BIT)
     {
+      /* Get the upper 32 bits of the address.  */
       temp1 = gen_reg_rtx (Pmode);
       emit_insn (gen_lui_h_lo20 (high, high, addr));
       emit_insn (gen_lui_h_hi12 (temp1, high, addr));
@@ -2574,10 +2583,11 @@ loongarch_split_symbol (rtx temp, rtx addr, machine_mode mode, rtx *low_out)
 	break;
 
       case SYMBOL_GOT_DISP:
+	/* SYMBOL_GOT_DISP symbols are loaded from the GOT.  */
 	{
-	  rtx low = gen_rtx_LO_SUM (DImode, temp1, addr);
-	  rtx mem = gen_rtx_MEM (DImode, low);
-	  *low_out = gen_rtx_UNSPEC (DImode, gen_rtvec (1, mem), UNSPEC_GOT128M);
+	  rtx low = gen_rtx_LO_SUM (Pmode, temp1, addr);
+	  rtx mem = gen_rtx_MEM (Pmode, low);
+	  *low_out = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, mem), UNSPEC_LOAD_FROM_GOT);
 	  break;
 	}
 
@@ -3662,6 +3672,9 @@ loongarch_output_move (rtx dest, rtx src)
     {
       const_tree decl = SYMBOL_REF_DECL (src);
 
+      /* Load the following symbols with la.local:
+	 1. Local symbol.
+	 2. when flag_pic is false and a extern normal strong symbol.  */
       if (!loongarch_global_symbol_p (src)
 	  || loongarch_symbol_binds_local_p (src)
 	  || (!flag_pic && !loongarch_weak_symbol_p (src)
@@ -4544,7 +4557,7 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_part, bool hi_reloc)
   switch (loongarch_classify_symbolic_expression (op))
     {
     case SYMBOL_PCREL:
-      if (TARGET_CMODEL_LARGE)
+      if (TARGET_CMODEL_LARGE && TARGET_64BIT)
 	{
 	  if (hi_part)
 	    reloc = hi_reloc ? "%abs64_hi12" : "%abs64_lo20";
@@ -4561,7 +4574,7 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_part, bool hi_reloc)
       break;
 
     case SYMBOL_GOT_DISP:
-      if (TARGET_CMODEL_LARGE)
+      if (TARGET_CMODEL_LARGE && TARGET_64BIT)
 	{
 	  if (hi_part)
 	    reloc = hi_reloc ? "%got64_hi12" : "%got64_lo20";

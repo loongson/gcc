@@ -59,7 +59,7 @@
   UNSPEC_CRCC
 
   UNSPEC_PCADDU12I
-  UNSPEC_GOT128M
+  UNSPEC_LOAD_FROM_GOT
   UNSPEC_LUI_H_LO20
   UNSPEC_LUI_H_HI12
   UNSPEC_ORI_L_LO12
@@ -1928,18 +1928,6 @@
   [(set_attr "type" "arith")
    (set_attr "mode" "DI")])
 
-(define_insn "pcaddu12i<mode>"
-  [(set (match_operand:P 0 "register_operand" "=r")
- (unspec:P
-     [(match_operand:P 1 "symbolic_operand" "")
-     (match_operand:P 2 "const_int_operand")
-     (pc)]
-     UNSPEC_PCADDU12I))]
-  ""
-  ".LA%2: pcaddu12i\t%0,%1"
-  [(set_attr "type" "arith")
-   (set_attr "mode" "<MODE>")])
-
 ;; Instructions for adding the low 12 bits of an address to a register.
 ;; Operand 2 is the address: loongarch_print_operand works out which relocation
 ;; should be applied.
@@ -1953,12 +1941,17 @@
   [(set_attr "type" "arith")
    (set_attr "mode" "<MODE>")])
 
-(define_insn "ld_got_128m_<mode>"
-  [(set (match_operand:GPR 0 "register_operand" "=r")
-	(unspec:GPR [(mem:GPR (lo_sum:GPR
-				(match_operand:GPR 1 "register_operand" "r")
-				(match_operand:GPR 2 "symbolic_operand")))]
-	UNSPEC_GOT128M))]
+;; Instructions for loading address from GOT entry.
+;; operands[1] is pc plus the high half of the address difference with the got entry;
+;; operands[2] is low 12 bits for low 12 bit of the address difference with the got entry.
+;; loongarch_print_operand works out which relocation should be applied.
+
+(define_insn "@ld_from_got<mode>"
+  [(set (match_operand:P 0 "register_operand" "=r")
+	(unspec:P [(mem:P (lo_sum:P
+				(match_operand:P 1 "register_operand" "r")
+				(match_operand:P 2 "symbolic_operand")))]
+	UNSPEC_LOAD_FROM_GOT))]
   "TARGET_EXPLICIT_RELOCS"
   "ld.<d>\t%0,%1,%L2"
   [(set_attr "type" "move")]
@@ -1984,12 +1977,12 @@
   [(set_attr "type" "move")]
 )
 
-(define_insn "ori_l_lo12"
-  [(set (match_operand:DI 0 "register_operand" "=r")
-	(unspec:DI [(match_operand:DI 1 "register_operand" "r")
-		    (match_operand:DI 2 "symbolic_operand")]
+(define_insn "@ori_l_lo12<mode>"
+  [(set (match_operand:P 0 "register_operand" "=r")
+	(unspec:P [(match_operand:P 1 "register_operand" "r")
+		    (match_operand:P 2 "symbolic_operand")]
 	UNSPEC_ORI_L_LO12))]
-  "TARGET_64BIT"
+  ""
   "ori\t%0,%1,%L2"
   [(set_attr "type" "move")]
 )
