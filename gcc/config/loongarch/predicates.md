@@ -110,38 +110,29 @@
 (define_predicate "const_call_insn_operand"
   (match_code "const,symbol_ref,label_ref")
 {
-  enum loongarch_symbol_type symbol_type;
-
-  if (!loongarch_symbolic_constant_p (op, &symbol_type))
-    return false;
-
   /* Split symbol to hi/lo if return false.
      If defined TARGET_CMODEL_LARGE, all symbol would be splited,
      else if offset is not zero, the symbol would be splited.  */
 
+  enum loongarch_symbol_type symbol_type;
+  loongarch_symbolic_constant_p (op, &symbol_type);
+
+  rtx offset, x = op;
+  split_const (x, &x, &offset);
+
+  if (offset != const0_rtx)
+    return false;
+
   switch (symbol_type)
     {
     case SYMBOL_PCREL:
-      {
-	rtx offset, x = op;
-	split_const (x, &x, &offset);
-	if (offset != const0_rtx)
-	  return false;
-
-	if (TARGET_CMODEL_LARGE
-	    || (!loongarch_symbol_binds_local_p (op) && !flag_plt))
-	  return false;
-	else
-	  return 1;
-      }
+      return 1;
 
     case SYMBOL_GOT_DISP:
-      {
-	if (TARGET_CMODEL_LARGE || !flag_plt)
-	  return loongarch_symbol_binds_local_p (op) ? 1 : false;
-	else
-	  return 1;
-      }
+      if (TARGET_CMODEL_LARGE || !flag_plt)
+	return false;
+      else
+	return 1;
 
     default:
       return false;
