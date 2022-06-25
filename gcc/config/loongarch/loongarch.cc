@@ -1689,13 +1689,13 @@ loongarch_symbolic_constant_p (rtx x, enum loongarch_symbol_type *symbol_type)
      relocations.  */
   switch (*symbol_type)
     {
-    case SYMBOL_PCREL:
     case SYMBOL_TLS_IE:
     case SYMBOL_TLS_LE:
     case SYMBOL_TLSGD:
     case SYMBOL_TLSLDM:
       return sext_hwi (INTVAL (offset), 32) == INTVAL (offset);
 
+    case SYMBOL_PCREL:
     case SYMBOL_TLS:
     case SYMBOL_GOT_DISP:
       return false;
@@ -1719,6 +1719,11 @@ loongarch_symbol_insns (enum loongarch_symbol_type type, machine_mode mode)
       return 3;
 
     case SYMBOL_PCREL:
+      if (mode != MAX_MACHINE_MODE)
+	return 0;
+
+      return 2;
+
     case SYMBOL_TLS_IE:
     case SYMBOL_TLS_LE:
       return 2;
@@ -3630,7 +3635,7 @@ loongarch_output_move (rtx dest, rtx src)
 	{
 	  rtx offset, x;
 	  split_const (XEXP (src, 0), &x, &offset);
-	  enum loongarch_symbol_type type;
+	  enum loongarch_symbol_type type = SYMBOL_PCREL;
 
 	  if (UNSPEC_ADDRESS_P (x))
 	     type = UNSPEC_ADDRESS_TYPE (x);
