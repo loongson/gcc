@@ -4577,7 +4577,7 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi_part, bool hi_reloc)
       break;
 
     case SYMBOL_TLS_IE:
-      reloc = hi_reloc ? "%ie_pc_hi20" : "%got_pc_lo12";
+      reloc = hi_reloc ? "%ie_pc_hi20" : "%ie_pc_lo12";
       break;
 
     case SYMBOL_TLS_LE:
