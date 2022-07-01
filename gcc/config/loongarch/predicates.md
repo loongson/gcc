@@ -239,6 +239,10 @@
 	      && (!TARGET_EXPLICIT_RELOCS || !loongarch_split_symbol_type(symbol_type)));
 
     case HIGH:
+      /* '-mno-explicit-relocs' don't generate high/low pairs.  */
+      if (!TARGET_EXPLICIT_RELOCS)
+	return false;
+
       op = XEXP (op, 0);
       return (loongarch_symbolic_constant_p (op, &symbol_type)
 	      && loongarch_split_symbol_type(symbol_type));

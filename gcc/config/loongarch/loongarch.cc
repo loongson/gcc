@@ -1693,12 +1693,9 @@ loongarch_symbolic_constant_p (rtx x, enum loongarch_symbol_type *symbol_type)
     case SYMBOL_TLS_LE:
     case SYMBOL_TLSGD:
     case SYMBOL_TLSLDM:
+    case SYMBOL_PCREL:
       /* GAS rejects offsets outside the range [-2^31, 2^31-1].  */
       return sext_hwi (INTVAL (offset), 32) == INTVAL (offset);
-
-    case SYMBOL_PCREL:
-      return TARGET_EXPLICIT_RELOCS ?
-	sext_hwi (INTVAL (offset), 32) == INTVAL (offset) : false;
 
     case SYMBOL_GOT_DISP:
     case SYMBOL_TLS:
@@ -1723,14 +1720,10 @@ loongarch_symbol_insns (enum loongarch_symbol_type type, machine_mode mode)
       return 3;
 
     case SYMBOL_PCREL:
-      if (!TARGET_EXPLICIT_RELOCS && mode != MAX_MACHINE_MODE)
-	return 0;
-
-      return 2;
-
     case SYMBOL_TLS_IE:
     case SYMBOL_TLS_LE:
       return 2;
+
     case SYMBOL_TLSGD:
     case SYMBOL_TLSLDM:
       return 3;
