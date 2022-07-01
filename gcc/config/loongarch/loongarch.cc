@@ -1693,11 +1693,15 @@ loongarch_symbolic_constant_p (rtx x, enum loongarch_symbol_type *symbol_type)
     case SYMBOL_TLS_LE:
     case SYMBOL_TLSGD:
     case SYMBOL_TLSLDM:
+      /* GAS rejects offsets outside the range [-2^31, 2^31-1].  */
       return sext_hwi (INTVAL (offset), 32) == INTVAL (offset);
 
     case SYMBOL_PCREL:
-    case SYMBOL_TLS:
+      return TARGET_EXPLICIT_RELOCS ?
+	sext_hwi (INTVAL (offset), 32) == INTVAL (offset) : false;
+
     case SYMBOL_GOT_DISP:
+    case SYMBOL_TLS:
       return false;
     }
   gcc_unreachable ();
@@ -1713,13 +1717,13 @@ loongarch_symbol_insns (enum loongarch_symbol_type type, machine_mode mode)
     case SYMBOL_GOT_DISP:
       /* The constant will have to be loaded from the GOT before it
 	 is used in an address.  */
-      if (mode != MAX_MACHINE_MODE)
+      if (!TARGET_EXPLICIT_RELOCS && mode != MAX_MACHINE_MODE)
 	return 0;
 
       return 3;
 
     case SYMBOL_PCREL:
-      if (mode != MAX_MACHINE_MODE)
+      if (!TARGET_EXPLICIT_RELOCS && mode != MAX_MACHINE_MODE)
 	return 0;
 
       return 2;
@@ -6210,6 +6214,12 @@ loongarch_starting_frame_offset (void)
 
 #undef TARGET_TRAMPOLINE_INIT
 #define TARGET_TRAMPOLINE_INIT loongarch_trampoline_init
+
+#undef TARGET_MIN_ANCHOR_OFFSET
+#define TARGET_MIN_ANCHOR_OFFSET (-IMM_REACH/2)
+
+#undef TARGET_MAX_ANCHOR_OFFSET
+#define TARGET_MAX_ANCHOR_OFFSET (IMM_REACH/2-1)
 
 #undef TARGET_ATOMIC_ASSIGN_EXPAND_FENV
 #define TARGET_ATOMIC_ASSIGN_EXPAND_FENV loongarch_atomic_assign_expand_fenv
