@@ -1128,7 +1128,7 @@ struct GTY (()) machine_function
 #endif
 
 #define ASM_PREFERRED_EH_DATA_FORMAT(CODE, GLOBAL) \
-  (((GLOBAL) ? DW_EH_PE_indirect : 0) | DW_EH_PE_absptr)
+  (((GLOBAL) ? DW_EH_PE_indirect : 0) | DW_EH_PE_pcrel | DW_EH_PE_sdata4)
 
 /* Do emit .note.GNU-stack by default.  */
 #ifndef NEED_INDICATE_EXEC_STACK
