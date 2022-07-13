@@ -78,8 +78,6 @@ extern rtx loongarch_legitimize_call_address (rtx);
 extern rtx loongarch_subword (rtx, bool);
 extern bool loongarch_split_move_p (rtx, rtx);
 extern void loongarch_split_move (rtx, rtx, rtx);
-extern bool loongarch_split_move_insn_p (rtx, rtx);
-extern void loongarch_split_move_insn (rtx, rtx, rtx);
 extern const char *loongarch_output_move (rtx, rtx);
 extern bool loongarch_cfun_has_cprestore_slot_p (void);
 #ifdef RTX_CODE

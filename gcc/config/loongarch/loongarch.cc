@@ -1823,8 +1823,11 @@ loongarch_split_symbol_type (enum loongarch_symbol_type symbol_type)
    LO_SUM symbol has type SYMBOL_TYPE.  */
 
 static bool
-loongarch_valid_lo_sum_p (enum loongarch_symbol_type symbol_type, machine_mode mode)
+loongarch_valid_lo_sum_p (enum loongarch_symbol_type symbol_type, machine_mode mode,
+			  rtx x)
 {
+  int align, size;
+
   /* Check that symbols of type SYMBOL_TYPE can be used to access values
      of mode MODE.  */
   if (loongarch_symbol_insns (symbol_type, mode) == 0)
@@ -1834,12 +1837,38 @@ loongarch_valid_lo_sum_p (enum loongarch_symbol_type symbol_type, machine_mode m
   if (!loongarch_split_symbol_type (symbol_type))
     return false;
 
+  /* We can't tell size or alignment when we have BLKmode, so try extracing a
+     decl from the symbol if possible.  */
+  if (mode == BLKmode)
+    {
+      rtx offset;
+
+      /* Extract the symbol from the LO_SUM operand, if any.  */
+      split_const (x, &x, &offset);
+
+      /* Might be a CODE_LABEL.  We can compute align but not size for that,
+	 so don't bother trying to handle it.  */
+      if (!SYMBOL_REF_P (x))
+	return false;
+
+      /* Use worst case assumptions if we don't have a SYMBOL_REF_DECL.  */
+      align = (SYMBOL_REF_DECL (x)
+	       ? DECL_ALIGN (SYMBOL_REF_DECL (x))
+	       : 1);
+      size = (SYMBOL_REF_DECL (x) && DECL_SIZE (SYMBOL_REF_DECL (x))
+	      ? tree_to_uhwi (DECL_SIZE (SYMBOL_REF_DECL (x)))
+	      : 2*BITS_PER_WORD);
+    }
+  else
+    {
+      align = GET_MODE_ALIGNMENT (mode);
+      size = GET_MODE_BITSIZE (mode);
+    }
+
   /* We may need to split multiword moves, so make sure that each word
-     can be accessed without inducing a carry.  This is mainly needed
-     for o64, which has historically only guaranteed 64-bit alignment
-     for 128-bit types.  */
-  if (GET_MODE_SIZE (mode) > UNITS_PER_WORD
-      && GET_MODE_BITSIZE (mode) > GET_MODE_ALIGNMENT (mode))
+     can be accessed without inducing a carry.  */
+  if (size > BITS_PER_WORD
+      && (!TARGET_STRICT_ALIGN || size > align))
     return false;
 
   return true;
@@ -1928,7 +1957,7 @@ loongarch_classify_address (struct loongarch_address_info *info, rtx x,
       info->symbol_type
 	= loongarch_classify_symbolic_expression (info->offset);
       return (loongarch_valid_base_register_p (info->reg, mode, strict_p)
-	      && loongarch_valid_lo_sum_p (info->symbol_type, mode));
+	      && loongarch_valid_lo_sum_p (info->symbol_type, mode, info->offset));
 
     default:
       return false;
@@ -1987,9 +2016,11 @@ loongarch_address_insns (rtx x, machine_mode mode, bool might_split_p)
       {
       case ADDRESS_REG:
       case ADDRESS_REG_REG:
-      case ADDRESS_LO_SUM:
       case ADDRESS_CONST_INT:
 	return factor;
+
+      case ADDRESS_LO_SUM:
+	return factor + 1;
 
       case ADDRESS_SYMBOLIC:
 	return factor * loongarch_symbol_insns (addr.symbol_type, mode);
@@ -2027,9 +2058,10 @@ loongarch_12bit_offset_address_p (rtx x, machine_mode mode)
   struct loongarch_address_info addr;
 
   return (loongarch_classify_address (&addr, x, mode, false)
-	  && addr.type == ADDRESS_REG
-	  && CONST_INT_P (addr.offset)
-	  && LARCH_U12BIT_OFFSET_P (INTVAL (addr.offset)));
+	  && ((addr.type == ADDRESS_REG
+	       && CONST_INT_P (addr.offset)
+	       && LARCH_12BIT_OFFSET_P (INTVAL (addr.offset)))
+	      || addr.type == ADDRESS_LO_SUM));
 }
 
 /* Return true if X is a legitimate address with a 14-bit offset shifted 2.
@@ -2135,6 +2167,8 @@ loongarch_split_const_insns (rtx x)
   gcc_assert (low > 0 && high > 0);
   return low + high;
 }
+
+static bool loongarch_split_move_insn_p (rtx dest, rtx src);
 
 /* Return the number of instructions needed to implement INSN,
    given that it loads from or stores to MEM.  */
@@ -3408,19 +3442,10 @@ loongarch_split_move (rtx dest, rtx src, rtx insn_)
 
 /* Return true if a move from SRC to DEST in INSN should be split.  */
 
-bool
+static bool
 loongarch_split_move_insn_p (rtx dest, rtx src)
 {
   return loongarch_split_move_p (dest, src);
-}
-
-/* Split a move from SRC to DEST in INSN, given that
-   loongarch_split_move_insn_p holds.  */
-
-void
-loongarch_split_move_insn (rtx dest, rtx src, rtx insn)
-{
-  loongarch_split_move (dest, src, insn);
 }
 
 /* Implement TARGET_CONSTANT_ALIGNMENT.  */
