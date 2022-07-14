@@ -2379,7 +2379,7 @@ loongarch_call_tls_get_addr (rtx sym, enum loongarch_symbol_type type, rtx v0)
     {
       rtx high = gen_rtx_HIGH (Pmode, copy_rtx (loc));
       high = loongarch_force_temporary (tmp, high);
-      emit_move_insn (a0, gen_rtx_LO_SUM (Pmode, high, loc));
+      emit_insn (gen_gd_ld (Pmode, a0, high, loc));
     }
   else
     {

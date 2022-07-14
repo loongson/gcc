@@ -63,6 +63,7 @@
   UNSPEC_LUI_H_LO20
   UNSPEC_LUI_H_HI12
   UNSPEC_ORI_L_LO12
+  UNSPEC_LD_GD
 ])
 
 (define_c_enum "unspecv" [
@@ -1869,6 +1870,16 @@
   [(set (match_operand:P 0 "register_operand" "=r")
  (lo_sum:P (match_operand:P 1 "register_operand" " r")
      (match_operand:P 2 "symbolic_operand" "")))]
+  "TARGET_EXPLICIT_RELOCS"
+  "addi.<d>\t%0,%1,%L2"
+  [(set_attr "type" "arith")
+   (set_attr "mode" "<MODE>")])
+
+(define_insn "@gd_ld<mode>"
+  [(set (match_operand:P 0 "register_operand" "=r")
+	(unspec:P [(mem:P (lo_sum:P (match_operand:P 1 "register_operand" "r")
+				    (match_operand:P 2 "symbolic_operand" "")))]
+	UNSPEC_LD_GD))]
   "TARGET_EXPLICIT_RELOCS"
   "addi.<d>\t%0,%1,%L2"
   [(set_attr "type" "arith")
