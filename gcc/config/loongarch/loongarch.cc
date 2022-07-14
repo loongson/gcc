@@ -1599,10 +1599,7 @@ loongarch_classify_symbol (const_rtx x)
   /* Extern nornal symbol loaded by pc relative addressing when
      flag_pic is false. */
   if (SYMBOL_REF_P (x)
-      && !loongarch_symbol_binds_local_p(x)
-      && !(!flag_pic && !SYMBOL_REF_WEAK (x)
-	   && SYMBOL_REF_EXTERNAL_P (x)
-	   && !SYMBOL_REF_FUNCTION_P (x)))
+      && !loongarch_symbol_binds_local_p(x))
     return SYMBOL_GOT_DISP;
 
   return SYMBOL_PCREL;
