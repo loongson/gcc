@@ -68,7 +68,6 @@ extern int loongarch_idiv_insns (machine_mode);
 #ifdef RTX_CODE
 extern void loongarch_emit_binary (enum rtx_code, rtx, rtx, rtx);
 #endif
-extern bool loongarch_split_symbol (rtx, rtx, machine_mode, rtx *);
 extern rtx loongarch_unspec_address (rtx, enum loongarch_symbol_type);
 extern rtx loongarch_strip_unspec_address (rtx);
 extern void loongarch_move_integer (rtx, rtx, unsigned HOST_WIDE_INT);

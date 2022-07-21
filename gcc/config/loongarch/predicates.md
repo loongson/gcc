@@ -110,7 +110,7 @@
 (define_predicate "const_call_insn_operand"
   (match_code "const,symbol_ref,label_ref")
 {
-  /* Split symbol to hi/lo if return false.
+  /* Split symbol to high and low if return false.
      If defined TARGET_CMODEL_LARGE, all symbol would be splited,
      else if offset is not zero, the symbol would be splited.  */
 
@@ -154,24 +154,6 @@
        (ior (match_test "loongarch_global_symbol_p (op) != 0")
 	    (match_test "loongarch_symbol_binds_local_p (op) == 0")
        (match_test "loongarch_weak_symbol_p (op) != 0"))
-       (match_test "CONSTANT_P (op)")))
-
-(define_predicate "is_const_call_weak_symbol"
-  (and (match_operand 0 "const_call_insn_operand")
-       (not (match_operand 0 "is_const_call_local_symbol"))
-       (match_test "loongarch_weak_symbol_p (op) != 0")
-       (match_test "CONSTANT_P (op)")))
-
-(define_predicate "is_const_call_plt_symbol"
-  (and (match_operand 0 "const_call_insn_operand")
-       (match_test "flag_plt != 0")
-       (match_test "loongarch_global_symbol_noweak_p (op) != 0")
-       (match_test "CONSTANT_P (op)")))
-
-(define_predicate "is_const_call_global_noplt_symbol"
-  (and (match_operand 0 "const_call_insn_operand")
-       (match_test "flag_plt == 0")
-       (match_test "loongarch_global_symbol_noweak_p (op) != 0")
        (match_test "CONSTANT_P (op)")))
 
 ;; A legitimate CONST_INT operand that takes more than one instruction
@@ -236,7 +218,8 @@
     case SYMBOL_REF:
     case LABEL_REF:
       return (loongarch_symbolic_constant_p (op, &symbol_type)
-	      && (!TARGET_EXPLICIT_RELOCS || !loongarch_split_symbol_type(symbol_type)));
+	      && (!TARGET_EXPLICIT_RELOCS
+		  || !loongarch_split_symbol_type (symbol_type)));
 
     case HIGH:
       /* '-mno-explicit-relocs' don't generate high/low pairs.  */
@@ -245,7 +228,7 @@
 
       op = XEXP (op, 0);
       return (loongarch_symbolic_constant_p (op, &symbol_type)
-	      && loongarch_split_symbol_type(symbol_type));
+	      && loongarch_split_symbol_type (symbol_type));
 
     default:
       return true;
