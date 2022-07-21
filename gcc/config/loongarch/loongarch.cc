@@ -1100,70 +1100,103 @@ loongarch_emit_stack_tie (void)
 static void
 loongarch_emit_probe_stack_range (HOST_WIDE_INT first, HOST_WIDE_INT size)
 {
-  HOST_WIDE_INT rounded_size;
-  rtx r12 = LARCH_PROLOGUE_TEMP2 (Pmode);
-  rtx r14 = LARCH_PROLOGUE_TEMP3 (Pmode);
-
-  size = size + first;
-  /* Sanity check for the addressing mode we're going to use.  */
-  gcc_assert (first <= 16384);
-
-
-  /* Step 1: round SIZE to the previous multiple of the interval.  */
-
-  rounded_size = ROUND_DOWN (size, PROBE_INTERVAL);
-
-  /* Step 2: compute initial and final value of the loop counter.  */
-
-  emit_move_insn (r14, GEN_INT (PROBE_INTERVAL));
-  /* LAST_ADDR = SP + FIRST + ROUNDED_SIZE.  */
-  if (rounded_size != 0)
+  /* See if we have a constant small number of probes to generate.  If so,
+     that's the easy case.  */
+  if ((TARGET_64BIT && (first + size <= 32768))
+      || (!TARGET_64BIT && (first + size <= 2048)))
     {
-      emit_move_insn (r12, GEN_INT (rounded_size));
-      emit_insn (gen_rtx_SET (r12, gen_rtx_MINUS (Pmode,
-						  stack_pointer_rtx, r12)));
+      HOST_WIDE_INT i;
 
-      /* Step 3: the loop
+      /* Probe at FIRST + N * PROBE_INTERVAL for values of N from 1 until
+	 it exceeds SIZE.  If only one probe is needed, this will not
+	 generate any code.  Then probe at FIRST + SIZE.  */
+      for (i = PROBE_INTERVAL; i < size; i += PROBE_INTERVAL)
+	emit_stack_probe (plus_constant (Pmode, stack_pointer_rtx,
+					 -(first + i)));
 
-	 do
-	 {
-	 TEST_ADDR = TEST_ADDR + PROBE_INTERVAL
-	 probe at TEST_ADDR
-	 }
-	 while (TEST_ADDR != LAST_ADDR)
-
-	 probes at FIRST + N * PROBE_INTERVAL for values of N from 1
-	 until it is equal to ROUNDED_SIZE.  */
-
-      emit_insn (gen_probe_stack_range (Pmode, stack_pointer_rtx,
-					stack_pointer_rtx, r12, r14));
+      emit_stack_probe (plus_constant (Pmode, stack_pointer_rtx,
+				       -(first + size)));
     }
 
-  /* Step 4: probe at FIRST + SIZE if we cannot assert at compile-time
-     that SIZE is equal to ROUNDED_SIZE.  */
-
-  if (size != rounded_size)
+  /* Otherwise, do the same as above, but in a loop.  Note that we must be
+     extra careful with variables wrapping around because we might be at
+     the very top (or the very bottom) of the address space and we have
+     to be able to handle this case properly; in particular, we use an
+     equality test for the loop condition.  */
+  else
     {
-      if (size - rounded_size >= PROBE_INTERVAL/2)
+      HOST_WIDE_INT rounded_size;
+      rtx r13 = LARCH_PROLOGUE_TEMP (Pmode);
+      rtx r12 = LARCH_PROLOGUE_TEMP2 (Pmode);
+      rtx r14 = LARCH_PROLOGUE_TEMP3 (Pmode);
+
+      /* Sanity check for the addressing mode we're going to use.  */
+      gcc_assert (first <= 16384);
+
+
+      /* Step 1: round SIZE to the previous multiple of the interval.  */
+
+      rounded_size = ROUND_DOWN (size, PROBE_INTERVAL);
+
+      /* TEST_ADDR = SP + FIRST */
+      if (first != 0)
 	{
-	  emit_move_insn (r14, GEN_INT (size - rounded_size));
-	  emit_insn (gen_rtx_SET (stack_pointer_rtx, gen_rtx_MINUS (Pmode,
-								   stack_pointer_rtx,
-								   r14)));
+	  emit_move_insn (r14, GEN_INT (first));
+	  emit_insn (gen_rtx_SET (r13, gen_rtx_MINUS (Pmode,
+						      stack_pointer_rtx,
+						      r14)));
 	}
       else
-	emit_insn (gen_rtx_SET (stack_pointer_rtx, gen_rtx_PLUS (Pmode,
-								 stack_pointer_rtx,
-								 GEN_INT (rounded_size - size))));
+	emit_move_insn (r13, stack_pointer_rtx);
 
+      /* Step 2: compute initial and final value of the loop counter.  */
+
+      emit_move_insn (r14, GEN_INT (PROBE_INTERVAL));
+      /* LAST_ADDR = SP + FIRST + ROUNDED_SIZE.  */
+      if (rounded_size == 0)
+	emit_move_insn (r12, r13);
+      else
+	{
+	  emit_move_insn (r12, GEN_INT (rounded_size));
+	  emit_insn (gen_rtx_SET (r12, gen_rtx_MINUS (Pmode, r13, r12)));
+	  /* Step 3: the loop
+
+	     do
+	     {
+	     TEST_ADDR = TEST_ADDR + PROBE_INTERVAL
+	     probe at TEST_ADDR
+	     }
+	     while (TEST_ADDR != LAST_ADDR)
+
+	     probes at FIRST + N * PROBE_INTERVAL for values of N from 1
+	     until it is equal to ROUNDED_SIZE.  */
+
+	  emit_insn (gen_probe_stack_range (Pmode, r13, r13, r12, r14));
+	}
+
+      /* Step 4: probe at FIRST + SIZE if we cannot assert at compile-time
+	 that SIZE is equal to ROUNDED_SIZE.  */
+
+      if (size != rounded_size)
+	{
+	  if (TARGET_64BIT)
+	    emit_stack_probe (plus_constant (Pmode, r12, rounded_size - size));
+	  else
+	    {
+	      HOST_WIDE_INT i;
+	      for (i = 2048; i < (size - rounded_size); i += 2048)
+		{
+		  emit_stack_probe (plus_constant (Pmode, r12, -i));
+		  emit_insn (gen_rtx_SET (r12,
+					  plus_constant (Pmode, r12, -2048)));
+		}
+	      rtx r1 = plus_constant (Pmode, r12,
+				      -(size - rounded_size - i + 2048));
+	      emit_stack_probe (r1);
+	    }
+	}
     }
 
-  if (first)
-    {
-      emit_move_insn (r12, GEN_INT (first));
-      emit_insn (gen_rtx_SET (stack_pointer_rtx, gen_rtx_PLUS (Pmode,
-							       stack_pointer_rtx, r12)));
-    }
   /* Make sure nothing is scheduled before we are done.  */
   emit_insn (gen_blockage ());
 }
@@ -1210,10 +1243,27 @@ loongarch_expand_prologue (void)
 {
   struct loongarch_frame_info *frame = &cfun->machine->frame;
   HOST_WIDE_INT size = frame->total_size;
+  HOST_WIDE_INT tmp;
   rtx insn;
 
   if (flag_stack_usage_info)
     current_function_static_stack_size = size;
+
+  if (flag_stack_check == STATIC_BUILTIN_STACK_CHECK
+      || flag_stack_clash_protection)
+    {
+      if (crtl->is_leaf && !cfun->calls_alloca)
+	{
+	  if (size > PROBE_INTERVAL && size > get_stack_check_protect ())
+	    {
+	      tmp = size - get_stack_check_protect ();
+	      loongarch_emit_probe_stack_range (get_stack_check_protect (),
+						tmp);
+	    }
+	}
+      else if (size > 0)
+	loongarch_emit_probe_stack_range (get_stack_check_protect (), size);
+    }
 
   /* Save the registers.  */
   if ((frame->mask | frame->fmask) != 0)
@@ -1238,39 +1288,25 @@ loongarch_expand_prologue (void)
       loongarch_emit_stack_tie ();
     }
 
-  if ((flag_stack_check == STATIC_BUILTIN_STACK_CHECK
-       || flag_stack_clash_protection)
-      && size > 0)
+  /* Allocate the rest of the frame.  */
+  if (size > 0)
     {
-      loongarch_emit_probe_stack_range (get_stack_check_protect (), size);
-
-      /* Describe the effect of the previous instructions.  */
-      insn = plus_constant (Pmode, stack_pointer_rtx, -size);
-      insn = gen_rtx_SET (stack_pointer_rtx, insn);
-      loongarch_set_frame_expr (insn);
-    }
-  else
-    {
-      /* Allocate the rest of the frame.  */
-      if (size > 0)
+      if (IMM12_OPERAND (-size))
 	{
-	  if (IMM12_OPERAND (-size))
-	    {
-	      insn = gen_add3_insn (stack_pointer_rtx, stack_pointer_rtx,
-				    GEN_INT (-size));
-	      RTX_FRAME_RELATED_P (emit_insn (insn)) = 1;
-	    }
-	  else
-	    {
-	      loongarch_emit_move (LARCH_PROLOGUE_TEMP (Pmode), GEN_INT (-size));
-	      emit_insn (gen_add3_insn (stack_pointer_rtx, stack_pointer_rtx,
-					LARCH_PROLOGUE_TEMP (Pmode)));
+	  insn = gen_add3_insn (stack_pointer_rtx, stack_pointer_rtx,
+				GEN_INT (-size));
+	  RTX_FRAME_RELATED_P (emit_insn (insn)) = 1;
+	}
+      else
+	{
+	  loongarch_emit_move (LARCH_PROLOGUE_TEMP (Pmode), GEN_INT (-size));
+	  emit_insn (gen_add3_insn (stack_pointer_rtx, stack_pointer_rtx,
+				    LARCH_PROLOGUE_TEMP (Pmode)));
 
-	      /* Describe the effect of the previous instructions.  */
-	      insn = plus_constant (Pmode, stack_pointer_rtx, -size);
-	      insn = gen_rtx_SET (stack_pointer_rtx, insn);
-	      loongarch_set_frame_expr (insn);
-	    }
+	  /* Describe the effect of the previous instructions.  */
+	  insn = plus_constant (Pmode, stack_pointer_rtx, -size);
+	  insn = gen_rtx_SET (stack_pointer_rtx, insn);
+	  loongarch_set_frame_expr (insn);
 	}
     }
 }
