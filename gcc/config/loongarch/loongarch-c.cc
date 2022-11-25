@@ -99,6 +99,13 @@ loongarch_cpu_cpp_builtins (cpp_reader *pfile)
   else
     builtin_define ("__loongarch_frlen=0");
 
+  if (ISA_HAS_LSX)
+    {
+      builtin_define ("__loongarch_simd");
+      builtin_define ("__loongarch_sx");
+      builtin_define ("__loongarch_sx_width=128");
+    }
+
   /* Native Data Sizes.  */
   builtin_define_with_int_value ("_LOONGARCH_SZINT", INT_TYPE_SIZE);
   builtin_define_with_int_value ("_LOONGARCH_SZLONG", LONG_TYPE_SIZE);

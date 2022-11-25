@@ -63,7 +63,8 @@ extern const char* loongarch_isa_ext_strings[];
 #define ISA_EXT_FPU32	      1
 #define ISA_EXT_FPU64	      2
 #define N_ISA_EXT_FPU_TYPES   3
-#define N_ISA_EXT_TYPES	      3
+#define ISA_EXT_SIMD_LSX      3
+#define N_ISA_EXT_TYPES	      4
 
 /* enum abi_base */
 extern const char* loongarch_abi_base_strings[];
@@ -97,7 +98,8 @@ extern const char* loongarch_switch_strings[];
 #define SW_SOFT_FLOAT	      0
 #define SW_SINGLE_FLOAT	      1
 #define SW_DOUBLE_FLOAT	      2
-#define N_SWITCH_TYPES	      3
+#define SW_LSX		      3
+#define N_SWITCH_TYPES	      4
 
 /* The common default value for variables whose assignments
    are triggered by command-line options.  */
@@ -111,6 +113,7 @@ struct loongarch_isa
 {
   unsigned char base;	    /* ISA_BASE_ */
   unsigned char fpu;	    /* ISA_EXT_FPU_ */
+  unsigned char simd;	    /* ISA_EXT_SIMD_ */
 };
 
 struct loongarch_abi

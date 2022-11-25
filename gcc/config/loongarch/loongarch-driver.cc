@@ -160,6 +160,10 @@ driver_get_normalized_m_opts (int argc, const char **argv)
    APPEND_LTR (" %<m" OPTSTR_##NAME "=* " \
 	       " -m" OPTSTR_##NAME "=")
 
+#undef APPEND_SWITCH
+#define APPEND_SWITCH(S) \
+   APPEND_LTR (" %<m" S " -m" S)
+
   for (int i = 0; i < N_SWITCH_TYPES; i++)
     {
       APPEND_LTR (" %<m");
@@ -174,6 +178,12 @@ driver_get_normalized_m_opts (int argc, const char **argv)
 
   APPEND_OPT (ISA_EXT_FPU);
   APPEND_VAL (loongarch_isa_ext_strings[la_target.isa.fpu]);
+
+  if (la_target.isa.simd)
+    {
+      APPEND_LTR (" %<m" OPTSTR_LSX " -m");
+      APPEND_VAL (loongarch_isa_ext_strings[la_target.isa.simd]);
+    }
 
   APPEND_OPT (CMODEL);
   APPEND_VAL (loongarch_cmodel_strings[la_target.cmodel]);

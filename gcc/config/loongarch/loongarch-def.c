@@ -49,10 +49,12 @@ loongarch_cpu_default_isa[N_ARCH_TYPES] = {
   [CPU_LOONGARCH64] = {
       .base = ISA_BASE_LA64V100,
       .fpu = ISA_EXT_FPU64,
+      .simd = 0,
   },
   [CPU_LA464] = {
       .base = ISA_BASE_LA64V100,
       .fpu = ISA_EXT_FPU64,
+      .simd = ISA_EXT_SIMD_LSX,
   },
 };
 
@@ -135,6 +137,7 @@ loongarch_isa_ext_strings[N_ISA_EXT_TYPES] = {
   [ISA_EXT_FPU64] = STR_ISA_EXT_FPU64,
   [ISA_EXT_FPU32] = STR_ISA_EXT_FPU32,
   [ISA_EXT_NOFPU] = STR_ISA_EXT_NOFPU,
+  [ISA_EXT_SIMD_LSX] = OPTSTR_LSX,
 };
 
 const char*
@@ -164,6 +167,7 @@ loongarch_switch_strings[] = {
   [SW_SOFT_FLOAT]	  = OPTSTR_SOFT_FLOAT,
   [SW_SINGLE_FLOAT]	  = OPTSTR_SINGLE_FLOAT,
   [SW_DOUBLE_FLOAT]	  = OPTSTR_DOUBLE_FLOAT,
+  [SW_LSX]		  = OPTSTR_LSX,
 };
 
 

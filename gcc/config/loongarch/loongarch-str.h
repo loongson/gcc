@@ -42,6 +42,8 @@ along with GCC; see the file COPYING3.  If not see
 #define OPTSTR_SINGLE_FLOAT "single-float"
 #define OPTSTR_DOUBLE_FLOAT "double-float"
 
+#define OPTSTR_LSX "lsx"
+
 #define OPTSTR_ABI_BASE "abi"
 #define STR_ABI_BASE_LP64D "lp64d"
 #define STR_ABI_BASE_LP64F "lp64f"

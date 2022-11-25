@@ -66,6 +66,7 @@ loongarch_config_target (struct loongarch_target *target,
 				   || la_target.abi.base == ABI_BASE_LP64F \
 				   || la_target.abi.base == ABI_BASE_LP64S)
 
+#define ISA_HAS_LSX		  (la_target.isa.simd == ISA_EXT_SIMD_LSX)
 #define TARGET_ARCH_NATIVE	  (la_target.cpu_arch == CPU_NATIVE)
 #define LARCH_ACTUAL_ARCH	  (TARGET_ARCH_NATIVE \
 				   ? (la_target.cpu_native < N_ARCH_TYPES \

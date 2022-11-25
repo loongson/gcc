@@ -83,6 +83,9 @@ mdouble-float
 Target Driver RejectNegative Var(la_opt_switches) Mask(FORCE_F64) Negative(msoft-float)
 Allow hardware floating-point instructions to cover both 32-bit and 64-bit operations.
 
+mlsx
+Target RejectNegative Var(la_opt_switches) Mask(LSX) Negative(mlsx)
+Enable LoongArch SIMD Extension (LSX).
 
 ;; Base target models (implies ISA & tune parameters)
 Enum
@@ -132,10 +135,17 @@ Target RejectNegative Joined ToLower Enum(abi_base) Var(la_opt_abi_base) Init(M_
 Variable
 int la_opt_abi_ext = M_OPTION_NOT_SEEN
 
-
 mbranch-cost=
 Target RejectNegative Joined UInteger Var(loongarch_branch_cost)
 -mbranch-cost=COST	Set the cost of branches to roughly COST instructions.
+
+mvecarg
+Target Var(TARGET_VECARG) Init(1)
+Target pass vect arg uses vector register.
+
+mmemvec-cost=
+Target RejectNegative Joined UInteger Var(loongarch_vector_access_cost) IntegerRange(1, 5)
+mmemvec-cost=COST      Set the cost of vector memory access instructions.
 
 mcheck-zero-division
 Target Mask(CHECK_ZERO_DIV)

@@ -40,6 +40,9 @@ OPTSTR_SOFT_FLOAT     soft-float
 OPTSTR_SINGLE_FLOAT   single-float
 OPTSTR_DOUBLE_FLOAT   double-float
 
+# SIMD extensions
+OPTSTR_LSX	lsx
+
 # -mabi=
 OPTSTR_ABI_BASE	      abi
 STR_ABI_BASE_LP64D    lp64d
