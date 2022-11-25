@@ -80,6 +80,10 @@ m@@OPTSTR_LSX@@
 Target RejectNegative Var(la_opt_switches) Mask(LSX) Negative(m@@OPTSTR_LSX@@)
 Enable LoongArch SIMD Extension (LSX).
 
+m@@OPTSTR_LASX@@
+Target RejectNegative Var(la_opt_switches) Mask(LASX) Negative(m@@OPTSTR_LASX@@)
+Enable LoongArch Advanced SIMD Extension (LASX).
+
 ;; Base target models (implies ISA & tune parameters)
 Enum
 Name(cpu_type) Type(int)

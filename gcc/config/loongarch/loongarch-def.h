@@ -64,7 +64,8 @@ extern const char* loongarch_isa_ext_strings[];
 #define ISA_EXT_FPU64	      2
 #define N_ISA_EXT_FPU_TYPES   3
 #define ISA_EXT_SIMD_LSX      3
-#define N_ISA_EXT_TYPES	      4
+#define ISA_EXT_SIMD_LASX     4
+#define N_ISA_EXT_TYPES	      5
 
 /* enum abi_base */
 extern const char* loongarch_abi_base_strings[];
@@ -99,7 +100,8 @@ extern const char* loongarch_switch_strings[];
 #define SW_SINGLE_FLOAT	      1
 #define SW_DOUBLE_FLOAT	      2
 #define SW_LSX		      3
-#define N_SWITCH_TYPES	      4
+#define SW_LASX		      4
+#define N_SWITCH_TYPES	      5
 
 /* The common default value for variables whose assignments
    are triggered by command-line options.  */

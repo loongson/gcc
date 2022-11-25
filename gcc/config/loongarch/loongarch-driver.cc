@@ -181,7 +181,7 @@ driver_get_normalized_m_opts (int argc, const char **argv)
 
   if (la_target.isa.simd)
     {
-      APPEND_LTR (" %<m" OPTSTR_LSX " -m");
+      APPEND_LTR (" %<m" OPTSTR_LSX " %<m" OPTSTR_LASX " -m");
       APPEND_VAL (loongarch_isa_ext_strings[la_target.isa.simd]);
     }
 

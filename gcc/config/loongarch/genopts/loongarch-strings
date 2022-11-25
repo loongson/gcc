@@ -42,6 +42,7 @@ OPTSTR_DOUBLE_FLOAT   double-float
 
 # SIMD extensions
 OPTSTR_LSX	lsx
+OPTSTR_LASX	lasx
 
 # -mabi=
 OPTSTR_ABI_BASE	      abi

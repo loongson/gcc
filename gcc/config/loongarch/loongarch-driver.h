@@ -52,6 +52,7 @@ driver_get_normalized_m_opts (int argc, const char **argv);
   LA_SET_FLAG_SPEC (SINGLE_FLOAT)			      \
   LA_SET_FLAG_SPEC (DOUBLE_FLOAT)			      \
   LA_SET_FLAG_SPEC (LSX)				      \
+  LA_SET_FLAG_SPEC (LASX)				      \
   " %:get_normalized_m_opts()"
 
 #define DRIVER_SELF_SPECS \

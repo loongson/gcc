@@ -84,6 +84,7 @@ const int loongarch_switch_mask[N_SWITCH_TYPES] = {
   /* SW_SINGLE_FLOAT */  M(FORCE_F32),
   /* SW_DOUBLE_FLOAT */  M(FORCE_F64),
   /* SW_LSX */		 M(LSX),
+  /* SW_LASX */		 M(LASX),
 };
 #undef M
 
@@ -254,14 +255,19 @@ config_target_isa:
      t.isa.fpu : DEFAULT_ISA_EXT_FPU);
 
   /* LoongArch SIMD extensions.  */
+  /* Note: LASX implies LSX, so we put "on (LASX)" first.  */
   int simd_switch;
-  if (on (LSX))
+  if (on (LASX) || on (LSX))
     {
       constrained.simd = 1;
       switch (on_switch)
 	{
 	  case SW_LSX:
 	    t.isa.simd = ISA_EXT_SIMD_LSX;
+	    break;
+
+	  case SW_LASX:
+	    t.isa.simd = ISA_EXT_SIMD_LASX;
 	    break;
 
 	  default:
@@ -603,6 +609,7 @@ isa_str (const struct loongarch_isa *isa, char separator)
   switch (isa->simd)
     {
       case ISA_EXT_SIMD_LSX:
+      case ISA_EXT_SIMD_LASX:
 	APPEND1 (separator);
 	APPEND_STRING (loongarch_isa_ext_strings[isa->simd]);
 	break;
