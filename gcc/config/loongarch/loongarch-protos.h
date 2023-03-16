@@ -83,10 +83,18 @@ extern rtx loongarch_legitimize_call_address (rtx);
 extern rtx loongarch_subword (rtx, bool);
 extern bool loongarch_split_move_p (rtx, rtx);
 extern void loongarch_split_move (rtx, rtx, rtx);
+extern bool loongarch_split_move_insn_p (rtx, rtx);
+extern void loongarch_split_move_insn (rtx, rtx, rtx);
+extern void loongarch_split_128bit_move (rtx, rtx);
+extern bool loongarch_split_128bit_move_p (rtx, rtx);
+extern void loongarch_split_lsx_copy_d (rtx, rtx, rtx, rtx (*)(rtx, rtx, rtx));
+extern void loongarch_split_lsx_insert_d (rtx, rtx, rtx, rtx);
+extern void loongarch_split_lsx_fill_d (rtx, rtx);
 extern const char *loongarch_output_move (rtx, rtx);
 extern bool loongarch_cfun_has_cprestore_slot_p (void);
 #ifdef RTX_CODE
 extern void loongarch_expand_scc (rtx *);
+extern bool loongarch_expand_vec_cmp (rtx *);
 extern void loongarch_expand_conditional_branch (rtx *);
 extern void loongarch_expand_conditional_move (rtx *);
 extern void loongarch_expand_conditional_trap (rtx);
@@ -108,6 +116,15 @@ extern bool loongarch_small_data_pattern_p (rtx);
 extern rtx loongarch_rewrite_small_data (rtx);
 extern rtx loongarch_return_addr (int, rtx);
 
+extern bool loongarch_const_vector_same_val_p (rtx, machine_mode);
+extern bool loongarch_const_vector_same_bytes_p (rtx, machine_mode);
+extern bool loongarch_const_vector_same_int_p (rtx, machine_mode, HOST_WIDE_INT,
+					  HOST_WIDE_INT);
+extern bool loongarch_const_vector_shuffle_set_p (rtx, machine_mode);
+extern bool loongarch_const_vector_bitimm_set_p (rtx, machine_mode);
+extern bool loongarch_const_vector_bitimm_clr_p (rtx, machine_mode);
+extern rtx loongarch_lsx_vec_parallel_const_half (machine_mode, bool);
+extern rtx loongarch_gen_const_int_vector (machine_mode, HOST_WIDE_INT);
 extern enum reg_class loongarch_secondary_reload_class (enum reg_class,
 							machine_mode,
 							rtx, bool);
@@ -127,6 +144,7 @@ extern const char *loongarch_output_equal_conditional_branch (rtx_insn *,
 							      rtx *,
 							      bool);
 extern const char *loongarch_output_division (const char *, rtx *);
+extern const char *loongarch_lsx_output_division (const char *, rtx *);
 extern const char *loongarch_output_probe_stack_range (rtx, rtx, rtx);
 extern bool loongarch_hard_regno_rename_ok (unsigned int, unsigned int);
 extern int loongarch_dspalu_bypass_p (rtx, rtx);
@@ -154,6 +172,13 @@ union loongarch_gen_fn_ptrs
 extern void loongarch_expand_atomic_qihi (union loongarch_gen_fn_ptrs,
 					  rtx, rtx, rtx, rtx, rtx);
 
+extern void loongarch_expand_vector_init (rtx, rtx);
+extern void loongarch_expand_vec_unpack (rtx op[2], bool, bool);
+extern void loongarch_expand_vec_perm (rtx, rtx, rtx, rtx);
+extern void loongarch_expand_vector_extract (rtx, rtx, int);
+extern void loongarch_expand_vector_reduc (rtx (*)(rtx, rtx, rtx), rtx, rtx);
+
+extern int loongarch_ldst_scaled_shift (machine_mode);
 extern bool loongarch_signed_immediate_p (unsigned HOST_WIDE_INT, int, int);
 extern bool loongarch_unsigned_immediate_p (unsigned HOST_WIDE_INT, int, int);
 extern bool loongarch_12bit_offset_address_p (rtx, machine_mode);
@@ -169,6 +194,7 @@ extern bool loongarch_split_symbol_type (enum loongarch_symbol_type);
 typedef rtx (*mulsidi3_gen_fn) (rtx, rtx, rtx);
 
 extern void loongarch_register_frame_header_opt (void);
+extern void loongarch_expand_vec_cond_expr (machine_mode, machine_mode, rtx *);
 
 /* Routines implemented in loongarch-c.c.  */
 void loongarch_cpu_cpp_builtins (cpp_reader *);
@@ -178,6 +204,9 @@ extern void loongarch_atomic_assign_expand_fenv (tree *, tree *, tree *);
 extern tree loongarch_builtin_decl (unsigned int, bool);
 extern rtx loongarch_expand_builtin (tree, rtx, rtx subtarget ATTRIBUTE_UNUSED,
 				     machine_mode, int);
+extern tree loongarch_builtin_vectorized_function (unsigned int, tree, tree);
+extern rtx loongarch_gen_const_int_vector_shuffle (machine_mode, int);
 extern tree loongarch_build_builtin_va_list (void);
 
+extern rtx loongarch_build_signbit_mask (machine_mode, bool, bool);
 #endif /* ! GCC_LOONGARCH_PROTOS_H */
