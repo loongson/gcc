@@ -29,6 +29,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "loongarch-cpu.h"
 #include "loongarch-opts.h"
 #include "loongarch-str.h"
+#include "loongarch-def.h"
 
 struct loongarch_target la_target;
 
@@ -106,7 +107,7 @@ static int isa_fpu_compat_p (const struct loongarch_isa *set1,
 			     const struct loongarch_isa *set2);
 static int abi_compat_p (const struct loongarch_isa *isa,
 			 struct loongarch_abi abi);
-static int abi_default_cpu_arch (struct loongarch_abi abi);
+static int abi_default_cpu_arch (struct loongarch_abi abi, struct loongarch_isa *isa);
 
 /* Checking configure-time defaults.  */
 #ifndef DEFAULT_ABI_BASE
@@ -194,9 +195,8 @@ loongarch_config_target (struct loongarch_target *target,
 
       /* The target ISA is not ready yet, but (isa_required (t.abi)
 	 + forced fpu) is enough for computing the forced base ABI.  */
-      struct loongarch_isa default_isa = isa_required (t.abi);
-      struct loongarch_isa force_isa = default_isa;
       struct loongarch_abi force_abi = t.abi;
+      struct loongarch_isa force_isa = isa_required (t.abi);
       force_isa.fpu = opt_fpu;
       force_abi.base = isa_default_abi (&force_isa).base;
 
@@ -225,16 +225,19 @@ loongarch_config_target (struct loongarch_target *target,
   /* 2.  Target CPU */
   t.cpu_arch = constrained.arch ? opt_arch : DEFAULT_CPU_ARCH;
 
+  /* If cpu_tune is not set using neither --with-tune nor -mtune,
+     the current cpu_arch is used as its default. */
   t.cpu_tune = constrained.tune ? opt_tune
-    : (constrained.arch ? DEFAULT_CPU_ARCH : DEFAULT_CPU_TUNE);
+    : (constrained.arch ? opt_arch :
+       (DEFAULT_CPU_TUNE == CPU_NONE ? DEFAULT_CPU_ARCH : DEFAULT_CPU_TUNE));
 
+  /* Handle -march/tune=native */
 #ifdef __loongarch__
   /* For native compilers, gather local CPU information
      and fill the "CPU_NATIVE" index of arrays defined in
      loongarch-cpu.c.  */
 
-  t.cpu_native = fill_native_cpu_config (t.cpu_arch == CPU_NATIVE,
-					 t.cpu_tune == CPU_NATIVE);
+  fill_native_cpu_config (&t);
 
 #else
   if (t.cpu_arch == CPU_NATIVE)
@@ -247,6 +250,16 @@ loongarch_config_target (struct loongarch_target *target,
 		 "%qs does not work on a cross compiler",
 		 "-m" OPTSTR_TUNE "=" STR_CPU_NATIVE);
 #endif
+
+  /* Handle -march/tune=abi-default */
+  if (t.cpu_tune == CPU_ABI_DEFAULT)
+    t.cpu_tune = abi_default_cpu_arch (t.abi, NULL);
+
+  if (t.cpu_arch == CPU_ABI_DEFAULT)
+    {
+      t.cpu_arch = abi_default_cpu_arch (t.abi, &(t.isa));
+      loongarch_cpu_default_isa[t.cpu_arch] = t.isa;
+    }
 
   /* 3.  Target ISA */
 config_target_isa:
@@ -350,7 +363,7 @@ config_target_isa:
     {
       /* Base architecture can only be implied by -march,
 	 so we adjust that first if it is not constrained.  */
-      int fallback_arch = abi_default_cpu_arch (t.abi);
+      int fallback_arch = abi_default_cpu_arch (t.abi, NULL);
 
       if (t.cpu_arch == CPU_NATIVE)
 	warning (0, "your native CPU architecture (%qs) "
@@ -561,16 +574,22 @@ abi_compat_p (const struct loongarch_isa *isa, struct loongarch_abi abi)
 /* The behavior of this function should be consistent
    with config.gcc.  */
 static inline int
-abi_default_cpu_arch (struct loongarch_abi abi)
+abi_default_cpu_arch (struct loongarch_abi abi,
+		      struct loongarch_isa *isa)
 {
-  switch (abi.base)
-    {
-      case ABI_BASE_LP64D:
-      case ABI_BASE_LP64F:
-      case ABI_BASE_LP64S:
-	if (abi.ext == ABI_EXT_BASE)
+  static struct loongarch_isa tmp;
+  if (!isa)
+    isa = &tmp;
+
+  if (abi.ext == ABI_EXT_BASE)
+    switch (abi.base)
+      {
+	case ABI_BASE_LP64D:
+	case ABI_BASE_LP64F:
+	case ABI_BASE_LP64S:
+	  *isa = isa_required (abi);
 	  return CPU_LOONGARCH64;
-    }
+      }
   gcc_unreachable ();
 }
 
@@ -632,18 +651,12 @@ arch_str (const struct loongarch_target *target)
 {
   if (target->cpu_arch == CPU_NATIVE)
     {
-      if (target->cpu_native == CPU_NATIVE)
-	{
-	  /* Describe a native CPU with unknown PRID.  */
-	  const char* isa_string = isa_str (&target->isa, ',');
-	  APPEND_STRING ("PRID: 0x")
-	  APPEND_STRING (get_native_prid_str ())
-	  APPEND_STRING (", ISA features: ")
-	  APPEND_STRING (isa_string)
-	  APPEND1 ('\0')
-	}
-      else
-	APPEND_STRING (loongarch_cpu_strings[target->cpu_native]);
+      /* Describe a native CPU with unknown PRID.  */
+      const char* isa_string = isa_str (&target->isa, ',');
+      APPEND_STRING ("PRID: 0x")
+      APPEND_STRING (get_native_prid_str ())
+      APPEND_STRING (", ISA features: ")
+      APPEND_STRING (isa_string)
     }
   else
     APPEND_STRING (loongarch_cpu_strings[target->cpu_arch]);
@@ -687,10 +700,14 @@ multilib_enabled_abi_list ()
 
 /* option status feedback for "gcc --help=target -Q" */
 void
-loongarch_update_gcc_opt_status (struct gcc_options *opts,
-				 struct gcc_options *opts_set,
-				 struct loongarch_target *target)
+loongarch_update_gcc_opt_status (struct loongarch_target *target,
+				 struct gcc_options *opts,
+				 struct gcc_options *opts_set)
 {
+  /* status of -march and -mtune */
+  opts->x_la_opt_cpu_arch = target->cpu_arch;
+  opts->x_la_opt_cpu_tune = target->cpu_tune;
+
   /* status of -mlsx and -mlasx */
   opts->x_la_opt_switches &= ~OPTION_MASK_LSX;
   opts->x_la_opt_switches &= ~OPTION_MASK_LASX;
@@ -739,20 +756,5 @@ loongarch_update_gcc_opt_status (struct gcc_options *opts,
 
       default:
 	gcc_unreachable ();
-    }
-
-  /* miscellaneous configurations */
-  switch (target->cpu_arch)
-    {
-      case CPU_LA264:
-
-	/* Using -mstrict-align is recommended for 2K1000LA.  */
-	if (!opts_set->x_TARGET_STRICT_ALIGN)
-	  {
-	    opts->x_TARGET_STRICT_ALIGN = 1;
-	    opts_set->x_TARGET_STRICT_ALIGN = 1;
-	  }
-
-	break;
     }
 }

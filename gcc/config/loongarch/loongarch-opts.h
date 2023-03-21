@@ -42,9 +42,9 @@ loongarch_config_target (struct loongarch_target *target,
 			 int opt_cmodel, int follow_multilib_list);
 
 void
-loongarch_update_gcc_opt_status (struct gcc_options *opts,
-				 struct gcc_options *opts_set,
-				 struct loongarch_target *target);
+loongarch_update_gcc_opt_status (struct loongarch_target *target,
+				 struct gcc_options *opts,
+				 struct gcc_options *opts_set);
 #endif
 
 
@@ -75,25 +75,12 @@ loongarch_update_gcc_opt_status (struct gcc_options *opts,
 #define ISA_HAS_LSX		  (la_target.isa.simd == ISA_EXT_SIMD_LSX \
 				   || la_target.isa.simd == ISA_EXT_SIMD_LASX)
 #define ISA_HAS_LASX		  (la_target.isa.simd == ISA_EXT_SIMD_LASX)
-#define TARGET_ARCH_NATIVE	  (la_target.cpu_arch == CPU_NATIVE)
-#define LARCH_ACTUAL_ARCH	  (TARGET_ARCH_NATIVE \
-				   ? (la_target.cpu_native < N_ARCH_TYPES \
-				      ? (la_target.cpu_native) : (CPU_NATIVE)) \
-				      : (la_target.cpu_arch))
 
-#define TARGET_TUNE_NATIVE	(la_target.cpu_tune == CPU_NATIVE)
-#define LARCH_ACTUAL_TUNE		(TARGET_TUNE_NATIVE \
-				 ? (la_target.cpu_native < N_TUNE_TYPES \
-				    ? (la_target.cpu_native) : (CPU_NATIVE)) \
-				    : (la_target.cpu_tune))
-
-#define TARGET_ARCH_LOONGARCH64	  (LARCH_ACTUAL_ARCH == CPU_LOONGARCH64)
-#define TARGET_ARCH_LA464	  (LARCH_ACTUAL_ARCH == CPU_LA464)
-#define TARGET_ARCH_LA264	  (LARCH_ACTUAL_ARCH == CPU_LA264)
-
-#define TARGET_TUNE_LOONGARCH64	  (LARCH_ACTUAL_TUNE == CPU_LOONGARCH64)
-#define TARGET_TUNE_LA464	  (LARCH_ACTUAL_TUNE == CPU_LA464)
-#define TARGET_TUNE_LA264	  (LARCH_ACTUAL_TUNE == CPU_LA264)
+/* TARGET_ macros for use in *.md template conditionals */
+#define TARGET_uARCH_LA464	  (la_target.cpu_tune == CPU_LA464)
+#define TARGET_uARCH_LA264	  (la_target.cpu_tune == CPU_LA264 \
+				   || la_target.cpu_tune == CPU_2K1000LA \
+				   || la_target.cpu_tune == CPU_2K1500)
 
 /* Note: optimize_size may vary across functions,
    while -m[no]-memcpy imposes a global constraint.  */

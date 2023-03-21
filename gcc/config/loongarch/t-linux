@@ -23,7 +23,18 @@ MULTILIB_DIRNAMES = base/lp64d base/lp64f base/lp64s
 # The GCC driver always gets all abi-related options on the command line.
 # (see loongarch-driver.c:driver_get_normalized_m_opts)
 comma=,
-MULTILIB_REQUIRED = $(subst $(comma), ,$(TM_MULTILIB_CONFIG))
+MULTILIB_REQUIRED = $(foreach mlib,$(subst $(comma), ,$(TM_MULTILIB_CONFIG)),\
+		    $(firstword $(subst /, ,$(mlib))))
+
+SPECS = specs.install
+
+# temporary self_spec when building libraries (e.g. libgcc)
+lib_build_self_spec  = %<mfpu=* %<march=* -march=abi-default -mstrict-align
+lib_build_self_spec += $(foreach mlib,$(subst $(comma), ,$(TM_MULTILIB_CONFIG)),\
+		       %{$(subst /,:-,$(mlib))})
+
+specs: specs.install
+	sed '/^*self_spec:$$/{ n;s/^$$/$(lib_build_self_spec)/g; }' $< > $@
 
 # Multiarch
 ifneq ($(call if_multiarch,yes),yes)

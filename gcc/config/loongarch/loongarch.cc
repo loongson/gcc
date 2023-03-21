@@ -6916,8 +6916,8 @@ loongarch_adjust_cost (rtx_insn *, int dep_type, rtx_insn *, int cost,
 static int
 loongarch_issue_rate (void)
 {
-  if ((unsigned long) LARCH_ACTUAL_TUNE < N_TUNE_TYPES)
-    return loongarch_cpu_issue_rate[LARCH_ACTUAL_TUNE];
+  if ((unsigned long) la_target.cpu_tune < N_TUNE_TYPES)
+    return loongarch_cpu_issue_rate[la_target.cpu_tune];
   else
     return 1;
 }
@@ -6928,8 +6928,8 @@ loongarch_issue_rate (void)
 static int
 loongarch_multipass_dfa_lookahead (void)
 {
-  if ((unsigned long) LARCH_ACTUAL_TUNE < N_ARCH_TYPES)
-    return loongarch_cpu_multipass_dfa_lookahead[LARCH_ACTUAL_TUNE];
+  if ((unsigned long) la_target.cpu_tune < N_ARCH_TYPES)
+    return loongarch_cpu_multipass_dfa_lookahead[la_target.cpu_tune];
   else
     return 0;
 }
@@ -7106,6 +7106,28 @@ loongarch_init_machine_status (void)
 }
 
 static void
+loongarch_cpu_option_override (struct loongarch_target *target,
+			       struct gcc_options *opts,
+			       struct gcc_options *opts_set)
+{
+  /* strict alignment */
+  switch (target->cpu_arch)
+    {
+      case CPU_LA264:
+      case CPU_2K1000LA:
+      case CPU_2K1500:
+
+	/* Using -mstrict-align is recommended for 2K1000LA/2K1500.  */
+	if (!opts_set->x_TARGET_STRICT_ALIGN)
+	  {
+	    opts->x_TARGET_STRICT_ALIGN = 1;
+	    opts_set->x_TARGET_STRICT_ALIGN = 1;
+	  }
+	break;
+    }
+}
+
+static void
 loongarch_option_override_internal (struct gcc_options *opts)
 {
   int i, regno, mode;
@@ -7118,7 +7140,8 @@ loongarch_option_override_internal (struct gcc_options *opts)
 			   la_opt_cpu_arch, la_opt_cpu_tune, la_opt_fpu,
 			   la_opt_abi_base, la_opt_abi_ext, la_opt_cmodel, 0);
 
-  loongarch_update_gcc_opt_status (opts, opts_set, &la_target);
+  loongarch_update_gcc_opt_status (&la_target, opts, opts_set);
+  loongarch_cpu_option_override (&la_target, opts, opts_set);
 
   if (TARGET_ABI_LP64)
     flag_pcc_struct_return = 0;
@@ -7127,7 +7150,7 @@ loongarch_option_override_internal (struct gcc_options *opts)
   if (optimize_size)
     loongarch_cost = &loongarch_rtx_cost_optimize_size;
   else
-    loongarch_cost = &loongarch_cpu_rtx_cost_data[LARCH_ACTUAL_TUNE];
+    loongarch_cost = &loongarch_cpu_rtx_cost_data[la_target.cpu_tune];
 
   /* If the user hasn't specified a branch cost, use the processor's
      default.  */
@@ -9515,12 +9538,14 @@ loongarch_vectorize_vec_perm_const (machine_mode vmode, machine_mode op_mode,
   return ok;
 }
 
-/* Implement TARGET_SCHED_REASSOCIATION_WIDTH.  */
-
 static int
-loongarch_sched_reassociation_width (unsigned int opc, machine_mode mode)
+loongarch_cpu_sched_reassociation_width (unsigned int opc ATTRIBUTE_UNUSED,
+					 machine_mode mode ATTRIBUTE_UNUSED)
 {
-  switch (LARCH_ACTUAL_TUNE)
+  /* unreferenced argument */
+  (void) opc;
+
+  switch (target->cpu_tune)
     {
     case CPU_LOONGARCH64:
     case CPU_LA464:
@@ -9547,7 +9572,17 @@ loongarch_sched_reassociation_width (unsigned int opc, machine_mode mode)
     default:
       break;
     }
+
+  /* default is 1 */
   return 1;
+}
+
+/* Implement TARGET_SCHED_REASSOCIATION_WIDTH.  */
+
+static int
+loongarch_sched_reassociation_width (unsigned int opc, machine_mode mode)
+{
+  return loongarch_cpu_sched_reassociation_width (&la_target, opc, mode);
 }
 
 /* Implement extract a scalar element from vecotr register */

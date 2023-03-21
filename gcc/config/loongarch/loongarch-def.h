@@ -136,22 +136,25 @@ struct loongarch_target
 {
   struct loongarch_isa isa;
   struct loongarch_abi abi;
-  unsigned char cpu_arch;   /* CPU_ */
-  unsigned char cpu_tune;   /* same */
-  unsigned char cpu_native; /* same */
-  unsigned char cmodel;	    /* CMODEL_ */
+  unsigned char cpu_arch;     /* CPU_ */
+  unsigned char cpu_tune;     /* same */
+  unsigned char cmodel;	      /* CMODEL_ */
 };
 
 /* CPU properties.  */
 /* index */
 #define CPU_NATIVE	  0
-#define CPU_LOONGARCH64	  1
-#define CPU_LA464	  2
-#define CPU_LA264	  3
-#define N_ARCH_TYPES	  4
-#define N_TUNE_TYPES	  4
+#define CPU_ABI_DEFAULT   1
+#define CPU_LOONGARCH64	  2
+#define CPU_LA464	  3
+#define CPU_LA264	  4
+#define CPU_2K1000LA      5
+#define CPU_2K1500        6
+#define N_ARCH_TYPES	  7
+#define N_TUNE_TYPES	  7
+#define CPU_NONE          7
 
-/* parallel tables.  */
+/* parallel tables */
 extern const char* loongarch_cpu_strings[];
 extern struct loongarch_isa loongarch_cpu_default_isa[];
 extern int loongarch_cpu_issue_rate[];

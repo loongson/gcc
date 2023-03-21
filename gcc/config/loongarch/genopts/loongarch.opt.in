@@ -93,6 +93,9 @@ EnumValue
 Enum(cpu_type) String(@@STR_CPU_NATIVE@@) Value(CPU_NATIVE)
 
 EnumValue
+Enum(cpu_type) String(@@STR_CPU_ABI_DEFAULT@@) Value(CPU_ABI_DEFAULT)
+
+EnumValue
 Enum(cpu_type) String(@@STR_CPU_LOONGARCH64@@) Value(CPU_LOONGARCH64)
 
 EnumValue
@@ -100,6 +103,12 @@ Enum(cpu_type) String(@@STR_CPU_LA464@@) Value(CPU_LA464)
 
 EnumValue
 Enum(cpu_type) String(@@STR_CPU_LA264@@) Value(CPU_LA264)
+
+EnumValue
+Enum(cpu_type) String(@@STR_CPU_2K1000LA@@) Value(CPU_2K1000LA)
+
+EnumValue
+Enum(cpu_type) String(@@STR_CPU_2K1500@@) Value(CPU_2K1500)
 
 m@@OPTSTR_ARCH@@=
 Target RejectNegative Joined Enum(cpu_type) Var(la_opt_cpu_arch) Init(M_OPTION_NOT_SEEN)

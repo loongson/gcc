@@ -23,9 +23,12 @@ OPTSTR_ARCH	      arch
 OPTSTR_TUNE	      tune
 
 STR_CPU_NATIVE	      native
+STR_CPU_ABI_DEFAULT   abi-default
 STR_CPU_LOONGARCH64   loongarch64
 STR_CPU_LA464	      la464
 STR_CPU_LA264	      la264
+STR_CPU_2K1000LA      2k1000la
+STR_CPU_2K1500        2k1500
 
 # Base architecture
 STR_ISA_BASE_LA64V100 la64

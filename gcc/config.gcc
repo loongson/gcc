@@ -4937,7 +4937,7 @@ case "${target}" in
 
 		# Perform initial sanity checks on --with-* options.
 		case ${with_arch} in
-		"" | loongarch64 | la464 | la264) ;; # OK, append here.
+		"" | abi-default | loongarch64 | la464 | la264 | 2k1000la | 2k1500) ;; # OK, append here.
 		native)
 			if test x${host} != x${target}; then
 				echo "--with-arch=native is illegal for cross-compiler." 1>&2
@@ -5038,9 +5038,9 @@ case "${target}" in
 		case ${with_abi}/${with_abiext} in
 		lp64*/base)
 			# architectures that support lp64* ABI
-			arch_pattern="native|loongarch64|la464|la264"
+			arch_pattern="native|abi-default|loongarch64|la464|la264|2k1000la|2k1500"
 			# default architecture for lp64* ABI
-			arch_default="loongarch64"
+			arch_default="abi-default"
 			;;
 		*)
 			echo "Unsupported ABI type ${with_abi}/${with_abiext}." 1>&2
@@ -5110,32 +5110,19 @@ case "${target}" in
 		esac
 
 
-		# Infer default with_tune from with_arch: pass 1
+		# Check default with_tune configuration using with_arch.
 		case ${with_arch} in
-		native)
-			tune_pattern="*"
-			tune_default="native"
-			;;
 		loongarch64)
-			tune_pattern="loongarch64|la464|la264"
-			tune_default="la464"
+			tune_pattern="abi-default|loongarch64|la464|la264|2k1000la|2k1500"
 			;;
 		*)
 			# By default, $with_tune == $with_arch
-			tune_pattern="$with_arch"
+			tune_pattern="*"
 			;;
 		esac
 
-		## Set default value for with_tune.
 		case ${with_tune} in
-		"")
-			if test x${tune_default} != x; then
-				with_tune=${tune_default}
-			else
-				with_tune=${tune_pattern}
-			fi
-			;;
-
+		"")	with_tune="none" ;;
 		*)
 			if echo "${with_tune}" | grep -E "^${tune_pattern}$" > /dev/null; then
 				: # OK
@@ -5174,9 +5161,10 @@ case "${target}" in
 			exit 1
 		fi
 
-		unset component idx elem_abi_base elem_abi_ext elem_tmp
+		unset component idx elem_abi_base elem_abi_ext elem_tmp abi_complete
 		for elem in $(echo "${with_multilib_list}" | tr ',' ' '); do
 			idx=0
+			abi_complete=no
 			while true; do
 				idx=$((idx + 1))
 				component=$(echo "${elem}" | awk -F'/' '{print $'"${idx}"'}')
@@ -5198,32 +5186,57 @@ case "${target}" in
 					elem_abi_base="${component}"
 					;;
 
-				2)
-					# Component 2: ABI extension type
+				2|3)
+					# Other components: ABI extension type / default ARCH
 					case ${component} in
 					"" | base)
-						component="base"
-						elem_tmp="ABI_EXT_BASE,"
+						if test x${component} = xbase && test x${idx} = x3; then
+						    echo "ABI extension \"${component}\"" \
+						         "should follow the base ABI type in --with-multilib-list." 1>&2
+						    exit 1
+						fi
+						if test x${abi_complete} = xno; then
+						    elem_abi_ext="base"
+						    loongarch_multilib_list_make="${loongarch_multilib_list_make}" # Add nothing for now.
+						    loongarch_multilib_list_c="${loongarch_multilib_list_c}ABI_EXT_BASE,"
+						    abi_complete=yes
+						fi
+
+						if test x${component} = x; then
+						    # End of component list.
+						    break
+						fi
+						;;
+
+					abi-default | loongarch64 | la464 | la264 | 2k1000la | 2k1500) # OK, append here.
+						# The default ABI extension is "base".
+						if test x${abi_complete} = xno; then
+						    elem_abi_ext="base"
+						    loongarch_multilib_list_make="${loongarch_multilib_list_make}" # Add nothing for now.
+						    loongarch_multilib_list_c="${loongarch_multilib_list_c}ABI_EXT_BASE,"
+						    abi_complete=yes
+						fi
+						# Append -march spec for each multilib variant.
+						loongarch_multilib_list_make="${loongarch_multilib_list_make}/march=${component}"
+						idx=3
 						;;
 					*)
-						echo "Unknown ABI extension \"${component}\" in --with-multilib-list." 1>&2
+						echo "Unknown ABI extension or ARCH type \"${component}\" in --with-multilib-list." 1>&2
 						exit 1
 						;;
 					esac
-					loongarch_multilib_list_c="${loongarch_multilib_list_c}${elem_tmp}"
-					loongarch_multilib_list_make="${loongarch_multilib_list_make}" # Add nothing for now.
-					elem_abi_ext="${component}"
+
 					;;
 
 				*)
-					# Component 3 and on: optional stuff
+					# Component 4 and on: optional stuff
 					case ${component} in
 					"")
 						# End of component list.
 						break
 						;;
 					*)
-						echo "Unknown ABI \"${elem}\" in --with-multilib-list." 1>&2
+						echo "Unknown multilib variant \"${elem}\" in --with-multilib-list." 1>&2
 						exit 1
 						;;
 					esac
@@ -5231,7 +5244,8 @@ case "${target}" in
 				esac
 			done
 
-			if test x${elem_abi_base} = x${with_abi} \
+			if test x${abi_complete} = xyes \
+			&& test x${elem_abi_base} = x${with_abi} \
 			&& test x${elem_abi_ext} = x${with_abiext}; then
 				loongarch_multilib_list_sane=yes
 			fi
@@ -5737,30 +5751,22 @@ case ${target} in
 
 		# Let --with- flags initialize the enum variables from loongarch.opt.
 		# See macro definitions from loongarch-opts.h and loongarch-cpu.h.
-		case ${with_arch} in
-		native)		tm_defines="${tm_defines} DEFAULT_CPU_ARCH=CPU_NATIVE" ;;
-		la464)		tm_defines="${tm_defines} DEFAULT_CPU_ARCH=CPU_LA464" ;;
-		la264)		tm_defines="${tm_defines} DEFAULT_CPU_ARCH=CPU_LA264" ;;
-		loongarch64)	tm_defines="${tm_defines} DEFAULT_CPU_ARCH=CPU_LOONGARCH64" ;;
-		esac
 
-		case ${with_tune} in
-		native)		tm_defines="${tm_defines} DEFAULT_CPU_TUNE=CPU_NATIVE" ;;
-		la464)		tm_defines="${tm_defines} DEFAULT_CPU_TUNE=CPU_LA464" ;;
-		la264)		tm_defines="${tm_defines} DEFAULT_CPU_TUNE=CPU_LA264" ;;
-		loongarch64)	tm_defines="${tm_defines} DEFAULT_CPU_TUNE=CPU_LOONGARCH64" ;;
-		esac
+		# Architecture
+		tm_defines="${tm_defines} DEFAULT_CPU_ARCH=CPU_$(tr a-z- A-Z_ <<< ${with_arch})"
 
-		case ${with_abi} in
-		lp64d)     tm_defines="${tm_defines} DEFAULT_ABI_BASE=ABI_BASE_LP64D" ;;
-		lp64f)     tm_defines="${tm_defines} DEFAULT_ABI_BASE=ABI_BASE_LP64F" ;;
-		lp64s)     tm_defines="${tm_defines} DEFAULT_ABI_BASE=ABI_BASE_LP64S" ;;
-		esac
+		# Microarchitecture
+		tm_defines="${tm_defines} DEFAULT_CPU_TUNE=CPU_$(tr a-z- A-Z_ <<< ${with_tune})"
 
+		# Base ABI type
+		tm_defines="${tm_defines} DEFAULT_ABI_BASE=ABI_BASE_$(tr a-z- A-Z_ <<< ${with_abi})"
+
+		# ABI Extension
 		case ${with_abiext} in
 		base)      tm_defines="${tm_defines} DEFAULT_ABI_EXT=ABI_EXT_BASE" ;;
 		esac
 
+		# FPU adjustment
 		case ${with_fpu} in
 		none)    tm_defines="$tm_defines DEFAULT_ISA_EXT_FPU=ISA_EXT_NOFPU" ;;
 		32)      tm_defines="$tm_defines DEFAULT_ISA_EXT_FPU=ISA_EXT_FPU32" ;;
