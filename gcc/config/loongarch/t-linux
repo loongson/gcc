@@ -29,12 +29,27 @@ MULTILIB_REQUIRED = $(foreach mlib,$(subst $(comma), ,$(TM_MULTILIB_CONFIG)),\
 SPECS = specs.install
 
 # temporary self_spec when building libraries (e.g. libgcc)
-lib_build_self_spec  = %<mfpu=* %<march=* -march=abi-default -mstrict-align
+gen_mlib_spec = $(if $(word 2,$1),\
+		%{$(firstword $1):$(patsubst %,-%,$(wordlist 2,$(words $1),$1))})
+
+# clean up the result of DRIVER_SELF_SPEC to avoid conflict
+lib_build_self_spec  = %<march=* %<mtune=* %<mcmodel=* %<mfpu=* %<mlsx %<mlasx
+
+# build libraries with -mstrict-align by default
+lib_build_self_spec += -mstrict-align
+
+# append user-specified build options from --with-multilib-list
 lib_build_self_spec += $(foreach mlib,$(subst $(comma), ,$(TM_MULTILIB_CONFIG)),\
-		       %{$(subst /,:-,$(mlib))})
+                       $(call gen_mlib_spec,$(subst /, ,$(mlib))))
 
 specs: specs.install
 	sed '/^*self_spec:$$/{ n;s/^$$/$(lib_build_self_spec)/g; }' $< > $@
+
+# Remove lib_build_self_specs before regression tests.
+.PHONY: remove-lib-specs
+check check-host check-target $(CHECK_TARGETS): remove-lib-specs
+remove-lib-specs:
+	-mv -f specs.install specs 2>/dev/null
 
 # Multiarch
 ifneq ($(call if_multiarch,yes),yes)

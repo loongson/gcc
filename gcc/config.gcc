@@ -4890,7 +4890,7 @@ case "${target}" in
 		;;
 
 	loongarch*-*-*)
-		supported_defaults="abi arch tune fpu"
+		supported_defaults="abi arch tune fpu multilib-default"
 
 		# Local variables
 		unset \
@@ -5134,6 +5134,41 @@ case "${target}" in
 			;;
 		esac
 
+		# Handle --with-multilib-default
+		if echo "${with_multilib_default}" \
+		| grep -E -e '[[:space:]]' -e '//' -e '/$' -e '^/' > /dev/null 2>&1; then
+			echo "Invalid argument to --with-multilib-default." 1>&2
+			exit 1
+		fi
+
+		unset parse_state component
+		parse_state=arch
+		for component in $(echo "${with_multilib_default}" | tr '/' ' '); do
+			case ${parse_state},${component} in
+			arch,|arch,abi-default)
+				# ABI-default: use the ABI's default ARCH configuration for
+				# multilib library builds, unless otherwise specified
+				# in --with-multilib-list.
+				with_multilib_default="/march=abi-default"
+				parse_state=opts
+				;;
+			arch,fixed)
+				# Fixed: use the default gcc configuration for all multilib
+				# builds by default.
+				with_multilib_default=""
+				parse_state=opts
+				;;
+			arch,*)
+				with_multilib_default="/march=abi-default"
+				parse_state=opts
+				;&
+			opts,*)
+				with_multilib_default="${with_multilib_default}/${component}"
+				;;
+			esac
+		done
+		unset parse_state component
+
 		# Handle --with-multilib-list.
 		if test x"${with_multilib_list}" = x \
 		   || test x"${with_multilib_list}" = xno \
@@ -5156,22 +5191,20 @@ case "${target}" in
 		# ${with_multilib_list} should not contain whitespaces,
 		# consecutive commas or slashes.
 		if echo "${with_multilib_list}" \
-		| grep -E -e "[[:space:]]" -e '[,/][,/]' -e '[,/]$' -e '^[,/]' > /dev/null; then
+		| grep -E -e "[[:space:]]" -e '[,/][,/]' -e '[,/]$' -e '^[,/]' > /dev/null 2>&1; then
 			echo "Invalid argument to --with-multilib-list." 1>&2
 			exit 1
 		fi
 
-		unset component idx elem_abi_base elem_abi_ext elem_tmp abi_complete
+		unset component elem_abi_base elem_abi_ext elem_tmp parse_state all_abis
 		for elem in $(echo "${with_multilib_list}" | tr ',' ' '); do
-			idx=0
-			abi_complete=no
-			while true; do
-				idx=$((idx + 1))
-				component=$(echo "${elem}" | awk -F'/' '{print $'"${idx}"'}')
+			unset elem_abi_base elem_abi_ext
+			parse_state="abi-base"
 
-				case ${idx} in
-				1)
-					# Component 1: Base ABI type
+			for component in $(echo "${elem}" | tr '/' ' '); do
+				case ${parse_state} in
+				abi-base)
+					# Base ABI type
 					case ${component} in
 					lp64d) elem_tmp="ABI_BASE_LP64D,";;
 					lp64f) elem_tmp="ABI_BASE_LP64F,";;
@@ -5184,73 +5217,98 @@ case "${target}" in
 					loongarch_multilib_list_c="${loongarch_multilib_list_c}${elem_tmp}"
 					loongarch_multilib_list_make="${loongarch_multilib_list_make}mabi=${component}"
 					elem_abi_base="${component}"
+
+					parse_state="abi-ext"
 					;;
 
-				2|3)
-					# Other components: ABI extension type / default ARCH
+				abi-ext)
+					# ABI extension type
 					case ${component} in
-					"" | base)
-						if test x${component} = xbase && test x${idx} = x3; then
-						    echo "ABI extension \"${component}\"" \
-						         "should follow the base ABI type in --with-multilib-list." 1>&2
-						    exit 1
-						fi
-						if test x${abi_complete} = xno; then
-						    elem_abi_ext="base"
-						    loongarch_multilib_list_make="${loongarch_multilib_list_make}" # Add nothing for now.
-						    loongarch_multilib_list_c="${loongarch_multilib_list_c}ABI_EXT_BASE,"
-						    abi_complete=yes
-						fi
-
-						if test x${component} = x; then
-						    # End of component list.
-						    break
-						fi
+					base)
+						elem_abi_ext="base"
+						loongarch_multilib_list_c="${loongarch_multilib_list_c}ABI_EXT_BASE,"
+						loongarch_multilib_list_make="${loongarch_multilib_list_make}" # Add nothing for now.
+						parse_state="arch"
+						continue;
 						;;
+					esac
 
+					# The default ABI extension is "base" if unspecified.
+					elem_abi_ext="base"
+					loongarch_multilib_list_c="${loongarch_multilib_list_c}ABI_EXT_BASE,"
+					loongarch_multilib_list_make="${loongarch_multilib_list_make}" # Add nothing for now.
+					parse_state="arch"
+					;&
+
+				arch)
+					# -march option
+					case ${component} in
 					abi-default | loongarch64 | la464 | la264 | 2k1000la | 2k1500) # OK, append here.
-						# The default ABI extension is "base".
-						if test x${abi_complete} = xno; then
-						    elem_abi_ext="base"
-						    loongarch_multilib_list_make="${loongarch_multilib_list_make}" # Add nothing for now.
-						    loongarch_multilib_list_c="${loongarch_multilib_list_c}ABI_EXT_BASE,"
-						    abi_complete=yes
-						fi
 						# Append -march spec for each multilib variant.
 						loongarch_multilib_list_make="${loongarch_multilib_list_make}/march=${component}"
-						idx=3
-						;;
-					*)
-						echo "Unknown ABI extension or ARCH type \"${component}\" in --with-multilib-list." 1>&2
-						exit 1
+						;&
+
+					default)
+						# "/default" is equivalent to --with-multilib-default=fixed
+						parse_state="opts"
+						continue;
 						;;
 					esac
 
-					;;
+					# If ARCH is unspecified for this multilib variant, use ${with_multllib_default}.
+					loongarch_multilib_list_make="${loongarch_multilib_list_make}${with_multilib_default}"
+					parse_state="opts"
+					;&
 
-				*)
-					# Component 4 and on: optional stuff
+				opts)
+					# Other compiler options for building libraries.
+					# (no static sanity check performed)
 					case ${component} in
-					"")
-						# End of component list.
-						break
-						;;
 					*)
-						echo "Unknown multilib variant \"${elem}\" in --with-multilib-list." 1>&2
-						exit 1
+						# Append other components as additional build options
+						# (without the prepending dash).
+						# Their validity should be examined by the compiler.
+						loongarch_multilib_list_make="${loongarch_multilib_list_make}/${component}"
 						;;
 					esac
 					;;
+
 				esac
 			done
 
-			if test x${abi_complete} = xyes \
-			&& test x${elem_abi_base} = x${with_abi} \
+			case ${parse_state} in
+			    "abi-ext")
+					elem_abi_ext="base"
+					loongarch_multilib_list_c="${loongarch_multilib_list_c}ABI_EXT_BASE,"
+					loongarch_multilib_list_make="${loongarch_multilib_list_make}" # Add nothing for now.
+					;&
+			    "arch")
+					# If ARCH is unspecified for this multilib variant, use ${with_multllib_default}.
+					loongarch_multilib_list_make="${loongarch_multilib_list_make}${with_multilib_default}"
+					;&
+			    "opts")
+					;;
+			esac
+
+			# Check for repeated configuration of the same multilib variant.
+		        if echo "${elem_abi_base}/${elem_abi_ext}" \
+			 | grep -E "^(${all_abis%|})$" >/dev/null 2>&1; then
+				echo "Repeated multilib config of \"${elem_abi_base}/${elem_abi_ext}\" in --with-multilib-list."
+				exit 1
+			fi
+			all_abis+="${elem_abi_base}/${elem_abi_ext}|"
+
+
+			# Check if the default ABI configuration of the GCC binary
+			# is included in the enabled multilib variants.
+			if test x${elem_abi_base} = x${with_abi} \
 			&& test x${elem_abi_ext} = x${with_abiext}; then
 				loongarch_multilib_list_sane=yes
 			fi
 			loongarch_multilib_list_make="${loongarch_multilib_list_make},"
 		done
+		unset component elem_abi_base elem_abi_ext elem_tmp parse_state all_abis
+
 
 		# Check if the default ABI combination is in the default list.
 		if test x${loongarch_multilib_list_sane} = xno; then
