@@ -77,11 +77,11 @@ Target Driver RejectNegative Var(la_opt_switches) Mask(FORCE_F64) Negative(m@@OP
 Allow hardware floating-point instructions to cover both 32-bit and 64-bit operations.
 
 m@@OPTSTR_LSX@@
-Target Var(la_opt_switches) Mask(LSX) Negative(m@@OPTSTR_LSX@@)
+Target Var(la_opt_switches) Mask(LSX) Negative(m@@OPTSTR_LASX@@)
 Enable LoongArch SIMD Extension (LSX).
 
 m@@OPTSTR_LASX@@
-Target Var(la_opt_switches) Mask(LASX) Negative(m@@OPTSTR_LASX@@)
+Target Var(la_opt_switches) Mask(LASX) Negative(m@@OPTSTR_LSX@@)
 Enable LoongArch Advanced SIMD Extension (LASX).
 
 ;; Base target models (implies ISA & tune parameters)
