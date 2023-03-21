@@ -7117,10 +7117,7 @@ loongarch_cpu_option_override (struct loongarch_target *target,
   switch (target->cpu_arch)
     {
       case CPU_LA264:
-      case CPU_2K1000LA:
-      case CPU_2K1500:
-
-	/* Using -mstrict-align is recommended for 2K1000LA/2K1500.  */
+	/* Using -mstrict-align is recommended for la264 cores.  */
 	if (!opts_set->x_TARGET_STRICT_ALIGN)
 	  {
 	    opts->x_TARGET_STRICT_ALIGN = 1;

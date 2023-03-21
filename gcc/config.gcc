@@ -4937,7 +4937,7 @@ case "${target}" in
 
 		# Perform initial sanity checks on --with-* options.
 		case ${with_arch} in
-		"" | abi-default | loongarch64 | la464 | la264 | 2k1000la | 2k1500) ;; # OK, append here.
+		"" | abi-default | loongarch64 | la[234]64) ;; # OK, append here.
 		native)
 			if test x${host} != x${target}; then
 				echo "--with-arch=native is illegal for cross-compiler." 1>&2
@@ -5038,7 +5038,7 @@ case "${target}" in
 		case ${with_abi}/${with_abiext} in
 		lp64*/base)
 			# architectures that support lp64* ABI
-			arch_pattern="native|abi-default|loongarch64|la464|la264|2k1000la|2k1500"
+			arch_pattern="native|abi-default|loongarch64|la[234]64"
 			# default architecture for lp64* ABI
 			arch_default="abi-default"
 			;;
@@ -5113,7 +5113,7 @@ case "${target}" in
 		# Check default with_tune configuration using with_arch.
 		case ${with_arch} in
 		loongarch64)
-			tune_pattern="abi-default|loongarch64|la464|la264|2k1000la|2k1500"
+			tune_pattern="native|abi-default|loongarch64|la[234]64"
 			;;
 		*)
 			# By default, $with_tune == $with_arch
@@ -5141,33 +5141,38 @@ case "${target}" in
 			exit 1
 		fi
 
-		unset parse_state component
-		parse_state=arch
-		for component in $(echo "${with_multilib_default}" | tr '/' ' '); do
-			case ${parse_state},${component} in
-			arch,|arch,abi-default)
-				# ABI-default: use the ABI's default ARCH configuration for
-				# multilib library builds, unless otherwise specified
-				# in --with-multilib-list.
-				with_multilib_default="/march=abi-default"
-				parse_state=opts
-				;;
-			arch,fixed)
-				# Fixed: use the default gcc configuration for all multilib
-				# builds by default.
-				with_multilib_default=""
-				parse_state=opts
-				;;
-			arch,*)
-				with_multilib_default="/march=abi-default"
-				parse_state=opts
-				;&
-			opts,*)
-				with_multilib_default="${with_multilib_default}/${component}"
-				;;
-			esac
-		done
-		unset parse_state component
+		if test x${with_multilib_default} = x; then
+			# Use -march=abi-default by default when building libraries.
+			with_multilib_default="/march=abi-default"
+		else
+			unset parse_state component
+			parse_state=arch
+			for component in $(echo "${with_multilib_default}" | tr '/' ' '); do
+				case ${parse_state},${component} in
+				arch,|arch,abi-default)
+					# ABI-default: use the ABI's default ARCH configuration for
+					# multilib library builds, unless otherwise specified
+					# in --with-multilib-list.
+					with_multilib_default="/march=abi-default"
+					parse_state=opts
+					;;
+				arch,fixed)
+					# Fixed: use the default gcc configuration for all multilib
+					# builds by default.
+					with_multilib_default=""
+					parse_state=opts
+					;;
+				arch,*)
+					with_multilib_default="/march=abi-default"
+					parse_state=opts
+					;&
+				opts,*)
+					with_multilib_default="${with_multilib_default}/${component}"
+					;;
+				esac
+			done
+			unset parse_state component
+		fi
 
 		# Handle --with-multilib-list.
 		if test x"${with_multilib_list}" = x \
@@ -5243,7 +5248,7 @@ case "${target}" in
 				arch)
 					# -march option
 					case ${component} in
-					abi-default | loongarch64 | la464 | la264 | 2k1000la | 2k1500) # OK, append here.
+					abi-default | loongarch64 | la[234]64) # OK, append here.
 						# Append -march spec for each multilib variant.
 						loongarch_multilib_list_make="${loongarch_multilib_list_make}/march=${component}"
 						;&

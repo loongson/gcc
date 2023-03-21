@@ -133,11 +133,10 @@ struct loongarch_target
 #define CPU_ABI_DEFAULT   1
 #define CPU_LOONGARCH64	  2
 #define CPU_LA464	  3
-#define CPU_LA264	  4
-#define CPU_2K1000LA      5
-#define CPU_2K1500        6
-#define N_ARCH_TYPES	  7
-#define N_TUNE_TYPES	  7
+#define CPU_LA364	  4
+#define CPU_LA264	  5
+#define N_ARCH_TYPES	  6
+#define N_TUNE_TYPES	  6
 #define CPU_NONE          7
 
 /* parallel tables */

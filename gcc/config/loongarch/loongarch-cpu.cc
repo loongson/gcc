@@ -104,6 +104,10 @@ fill_native_cpu_config (struct loongarch_target *tgt)
       native_cpu_type = CPU_LA464;
       break;
 
+    case 0x0014b000:   /* LA364 */
+      native_cpu_type = CPU_LA364;
+      break;
+
     case 0x0014a000:   /* LA264 */
       native_cpu_type = CPU_LA264;
       break;
@@ -213,10 +217,12 @@ fill_native_cpu_config (struct loongarch_target *tgt)
 	}
 
       /* Check consistency with PRID presets.  */
+      /*
       if (native_cpu_type != CPU_NATIVE && tmp != PRESET_SIMD)
 	warning (0, "SIMD extension %qs differs from PRID preset %qs",
 		 loongarch_isa_ext_strings[tmp],
 		 loongarch_isa_ext_strings[PRESET_SIMD]);
+      */
 
       /* Use the native value anyways.  */
       PRESET_SIMD = tmp;
@@ -260,16 +266,18 @@ fill_native_cpu_config (struct loongarch_target *tgt)
 	* (1 << ((l2_szword & 0x7f000000) >> 24)) /* bit[30:24]: log2(linesz) */
 	>> 10;					  /* in kibibytes */
 
+      /*
       if (native_cpu_type != CPU_NATIVE && (
 	  native_cache.l1d_line_size != PRESET_CACHE.l1d_line_size ||
 	  native_cache.l1d_size != PRESET_CACHE.l1d_size ||
 	  native_cache.l2d_size != PRESET_CACHE.l2d_size))
-	warning (0, "native cache info (%<L1 %dK, L2 %dK, %dB%>)"
+	warning (0, "native cache info (%<L1 %dK, L2 %dK, %dB%>) "
 		    "differs from PRID preset (%<L1 %dK, L2 %dK, %dB%>)",
 		    native_cache.l1d_size, native_cache.l2d_size,
 		    native_cache.l1d_line_size,
 		    PRESET_CACHE.l1d_size, PRESET_CACHE.l2d_size,
 		    PRESET_CACHE.l1d_line_size);
+      */
 
       /* Use the native value anyways.  */
       PRESET_CACHE.l1d_line_size = native_cache.l1d_line_size;

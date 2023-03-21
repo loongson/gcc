@@ -87,9 +87,8 @@ loongarch_update_gcc_opt_status (struct loongarch_target *target,
 
 /* TARGET_ macros for use in *.md template conditionals */
 #define TARGET_uARCH_LA464	  (la_target.cpu_tune == CPU_LA464)
-#define TARGET_uARCH_LA264	  (la_target.cpu_tune == CPU_LA264 \
-				   || la_target.cpu_tune == CPU_2K1000LA \
-				   || la_target.cpu_tune == CPU_2K1500)
+#define TARGET_uARCH_LA364	  (la_target.cpu_tune == CPU_LA364)
+#define TARGET_uARCH_LA264	  (la_target.cpu_tune == CPU_LA264)
 
 /* Note: optimize_size may vary across functions,
    while -m[no]-memcpy imposes a global constraint.  */

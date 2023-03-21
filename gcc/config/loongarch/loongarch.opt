@@ -119,10 +119,7 @@ EnumValue
 Enum(cpu_type) String(la264) Value(CPU_LA264)
 
 EnumValue
-Enum(cpu_type) String(2k1000la) Value(CPU_2K1000LA)
-
-EnumValue
-Enum(cpu_type) String(2k1500) Value(CPU_2K1500)
+Enum(cpu_type) String(la364) Value(CPU_LA364)
 
 march=
 Target RejectNegative Joined Enum(cpu_type) Var(la_opt_cpu_arch) Init(M_OPT_UNSET)
