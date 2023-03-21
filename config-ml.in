@@ -301,6 +301,25 @@ arm-*-*)
 	  done
 	fi
 	;;
+loongarch*-*-*)
+	old_multidirs="${multidirs}"
+	multidirs=""
+	for m in $(echo "${with_multilib_list}" | sed 's/,/ /g'); do
+	  #
+	  # Format of ${with_multilib_list} elements:
+	  #    abi_base[/abi_ext[/extras]]
+	  #
+	  m_base=$(echo "${m}" | sed 's@^\([^/]*\)/.*@\1@')
+	  m_ext=$(echo "${m}" | sed 's@^[^/]*\(/\|$\)\([^/]*\).*@\2@')
+	  [ -z "${m_ext}" ] && m_ext=base
+	  for x in ${old_multidirs}; do
+	    case "$x" in
+	      ${m_ext}/${m_base} ) multidirs="${multidirs} ${x}" ;;
+	      *) : ;;
+	    esac
+	  done
+	done
+	;;
 m68*-*-*)
 	if [ x$enable_softfloat = xno ]
 	then
