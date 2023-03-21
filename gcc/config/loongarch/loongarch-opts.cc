@@ -713,10 +713,12 @@ loongarch_update_gcc_opt_status (struct gcc_options *opts,
 	gcc_unreachable ();
     }
 
-  /* status of -m*-float */
+  /* status of -m*-float and -mfpu */
   opts->x_la_opt_switches &= ~OPTION_MASK_FORCE_SOFTF;
   opts->x_la_opt_switches &= ~OPTION_MASK_FORCE_F32;
   opts->x_la_opt_switches &= ~OPTION_MASK_FORCE_F64;
+
+  opts->x_la_opt_fpu = target->isa.fpu;
 
   switch (target->isa.fpu)
     {
