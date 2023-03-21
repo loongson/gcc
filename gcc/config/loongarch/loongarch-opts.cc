@@ -115,7 +115,7 @@ static int abi_default_cpu_arch (struct loongarch_abi abi, struct loongarch_isa 
 #endif
 
 #ifndef DEFAULT_ISA_EXT_SIMD
-#define DEFAULT_ISA_EXT_SIMD ISA_EXT_NONE
+#define DEFAULT_ISA_EXT_SIMD (TARGET_DEFAULT_ENABLE_LSX ? ISA_EXT_SIMD_LSX : ISA_EXT_NONE)
 #endif
 
 /* Initialize loongarch_target from separate option variables.  */

@@ -5331,6 +5331,11 @@ case "${target}" in
 		# Remove the excessive appending comma.
 		loongarch_multilib_list_c=${loongarch_multilib_list_c%,}
 		loongarch_multilib_list_make=${loongarch_multilib_list_make%,}
+
+		# Handle --enable-default-lsx setting.
+		if test x${enable_default_lsx} = xyes; then
+			tm_defines="${tm_defines} TARGET_DEFAULT_ENABLE_LSX=1"
+		fi
 		;;
 
 	nds32*-*-*)

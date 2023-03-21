@@ -98,4 +98,7 @@ loongarch_update_gcc_opt_status (struct loongarch_target *target,
 #define HAVE_AS_EXPLICIT_RELOCS 0
 #endif
 
+#ifndef TARGET_DEFAULT_ENABLE_LSX
+#define TARGET_DEFAULT_ENABLE_LSX 0
+#endif
 #endif /* LOONGARCH_OPTS_H */
