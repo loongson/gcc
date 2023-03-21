@@ -5288,7 +5288,7 @@ loongarch_block_move_loop (rtx dest, rtx src, HOST_WIDE_INT length,
 bool
 loongarch_expand_block_move (rtx dest, rtx src, rtx length)
 {
-  int max_move_bytes = TARGET_LASX
+  int max_move_bytes = ISA_HAS_LASX
     ? LARCH_MAX_MOVE_BYTES_STRAIGHT * 8
     : LARCH_MAX_MOVE_BYTES_STRAIGHT;
 
@@ -7138,10 +7138,13 @@ loongarch_option_override_internal (struct gcc_options *opts)
   if (flag_pic)
     g_switch_value = 0;
 
-  /* Handle target-specific options: compute defaults/conflicts etc.  */
-  loongarch.config_target (&la_target, la_opt_switches, opts_set->x_la_opt_switches,
-			   la_opt_cpu_arch, la_opt_cpu_tune, la_opt_fpu,
-			   la_opt_abi_base, la_opt_abi_ext, la_opt_cmodel, 0);
+  loongarch_init_target (&la_target,
+			 la_opt_cpu_arch, la_opt_cpu_tune, la_opt_fpu,
+			 la_opt_simd, la_opt_abi_base, la_opt_abi_ext,
+			 la_opt_cmodel);
+
+   /* Handle target-specific options: compute defaults/conflicts etc.  */
+  loongarch_config_target (&la_target, NULL, 0);
 
   loongarch_update_gcc_opt_status (&la_target, opts, opts_set);
   loongarch_cpu_option_override (&la_target, opts, opts_set);
@@ -7631,7 +7634,7 @@ loongarch_expand_vec_perm_interleave (struct expand_vec_perm_d *d)
 
   if (d->one_vector_p)
     return false;
-  if (TARGET_LASX && GET_MODE_SIZE (d->vmode) == 32)
+  if (ISA_HAS_LASX && GET_MODE_SIZE (d->vmode) == 32)
     ;
   else
     return false;
@@ -7797,7 +7800,7 @@ static bool
 loongarch_expand_vec_perm_even_odd (struct expand_vec_perm_d *d)
 {
   unsigned i, odd, nelt = d->nelt;
-  if (!TARGET_LASX)
+  if (!ISA_HAS_LASX)
     return false;
 
   odd = d->perm[0];
@@ -9604,7 +9607,7 @@ loongarch_expand_vector_extract (rtx target, rtx vec, int elt)
       break;
 
     case E_V32QImode:
-      if (TARGET_LASX)
+      if (ISA_HAS_LASX)
 	{
 	  if (elt >= 16)
 	    {
@@ -9623,7 +9626,7 @@ loongarch_expand_vector_extract (rtx target, rtx vec, int elt)
       break;
 
     case E_V16HImode:
-      if (TARGET_LASX)
+      if (ISA_HAS_LASX)
 	{
 	  if (elt >= 8)
 	    {

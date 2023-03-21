@@ -33,7 +33,7 @@ gen_mlib_spec = $(if $(word 2,$1),\
 		%{$(firstword $1):$(patsubst %,-%,$(wordlist 2,$(words $1),$1))})
 
 # clean up the result of DRIVER_SELF_SPEC to avoid conflict
-lib_build_self_spec  = %<march=* %<mtune=* %<mcmodel=* %<mfpu=* %<mlsx %<mlasx
+lib_build_self_spec  = %<march=* %<mtune=* %<mcmodel=* %<mfpu=* %<msimd=
 
 # build libraries with -mstrict-align by default
 lib_build_self_spec += -mstrict-align

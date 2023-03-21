@@ -59,7 +59,7 @@ extern const char* loongarch_isa_base_strings[];
 
 /* enum isa_ext_* */
 extern const char* loongarch_isa_ext_strings[];
-#define ISA_EXT_NOFPU	      0
+#define ISA_EXT_NONE	      0
 #define ISA_EXT_FPU32	      1
 #define ISA_EXT_FPU64	      2
 #define N_ISA_EXT_FPU_TYPES   3
@@ -97,48 +97,34 @@ extern const char* loongarch_cmodel_strings[];
 #define CMODEL_EXTREME	      5
 #define N_CMODEL_TYPES	      6
 
-/* enum switches */
-/* The "SW_" codes represent command-line switches (options that
-   accept no parameters). Definition for other switches that affects
-   the target ISA / ABI configuration will also be appended here
-   in the future.  */
-
-extern const char* loongarch_switch_strings[];
-#define SW_SOFT_FLOAT	      0
-#define SW_SINGLE_FLOAT	      1
-#define SW_DOUBLE_FLOAT	      2
-#define SW_LSX		      3
-#define SW_LASX		      4
-#define N_SWITCH_TYPES	      5
-
 /* The common default value for variables whose assignments
    are triggered by command-line options.  */
 
-#define M_OPTION_NOT_SEEN -1
-#define M_OPT_ABSENT(opt_enum)  ((opt_enum) == M_OPTION_NOT_SEEN)
+#define M_OPT_UNSET -1
+#define M_OPT_ABSENT(opt_enum)  ((opt_enum) == M_OPT_UNSET)
 
 
 /* Internal representation of the target.  */
 struct loongarch_isa
 {
-  unsigned char base;	    /* ISA_BASE_ */
-  unsigned char fpu;	    /* ISA_EXT_FPU_ */
-  unsigned char simd;	    /* ISA_EXT_SIMD_ */
+  int base;	    /* ISA_BASE_ */
+  int fpu;	    /* ISA_EXT_FPU_ */
+  int simd;	    /* ISA_EXT_SIMD_ */
 };
 
 struct loongarch_abi
 {
-  unsigned char base;	    /* ABI_BASE_ */
-  unsigned char ext;	    /* ABI_EXT_ */
+  int base;	    /* ABI_BASE_ */
+  int ext;	    /* ABI_EXT_ */
 };
 
 struct loongarch_target
 {
   struct loongarch_isa isa;
   struct loongarch_abi abi;
-  unsigned char cpu_arch;     /* CPU_ */
-  unsigned char cpu_tune;     /* same */
-  unsigned char cmodel;	      /* CMODEL_ */
+  int cpu_arch;	    /* CPU_ */
+  int cpu_tune;	    /* same */
+  int cmodel;	    /* CMODEL_ */
 };
 
 /* CPU properties.  */

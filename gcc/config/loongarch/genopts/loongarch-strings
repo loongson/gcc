@@ -35,7 +35,7 @@ STR_ISA_BASE_LA64V100 la64
 
 # -mfpu
 OPTSTR_ISA_EXT_FPU    fpu
-STR_ISA_EXT_NOFPU     none
+STR_NONE              none
 STR_ISA_EXT_FPU0      0
 STR_ISA_EXT_FPU32     32
 STR_ISA_EXT_FPU64     64
@@ -45,8 +45,9 @@ OPTSTR_SINGLE_FLOAT   single-float
 OPTSTR_DOUBLE_FLOAT   double-float
 
 # SIMD extensions
-OPTSTR_LSX	lsx
-OPTSTR_LASX	lasx
+OPTSTR_ISA_EXT_SIMD   simd
+STR_ISA_EXT_LSX       lsx
+STR_ISA_EXT_LASX      lasx
 
 # -mabi=
 OPTSTR_ABI_BASE	      abi

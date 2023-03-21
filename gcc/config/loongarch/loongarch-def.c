@@ -187,11 +187,11 @@ loongarch_isa_base_strings[N_ISA_BASE_TYPES] = {
 
 const char*
 loongarch_isa_ext_strings[N_ISA_EXT_TYPES] = {
-  [ISA_EXT_FPU64] = STR_ISA_EXT_FPU64,
+  [ISA_EXT_NONE] = STR_NONE,
   [ISA_EXT_FPU32] = STR_ISA_EXT_FPU32,
-  [ISA_EXT_NOFPU] = STR_ISA_EXT_NOFPU,
-  [ISA_EXT_SIMD_LSX] = OPTSTR_LSX,
-  [ISA_EXT_SIMD_LASX] = OPTSTR_LASX,
+  [ISA_EXT_FPU64] = STR_ISA_EXT_FPU64,
+  [ISA_EXT_SIMD_LSX] = STR_ISA_EXT_LSX,
+  [ISA_EXT_SIMD_LASX] = STR_ISA_EXT_LASX,
 };
 
 const char*
@@ -216,16 +216,6 @@ loongarch_cmodel_strings[] = {
   [CMODEL_EXTREME]	  = STR_CMODEL_EXTREME,
 };
 
-const char*
-loongarch_switch_strings[] = {
-  [SW_SOFT_FLOAT]	  = OPTSTR_SOFT_FLOAT,
-  [SW_SINGLE_FLOAT]	  = OPTSTR_SINGLE_FLOAT,
-  [SW_DOUBLE_FLOAT]	  = OPTSTR_DOUBLE_FLOAT,
-  [SW_LSX]		  = OPTSTR_LSX,
-  [SW_LASX]		  = OPTSTR_LASX,
-};
-
-
 /* ABI-related definitions.  */
 const struct loongarch_isa
 abi_minimal_isa[N_ABI_BASE_TYPES][N_ABI_EXT_TYPES] = {
@@ -236,6 +226,6 @@ abi_minimal_isa[N_ABI_BASE_TYPES][N_ABI_EXT_TYPES] = {
       [ABI_EXT_BASE] = {.base = ISA_BASE_LA64V100, .fpu = ISA_EXT_FPU32, .simd = 0},
   },
   [ABI_BASE_LP64S] = {
-      [ABI_EXT_BASE] = {.base = ISA_BASE_LA64V100, .fpu = ISA_EXT_NOFPU, .simd = 0},
+      [ABI_EXT_BASE] = {.base = ISA_BASE_LA64V100, .fpu = ISA_EXT_NONE, .simd = 0},
   },
 };

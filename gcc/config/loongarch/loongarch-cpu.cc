@@ -166,7 +166,7 @@ fill_native_cpu_config (struct loongarch_target *tgt)
 	    break;
 
 	  case 0x00:
-	    tmp = ISA_EXT_NOFPU;
+	    tmp = ISA_EXT_NONE;
 	    break;
 
 	  default:

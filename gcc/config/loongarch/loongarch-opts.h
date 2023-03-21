@@ -21,26 +21,35 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef LOONGARCH_OPTS_H
 #define LOONGARCH_OPTS_H
 
+#include "loongarch-def.h"
 
 /* Target configuration */
 extern struct loongarch_target la_target;
 
-/* Switch masks */
-extern const int loongarch_switch_mask[];
-
-#include "loongarch-def.h"
+/* Flag status */
+struct loongarch_flags {
+    int flt; const char* flt_str;
+#define SX_FLAG_TYPE(x) ((x) < 0 ? -(x) : (x))
+    int sx[2];
+};
 
 #if !defined(IN_LIBGCC2) && !defined(IN_TARGET_LIBS) && !defined(IN_RTS)
+
+/* Initialize loongarch_target from separate option variables.  */
+void
+loongarch_init_target (struct loongarch_target *target,
+		       int cpu_arch, int cpu_tune, int fpu, int simd,
+		       int abi_base, int abi_ext, int cmodel);
+
+
 /* Handler for "-m" option combinations,
    shared by the driver and the compiler proper.  */
 void
 loongarch_config_target (struct loongarch_target *target,
-			 HOST_WIDE_INT opt_switches,
-			 HOST_WIDE_INT opt_switches_set,
-			 int opt_arch, int opt_tune, int opt_fpu,
-			 int opt_abi_base, int opt_abi_ext,
-			 int opt_cmodel, int follow_multilib_list);
+			 struct loongarch_flags *flags,
+			 int follow_multilib_list_p);
 
+/* option status feedback for "gcc --help=target -Q" */
 void
 loongarch_update_gcc_opt_status (struct loongarch_target *target,
 				 struct gcc_options *opts,
@@ -56,11 +65,11 @@ loongarch_update_gcc_opt_status (struct loongarch_target *target,
 #define TARGET_CMODEL_LARGE	    (la_target.cmodel == CMODEL_LARGE)
 #define TARGET_CMODEL_EXTREME	    (la_target.cmodel == CMODEL_EXTREME)
 
-#define TARGET_HARD_FLOAT	    (la_target.isa.fpu != ISA_EXT_NOFPU)
+#define TARGET_HARD_FLOAT	    (la_target.isa.fpu != ISA_EXT_NONE)
 #define TARGET_HARD_FLOAT_ABI	    (la_target.abi.base == ABI_BASE_LP64D \
 				     || la_target.abi.base == ABI_BASE_LP64F)
 
-#define TARGET_SOFT_FLOAT	  (la_target.isa.fpu == ISA_EXT_NOFPU)
+#define TARGET_SOFT_FLOAT	  (la_target.isa.fpu == ISA_EXT_NONE)
 #define TARGET_SOFT_FLOAT_ABI	  (la_target.abi.base == ABI_BASE_LP64S)
 #define TARGET_SINGLE_FLOAT	  (la_target.isa.fpu == ISA_EXT_FPU32)
 #define TARGET_SINGLE_FLOAT_ABI	  (la_target.abi.base == ABI_BASE_LP64F)
