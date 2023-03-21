@@ -688,6 +688,7 @@ multilib_enabled_abi_list ()
 /* option status feedback for "gcc --help=target -Q" */
 void
 loongarch_update_gcc_opt_status (struct gcc_options *opts,
+				 struct gcc_options *opts_set,
 				 struct loongarch_target *target)
 {
   /* status of -mlsx and -mlasx */
@@ -736,5 +737,20 @@ loongarch_update_gcc_opt_status (struct gcc_options *opts,
 
       default:
 	gcc_unreachable ();
+    }
+
+  /* miscellaneous configurations */
+  switch (target->cpu_arch)
+    {
+      case CPU_LA264:
+
+	/* Using -mstrict-align is recommended for 2K1000LA.  */
+	if (!opts_set->x_TARGET_STRICT_ALIGN)
+	  {
+	    opts->x_TARGET_STRICT_ALIGN = 1;
+	    opts_set->x_TARGET_STRICT_ALIGN = 1;
+	  }
+
+	break;
     }
 }

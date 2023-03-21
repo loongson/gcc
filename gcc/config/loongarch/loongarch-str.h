@@ -29,6 +29,7 @@ along with GCC; see the file COPYING3.  If not see
 #define STR_CPU_NATIVE "native"
 #define STR_CPU_LOONGARCH64 "loongarch64"
 #define STR_CPU_LA464 "la464"
+#define STR_CPU_LA264 "la264"
 
 #define STR_ISA_BASE_LA64V100 "la64"
 

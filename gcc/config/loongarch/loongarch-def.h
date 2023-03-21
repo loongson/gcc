@@ -147,8 +147,9 @@ struct loongarch_target
 #define CPU_NATIVE	  0
 #define CPU_LOONGARCH64	  1
 #define CPU_LA464	  2
-#define N_ARCH_TYPES	  3
-#define N_TUNE_TYPES	  3
+#define CPU_LA264	  3
+#define N_ARCH_TYPES	  4
+#define N_TUNE_TYPES	  4
 
 /* parallel tables.  */
 extern const char* loongarch_cpu_strings[];

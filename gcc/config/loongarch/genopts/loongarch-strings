@@ -25,6 +25,7 @@ OPTSTR_TUNE	      tune
 STR_CPU_NATIVE	      native
 STR_CPU_LOONGARCH64   loongarch64
 STR_CPU_LA464	      la464
+STR_CPU_LA264	      la264
 
 # Base architecture
 STR_ISA_BASE_LA64V100 la64

@@ -7118,7 +7118,7 @@ loongarch_option_override_internal (struct gcc_options *opts)
 			   la_opt_cpu_arch, la_opt_cpu_tune, la_opt_fpu,
 			   la_opt_abi_base, la_opt_abi_ext, la_opt_cmodel, 0);
 
-  loongarch_update_gcc_opt_status (opts, &la_target);
+  loongarch_update_gcc_opt_status (opts, opts_set, &la_target);
 
   if (TARGET_ABI_LP64)
     flag_pcc_struct_return = 0;
@@ -9313,6 +9313,8 @@ loongarch_expand_vec_perm_const_2 (struct expand_vec_perm_d *d)
       tmp = gen_rtx_SUBREG (E_V8SImode, d->target, 0);
       emit_move_insn (tmp, sel);
       break;
+
+    case CPU_LA264:
     default:
       sel = gen_rtx_CONST_VECTOR (d->vmode, gen_rtvec_v (d->nelt, rperm));
       emit_move_insn (d->target, sel);

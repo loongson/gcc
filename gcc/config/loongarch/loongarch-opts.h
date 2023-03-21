@@ -43,6 +43,7 @@ loongarch_config_target (struct loongarch_target *target,
 
 void
 loongarch_update_gcc_opt_status (struct gcc_options *opts,
+				 struct gcc_options *opts_set,
 				 struct loongarch_target *target);
 #endif
 
@@ -88,9 +89,11 @@ loongarch_update_gcc_opt_status (struct gcc_options *opts,
 
 #define TARGET_ARCH_LOONGARCH64	  (LARCH_ACTUAL_ARCH == CPU_LOONGARCH64)
 #define TARGET_ARCH_LA464	  (LARCH_ACTUAL_ARCH == CPU_LA464)
+#define TARGET_ARCH_LA264	  (LARCH_ACTUAL_ARCH == CPU_LA264)
 
 #define TARGET_TUNE_LOONGARCH64	  (LARCH_ACTUAL_TUNE == CPU_LOONGARCH64)
 #define TARGET_TUNE_LA464	  (LARCH_ACTUAL_TUNE == CPU_LA464)
+#define TARGET_TUNE_LA264	  (LARCH_ACTUAL_TUNE == CPU_LA264)
 
 /* Note: optimize_size may vary across functions,
    while -m[no]-memcpy imposes a global constraint.  */

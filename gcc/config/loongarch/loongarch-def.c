@@ -42,6 +42,7 @@ loongarch_cpu_strings[N_TUNE_TYPES] = {
   [CPU_NATIVE]		  = STR_CPU_NATIVE,
   [CPU_LOONGARCH64]	  = STR_CPU_LOONGARCH64,
   [CPU_LA464]		  = STR_CPU_LA464,
+  [CPU_LA264]		  = STR_CPU_LA264,
 };
 
 struct loongarch_isa
@@ -55,6 +56,11 @@ loongarch_cpu_default_isa[N_ARCH_TYPES] = {
       .base = ISA_BASE_LA64V100,
       .fpu = ISA_EXT_FPU64,
       .simd = ISA_EXT_SIMD_LASX,
+  },
+  [CPU_LA264] = {
+      .base = ISA_BASE_LA64V100,
+      .fpu = ISA_EXT_FPU64,
+      .simd = ISA_EXT_SIMD_LSX,
   },
 };
 
@@ -70,6 +76,13 @@ loongarch_cpu_cache[N_TUNE_TYPES] = {
       .l1d_line_size = 64,
       .l1d_size = 64,
       .l2d_size = 256,
+      .simultaneous_prefetches = 4,
+  },
+  [CPU_LA264] = {
+      /* Loongson 2K1000LA specs */
+      .l1d_line_size = 64,
+      .l1d_size = 32,
+      .l2d_size = 1024,
       .simultaneous_prefetches = 4,
   },
 };
@@ -88,6 +101,9 @@ loongarch_cpu_rtx_cost_data[N_TUNE_TYPES] = {
       DEFAULT_COSTS
   },
   [CPU_LA464] = {
+      DEFAULT_COSTS
+  },
+  [CPU_LA264] = {
       DEFAULT_COSTS
   },
 };
@@ -113,6 +129,7 @@ loongarch_cpu_issue_rate[N_TUNE_TYPES] = {
   [CPU_NATIVE]	      = 4,
   [CPU_LOONGARCH64]   = 4,
   [CPU_LA464]	      = 4,
+  [CPU_LA264]	      = 2,
 };
 
 int
@@ -120,6 +137,7 @@ loongarch_cpu_multipass_dfa_lookahead[N_TUNE_TYPES] = {
   [CPU_NATIVE]	      = 4,
   [CPU_LOONGARCH64]   = 4,
   [CPU_LA464]	      = 4,
+  [CPU_LA264]	      = 4,
 };
 
 /* Wiring string definitions from loongarch-str.h to global arrays
