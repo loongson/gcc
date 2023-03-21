@@ -5109,9 +5109,12 @@ loongarch_block_move_straight (rtx dest, rtx src, HOST_WIDE_INT length)
   machine_mode mode;
   rtx *regs;
 
-  bits = MIN (BITS_PER_WORD, MIN (MEM_ALIGN (src), MEM_ALIGN (dest)));
+  if (STRICT_ALIGNMENT)
+    bits = MIN (BITS_PER_WORD, MIN (MEM_ALIGN (src), MEM_ALIGN (dest)));
+  else
+    bits = BITS_PER_WORD;
 
-  if (ISA_HAS_LASX)
+  if (ISA_HAS_LASX && !STRICT_ALIGNMENT)
     {
       bits = BITS_PER_WORD * 4;
       mode = V4DImode;
@@ -5140,7 +5143,7 @@ loongarch_block_move_straight (rtx dest, rtx src, HOST_WIDE_INT length)
   /* Mop up any left-over bytes.  */
   if (offset < length)
     {
-      if (ISA_HAS_LASX)
+      if (ISA_HAS_LASX && !STRICT_ALIGNMENT)
 	{
 	  if (length - offset >= 16)
 	    {
