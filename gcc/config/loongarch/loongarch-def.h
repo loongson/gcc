@@ -74,6 +74,14 @@ extern const char* loongarch_abi_base_strings[];
 #define ABI_BASE_LP64S	      2
 #define N_ABI_BASE_TYPES      3
 
+#define ABI_FPU_64(abi_base) \
+  (abi_base == ABI_BASE_LP64D)
+#define ABI_FPU_32(abi_base) \
+  (abi_base == ABI_BASE_LP64F)
+#define ABI_FPU_NONE(abi_base) \
+  (abi_base == ABI_BASE_LP64S)
+
+
 /* enum abi_ext */
 extern const char* loongarch_abi_ext_strings[];
 #define ABI_EXT_BASE	      0

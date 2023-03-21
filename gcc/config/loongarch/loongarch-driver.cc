@@ -38,19 +38,12 @@ static int
   opt_abi_ext_driver = M_OPTION_NOT_SEEN,
   opt_cmodel_driver = M_OPTION_NOT_SEEN;
 
-int opt_switches = 0;
+int opt_switches, opt_switches_set = 0;
 
 /* This flag is set to 1 if we believe that the user might be avoiding
    linking (implicitly) against something from the startfile search paths.  */
 static int no_link = 0;
 
-#define LARCH_DRIVER_SET_M_FLAG(OPTS_ARRAY, N_OPTS, FLAG, STR)	\
-  for (int i = 0; i < (N_OPTS); i++)				\
-  {								\
-    if ((OPTS_ARRAY)[i] != 0)					\
-      if (strcmp ((STR), (OPTS_ARRAY)[i]) == 0)			\
-	(FLAG) = i;						\
-  }
 
 /* Use the public obstack from the gcc driver (defined in gcc.c).
    This is for allocating space for the returned string.  */
@@ -63,65 +56,98 @@ extern struct obstack opts_obstack;
 #define APPEND_VAL(S) \
   obstack_grow (&opts_obstack, (const void*) (S), strlen ((S)))
 
+#define LARCH_DRIVER_SET_M_FLAG(IDX, STR, OPTS_ARRAY, N_OPTS)	\
+  for (int i = 0; i < (N_OPTS); i++)				\
+  {								\
+    if ((OPTS_ARRAY)[i] != 0)					\
+      if (strcmp ((STR), (OPTS_ARRAY)[i]) == 0)                 \
+	(IDX) = i;						\
+  }
 
 const char*
 driver_set_m_flag (int argc, const char **argv)
 {
-  int parm_off = 0;
-
-  if (argc != 1)
-    return "%eset_m_flag requires exactly 1 argument.";
-
-#undef PARM
-#define PARM (argv[0] + parm_off)
-
-/* Note: sizeof (OPTSTR_##NAME) equals the length of "<option>=".  */
-#undef MATCH_OPT
-#define MATCH_OPT(NAME) \
-  (strncmp (argv[0], OPTSTR_##NAME "=", \
-	    (parm_off = sizeof (OPTSTR_##NAME))) == 0)
+  gcc_assert (argc == 1);
 
   if (strcmp (argv[0], "no_link") == 0)
     {
       no_link = 1;
     }
-  else if (MATCH_OPT (ABI_BASE))
-    {
-      LARCH_DRIVER_SET_M_FLAG (
-	loongarch_abi_base_strings, N_ABI_BASE_TYPES,
-	opt_abi_base_driver, PARM)
-    }
-  else if (MATCH_OPT (ISA_EXT_FPU))
-    {
-      LARCH_DRIVER_SET_M_FLAG (loongarch_isa_ext_strings, N_ISA_EXT_FPU_TYPES,
-			       opt_fpu_driver, PARM)
-    }
-  else if (MATCH_OPT (ARCH))
-    {
-      LARCH_DRIVER_SET_M_FLAG (loongarch_cpu_strings, N_ARCH_TYPES,
-			       opt_arch_driver, PARM)
-    }
-  else if (MATCH_OPT (TUNE))
-    {
-      LARCH_DRIVER_SET_M_FLAG (loongarch_cpu_strings, N_TUNE_TYPES,
-			       opt_tune_driver, PARM)
-    }
-  else if (MATCH_OPT (CMODEL))
-    {
-      LARCH_DRIVER_SET_M_FLAG (loongarch_cmodel_strings, N_CMODEL_TYPES,
-			       opt_cmodel_driver, PARM)
-    }
-  else /* switches */
+  else
     {
       int switch_idx = M_OPTION_NOT_SEEN;
 
-      LARCH_DRIVER_SET_M_FLAG (loongarch_switch_strings, N_SWITCH_TYPES,
-			       switch_idx, argv[0])
+      LARCH_DRIVER_SET_M_FLAG (switch_idx, argv[0],
+			       loongarch_switch_strings, N_SWITCH_TYPES);
 
-      if (switch_idx != M_OPTION_NOT_SEEN)
-	opt_switches |= loongarch_switch_mask[switch_idx];
+      gcc_assert (switch_idx != M_OPTION_NOT_SEEN);
+      opt_switches |= loongarch_switch_mask[switch_idx];
+      opt_switches_set |= loongarch_switch_mask[switch_idx];
     }
   return "";
+}
+
+const char*
+driver_unset_m_flag (int argc, const char **argv)
+{
+  gcc_assert (argc == 1);
+
+  if (strcmp (argv[0], "no_link") == 0)
+    {
+      no_link = 1;
+    }
+  else
+    {
+      int switch_idx = M_OPTION_NOT_SEEN;
+
+      LARCH_DRIVER_SET_M_FLAG (switch_idx, argv[0],
+			       loongarch_switch_strings, N_SWITCH_TYPES);
+
+      gcc_assert (switch_idx != M_OPTION_NOT_SEEN);
+      opt_switches &= ~loongarch_switch_mask[switch_idx];
+      opt_switches_set |= loongarch_switch_mask[switch_idx];
+    }
+  return "";
+}
+
+const char*
+driver_set_m_parm (int argc, const char **argv)
+{
+  gcc_assert (argc == 2);
+
+#undef MATCH_OPT
+#define MATCH_OPT(NAME) \
+  (strcmp (argv[0], OPTSTR_##NAME) == 0)
+
+  if (MATCH_OPT (ABI_BASE))
+    {
+      LARCH_DRIVER_SET_M_FLAG (opt_abi_base_driver, argv[1],
+			       loongarch_abi_base_strings, N_ABI_BASE_OPTS)
+    }
+  else if (MATCH_OPT (ISA_EXT_FPU))
+    {
+      LARCH_DRIVER_SET_M_FLAG (opt_fpu_driver, argv[1],
+			       loongarch_isa_ext_strings, N_ISA_EXT_FPU_TYPES)
+    }
+  else if (MATCH_OPT (ARCH))
+    {
+      LARCH_DRIVER_SET_M_FLAG (opt_arch_driver, argv[1],
+			       loongarch.ccpu_strings, N_ARCH_TYPES)
+    }
+  else if (MATCH_OPT (TUNE))
+    {
+      LARCH_DRIVER_SET_M_FLAG (opt_tune_driver, argv[1],
+			       loongarch.ccpu_strings, N_TUNE_TYPES)
+    }
+  else if (MATCH_OPT (CMODEL))
+    {
+      LARCH_DRIVER_SET_M_FLAG (opt_cmodel_driver, argv[1],
+			       loongarch.ccmodel_strings, N_CMODEL_TYPES)
+    }
+  else
+    gcc_unreachable ();
+
+  return 0;
 }
 
 const char*
@@ -135,6 +161,7 @@ driver_get_normalized_m_opts (int argc, const char **argv)
 
   loongarch_config_target (& la_target,
 			   opt_switches,
+                           opt_switches_set,
 			   opt_arch_driver,
 			   opt_tune_driver,
 			   opt_fpu_driver,

@@ -130,6 +130,7 @@ static int abi_default_cpu_arch (struct loongarch_abi abi);
 void
 loongarch_config_target (struct loongarch_target *target,
 			 HOST_WIDE_INT opt_switches,
+			 HOST_WIDE_INT opt_switches_set,
 			 int opt_arch, int opt_tune, int opt_fpu,
 			 int opt_abi_base, int opt_abi_ext,
 			 int opt_cmodel, int follow_multilib_list)
@@ -143,6 +144,14 @@ loongarch_config_target (struct loongarch_target *target,
   init_enabled_abi_types ();
   obstack_init (&msg_obstack);
 
+#undef IS_SET
+#define IS_SET(NAME) ((loongarch_switch_mask[(SW_##NAME)] & opt_switches_set))
+
+  int on_switch;
+#undef IS_ON
+#define IS_ON(NAME) ((loongarch_switch_mask[(SW_##NAME)] & opt_switches) \
+		  ? (on_switch = (SW_##NAME), 1) : (on_switch = 0))
+
   struct {
     int arch, tune, fpu, abi_base, abi_ext, cmodel, simd;
   } constrained = {
@@ -152,12 +161,9 @@ loongarch_config_target (struct loongarch_target *target,
       M_OPT_ABSENT(opt_abi_base) ? 0 : 1,
       M_OPT_ABSENT(opt_abi_ext)  ? 0 : 1,
       M_OPT_ABSENT(opt_cmodel)   ? 0 : 1,
-      0
+      /* Whether some SIMD extension is explicitly enabled.  */
+      (IS_SET (LSX) && IS_ON (LSX)) || (IS_SET (LASX) && IS_ON (LASX)),
   };
-
-#define on(NAME) ((loongarch_switch_mask[(SW_##NAME)] & opt_switches) \
-		  && (on_switch = (SW_##NAME), 1))
-  int on_switch;
 
   /* 1.  Target ABI */
   t.abi.base = constrained.abi_base ? opt_abi_base : DEFAULT_ABI_BASE;
@@ -165,7 +171,7 @@ loongarch_config_target (struct loongarch_target *target,
   t.abi.ext = constrained.abi_ext ? opt_abi_ext : DEFAULT_ABI_EXT;
 
   /* Extra switch handling.  */
-  if (on (SOFT_FLOAT) || on (SINGLE_FLOAT) || on (DOUBLE_FLOAT))
+  if (IS_ON (SOFT_FLOAT) || IS_ON (SINGLE_FLOAT) || IS_ON (DOUBLE_FLOAT))
     {
       switch (on_switch)
 	{
@@ -256,25 +262,23 @@ config_target_isa:
 
   /* LoongArch SIMD extensions.  */
   /* Note: LASX implies LSX, so we put "on (LASX)" first.  */
-  int simd_switch;
-  if (on (LASX) || on (LSX))
+  if (IS_SET (LASX) && IS_ON (LASX))
     {
-      constrained.simd = 1;
-      switch (on_switch)
-	{
-	  case SW_LSX:
-	    t.isa.simd = ISA_EXT_SIMD_LSX;
-	    break;
+      t.isa.simd = ISA_EXT_SIMD_LASX;
 
-	  case SW_LASX:
-	    t.isa.simd = ISA_EXT_SIMD_LASX;
-	    break;
+      /* Warn about "-mno-lsx -mlasx".  */
+      if (IS_SET (LSX) && !IS_ON (LSX))
+	inform (UNKNOWN_LOCATION,
+		"%<-mno-%s%> is overriden by %<-m%s%>",
+		OPTSTR_LSX, OPTSTR_LASX);
+     }
+  else if (IS_SET (LSX) && !IS_ON (LSX))
+    t.isa.simd = 0;
+  else if (IS_SET (LASX) && !IS_ON (LASX) && t.isa.simd == ISA_EXT_SIMD_LASX)
+    t.isa.simd = ISA_EXT_SIMD_LSX;
+  else if (IS_SET (LSX) && IS_ON (LSX) && t.isa.simd == 0)
+    t.isa.simd = ISA_EXT_SIMD_LSX;
 
-	  default:
-	    gcc_unreachable ();
-	}
-    }
-  simd_switch = on_switch;
 
   /* All SIMD extensions imply a 64-bit FPU:
      - silently adjust t.isa.fpu to "fpu64" if it is unconstrained.
@@ -283,48 +287,47 @@ config_target_isa:
 
   if (t.isa.simd != 0 && t.isa.fpu != ISA_EXT_FPU64)
     {
-    if (!constrained.fpu)
-      {
-	/* As long as the arch-default "t.isa.simd" is set to non-zero
-	   for an element "t" in loongarch_cpu_default_isa, "t.isa.fpu"
-	   should be set to "ISA_EXT_FPU64" accordingly.  Thus reaching
-	   here must be the result of forcing -mlsx/-mlasx explicitly.  */
-	gcc_assert (constrained.simd);
+      if (!constrained.fpu)
+	{
+	  /* As long as the arch-default "t.isa.simd" is set to non-zero
+	     for an element "t" in loongarch.ccpu_default_isa, "t.isa.fpu"
+	     should be set to "ISA_EXT_FPU64" accordingly.  Thus reaching
+	     here must be the result of forcing -mlsx/-mlasx explicitly.  */
+	  gcc_assert (constrained.simd);
 
-	inform (UNKNOWN_LOCATION,
-		"%<-m%s%> promotes %<%s%> to %<%s%s%>",
-		OPTSTR_ISA_EXT_FPU, loongarch_isa_ext_strings[t.isa.fpu],
-		OPTSTR_ISA_EXT_FPU, loongarch_isa_ext_strings[ISA_EXT_FPU64]);
-
-	t.isa.fpu = ISA_EXT_FPU64;
-      }
-    else if (on (SOFT_FLOAT) || on (SINGLE_FLOAT))
-      {
-	if (constrained.simd)
 	  inform (UNKNOWN_LOCATION,
-		  "%<-m%s%> is disabled by %<-m%s%>, because it requires %<%s%s%>",
-		  loongarch_switch_strings[simd_switch],
-		  loongarch_switch_strings[on_switch],
-		  OPTSTR_ISA_EXT_FPU, loongarch_isa_ext_strings[ISA_EXT_FPU64]);
+		  "enabing %qs promotes %<%s%s%> to %<%s%s%>",
+                  loongarch_isa_ext_strings[t.isa.simd],
+		  OPTSTR_ISA_EXT_FPU, loongarch_isa_ext_strings[t.isa.fpu],
+ 		  OPTSTR_ISA_EXT_FPU, loongarch_isa_ext_strings[ISA_EXT_FPU64]);
 
-	/* SIMD that comes from arch default.  */
-	t.isa.simd = 0;
-      }
-    else
-      {
-	/* -mfpu=0 / -mfpu=32 is set.  */
-	if (constrained.simd)
-	  fatal_error (UNKNOWN_LOCATION,
-		       "%<-m%s=%s%> conflicts with %<-m%s%>,"
-		       "which requires %<%s%s%>",
-		       OPTSTR_ISA_EXT_FPU, loongarch_isa_ext_strings[t.isa.fpu],
-		       loongarch_switch_strings[simd_switch],
-		       OPTSTR_ISA_EXT_FPU,
-		       loongarch_isa_ext_strings[ISA_EXT_FPU64]);
+	  t.isa.fpu = ISA_EXT_FPU64;
+	}
+      else if (IS_ON (SOFT_FLOAT) || IS_ON (SINGLE_FLOAT))
+	{
+	  if (constrained.simd)
+	    inform (UNKNOWN_LOCATION,
+		    "%qs is disabled by %<-m%s%>, because it requires %<%s%s%>",
+		    loongarch_isa_ext_strings[t.isa.simd],
+		    loongarch_switch_strings[on_switch],
+		    OPTSTR_ISA_EXT_FPU, loongarch_isa_ext_strings[ISA_EXT_FPU64]);
 
-	/* Same as above.  */
-	t.isa.simd = 0;
-      }
+	  /* SIMD that comes from arch default.  */
+	  t.isa.simd = 0;
+	}
+      else
+	{
+	  /* -mfpu=0 / -mfpu=32 is set.  */
+	  if (constrained.simd)
+	    fatal_error (UNKNOWN_LOCATION,
+			 "%<-m%s=%s%> conflicts with %qs, which requires %<%s%s%>",
+			 OPTSTR_ISA_EXT_FPU, loongarch_isa_ext_strings[t.isa.fpu],
+                         loongarch_isa_ext_strings[t.isa.simd],
+                         OPTSTR_ISA_EXT_FPU, loongarch_isa_ext_strings[ISA_EXT_FPU64]);
+
+	  /* Same as above.  */
+	  t.isa.simd = 0;
+	}
     }
 
   /* 4.  ABI-ISA compatibility */
@@ -680,4 +683,58 @@ multilib_enabled_abi_list ()
   APPEND1 ('\0')
 
   return XOBFINISH (&msg_obstack, const char *);
+}
+
+/* option status feedback for "gcc --help=target -Q" */
+void
+loongarch_update_gcc_opt_status (struct gcc_options *opts,
+				 struct loongarch_target *target)
+{
+  /* status of -mlsx and -mlasx */
+  opts->x_la_opt_switches &= ~OPTION_MASK_LSX;
+  opts->x_la_opt_switches &= ~OPTION_MASK_LASX;
+
+  switch (target->isa.simd)
+    {
+      case 0:
+        break;
+
+      case ISA_EXT_SIMD_LSX:
+	opts->x_la_opt_switches |= OPTION_MASK_LSX;
+        break;
+
+      case ISA_EXT_SIMD_LASX:
+	opts->x_la_opt_switches |= OPTION_MASK_LSX;
+	opts->x_la_opt_switches |= OPTION_MASK_LASX;
+        break;
+
+      default:
+	gcc_unreachable ();
+    }
+
+  /* status of -m*-float */
+  opts->x_la_opt_switches &= ~OPTION_MASK_FORCE_SOFTF;
+  opts->x_la_opt_switches &= ~OPTION_MASK_FORCE_F32;
+  opts->x_la_opt_switches &= ~OPTION_MASK_FORCE_F64;
+
+  switch (target->isa.fpu)
+    {
+      case ISA_EXT_NOFPU:
+	if (ABI_FPU_NONE (target->abi.base))
+	  opts->x_la_opt_switches |= OPTION_MASK_FORCE_SOFTF;
+	break;
+
+      case ISA_EXT_FPU32:
+	if (ABI_FPU_32 (target->abi.base))
+	  opts->x_la_opt_switches |= OPTION_MASK_FORCE_F32;
+	break;
+
+      case ISA_EXT_FPU64:
+	if (ABI_FPU_64 (target->abi.base))
+	  opts->x_la_opt_switches |= OPTION_MASK_FORCE_F64;
+	break;
+
+      default:
+	gcc_unreachable ();
+    }
 }

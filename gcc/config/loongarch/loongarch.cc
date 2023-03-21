@@ -7114,9 +7114,11 @@ loongarch_option_override_internal (struct gcc_options *opts)
     g_switch_value = 0;
 
   /* Handle target-specific options: compute defaults/conflicts etc.  */
-  loongarch_config_target (&la_target, la_opt_switches,
+  loongarch.config_target (&la_target, la_opt_switches, opts_set->x_la_opt_switches,
 			   la_opt_cpu_arch, la_opt_cpu_tune, la_opt_fpu,
 			   la_opt_abi_base, la_opt_abi_ext, la_opt_cmodel, 0);
+
+  loongarch_update_gcc_opt_status (opts, &la_target);
 
   if (TARGET_ABI_LP64)
     flag_pcc_struct_return = 0;
