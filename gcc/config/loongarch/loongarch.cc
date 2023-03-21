@@ -7125,10 +7125,28 @@ loongarch_cpu_option_override (struct loongarch_target *target,
 	  }
 	break;
     }
+
+  /* Set up parameters to be used in prefetching algorithm.  */
+  SET_OPTION_IF_UNSET (opts, &global_options_set,
+		       param_simultaneous_prefetches,
+		       loongarch_cpu_cache[target->cpu_tune].simultaneous_prefetches);
+
+  SET_OPTION_IF_UNSET (opts, &global_options_set,
+		       param_l1_cache_line_size,
+		       loongarch_cpu_cache[target->cpu_tune].l1d_line_size);
+
+  SET_OPTION_IF_UNSET (opts, &global_options_set,
+		       param_l1_cache_size,
+		       loongarch_cpu_cache[target->cpu_tune].l1d_size);
+
+  SET_OPTION_IF_UNSET (opts, &global_options_set,
+		       param_l2_cache_size,
+		       loongarch_cpu_cache[target->cpu_tune].l2d_size);
 }
 
 static void
-loongarch_option_override_internal (struct gcc_options *opts)
+loongarch_option_override_internal (struct gcc_options *opts,
+				    struct gcc_options *opts_set)
 {
   int i, regno, mode;
 
@@ -7159,27 +7177,6 @@ loongarch_option_override_internal (struct gcc_options *opts)
      default.  */
   if (loongarch_branch_cost == 0)
     loongarch_branch_cost = loongarch_cost->branch_cost;
-
-  /* Set up parameters to be used in prefetching algorithm.  */
-  int simultaneous_prefetches
-    = loongarch_cpu_cache[LARCH_ACTUAL_TUNE].simultaneous_prefetches;
-
-  SET_OPTION_IF_UNSET (opts, &global_options_set,
-		       param_simultaneous_prefetches,
-		       simultaneous_prefetches);
-
-  SET_OPTION_IF_UNSET (opts, &global_options_set,
-		       param_l1_cache_line_size,
-		       loongarch_cpu_cache[LARCH_ACTUAL_TUNE].l1d_line_size);
-
-  SET_OPTION_IF_UNSET (opts, &global_options_set,
-		       param_l1_cache_size,
-		       loongarch_cpu_cache[LARCH_ACTUAL_TUNE].l1d_size);
-
-  SET_OPTION_IF_UNSET (opts, &global_options_set,
-		       param_l2_cache_size,
-		       loongarch_cpu_cache[LARCH_ACTUAL_TUNE].l2d_size);
-
 
   /* Enable sw prefetching at -O3 and higher.  */
   if (opts->x_flag_prefetch_loop_arrays < 0
@@ -7259,7 +7256,7 @@ loongarch_option_override_internal (struct gcc_options *opts)
 static void
 loongarch_option_override (void)
 {
-  loongarch_option_override_internal (&global_options);
+  loongarch_option_override_internal (&global_options, &global_options_set);
 }
 
 /* Implement TARGET_CONDITIONAL_REGISTER_USAGE.  */
@@ -9542,8 +9539,8 @@ loongarch_vectorize_vec_perm_const (machine_mode vmode, machine_mode op_mode,
 }
 
 static int
-loongarch_cpu_sched_reassociation_width (unsigned int opc ATTRIBUTE_UNUSED,
-					 machine_mode mode ATTRIBUTE_UNUSED)
+loongarch_cpu_sched_reassociation_width (struct loongarch_target *target,
+					 unsigned int opc, machine_mode mode)
 {
   /* unreferenced argument */
   (void) opc;

@@ -278,7 +278,7 @@ loongarch_config_target (struct loongarch_target *target,
 config_target_isa:
 
   /* Get default ISA from "-march" or its default value.  */
-  t.isa = loongarch_cpu_default_isa[LARCH_ACTUAL_ARCH];
+  t.isa = loongarch_cpu_default_isa[t.cpu_arch];
 
   /* Apply incremental changes.  */
   /* "-march=native" overrides the default FPU type.  */
@@ -734,7 +734,7 @@ loongarch_update_gcc_opt_status (struct loongarch_target *target,
   opts->x_la_opt_abi_base = target->abi.base;
 
   opts->x_target_flags |=
-    IS_LP64_ABI_BASE (target->abi.base) ? MASK_LP64 : 0;
+    target->abi.base ? MASK_LP64D : 0;
 
   /* status of -march and -mtune */
   opts->x_la_opt_cpu_arch = target->cpu_arch;

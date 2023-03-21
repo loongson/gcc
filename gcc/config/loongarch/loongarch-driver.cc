@@ -74,7 +74,7 @@ driver_set_m_parm (int argc, const char **argv)
      }
 
   LARCH_DRIVER_PARSE_PARM (la_target.abi.base, ABI_BASE, \
-			   loongarch_abi_base_strings, 0, N_ABI_BASE_OPTS)
+			   loongarch_abi_base_strings, 0, N_ABI_BASE_TYPES)
 
   LARCH_DRIVER_PARSE_PARM (la_target.isa.fpu, ISA_EXT_FPU, \
 			   loongarch_isa_ext_strings, 0, N_ISA_EXT_FPU_TYPES)

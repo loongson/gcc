@@ -147,8 +147,14 @@ Enum(abi_base) String(lp64f) Value(ABI_BASE_LP64F)
 EnumValue
 Enum(abi_base) String(lp64s) Value(ABI_BASE_LP64S)
 
-m@@OPTSTR_ABI_BASETarget RejectNegative Joined ToLower Enum(abi_base) Var(la_opt_abi_base) Init(M_OPT_UNSET)
+mabi=
+Target RejectNegative Joined ToLower Enum(abi_base) Var(la_opt_abi_base) Init(M_OPT_UNSET)
 -mabi=BASEABI   Generate code that conforms to the given BASEABI.
+
+;; Legacy option: -mabi=lp64d
+mabi=lp64d
+Target RejectNegative Mask(LP64D)
+-mabi=lp64d     Legacy option that enables the lp64d integer ABI.
 
 ;; ABI Extension
 Variable
@@ -218,7 +224,7 @@ EnumValue
 Enum(cmodel) String(extreme) Value(CMODEL_EXTREME)
 
 mcmodel=
-Target RejectNegative Joined Enum(cmodel) Var(la_opt_cmodel) Init(M_OPT_UNSET)
+Target RejectNegative Joined Enum(cmodel) Var(la_opt_cmodel) Init(CMODEL_NORMAL)
 Specify the code model.
 
 mdirect-extern-access
