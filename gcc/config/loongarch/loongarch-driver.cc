@@ -49,7 +49,8 @@ la_driver_init (int argc ATTRIBUTE_UNUSED, const char **argv ATTRIBUTE_UNUSED)
 }
 
 const char*
-driver_set_no_link (int argc, const char **argv)
+driver_set_no_link (int argc ATTRIBUTE_UNUSED,
+		    const char **argv ATTRIBUTE_UNUSED)
 {
   no_link = 1;
   return "";

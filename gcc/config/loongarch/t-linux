@@ -47,7 +47,7 @@ specs: specs.install
 
 # Remove lib_build_self_specs before regression tests.
 .PHONY: remove-lib-specs
-check check-host check-target $(CHECK_TARGETS): remove-lib-specs
+check check-host check-target $(CHECK_TARGETS) $(lang_checks): remove-lib-specs
 remove-lib-specs:
 	-mv -f specs.install specs 2>/dev/null
 

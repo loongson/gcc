@@ -210,7 +210,7 @@ fill_native_cpu_config (struct loongarch_target *tgt)
 			"(%qs disabled while %qs is enabled), disabling SIMD",
 			loongarch_isa_ext_strings[ISA_EXT_SIMD_LSX],
 			loongarch_isa_ext_strings[ISA_EXT_SIMD_LASX]);
-
+	    /* fall through */
 	  case 0x00:
 	    tmp = 0;
 	    break;
