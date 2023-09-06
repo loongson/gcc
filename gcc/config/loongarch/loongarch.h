@@ -734,7 +734,15 @@ enum reg_class
   (IN_RANGE ((N), GP_ARG_FIRST, GP_ARG_LAST) \
    || (UNITS_PER_FP_ARG && IN_RANGE ((N), FP_ARG_FIRST, FP_ARG_LAST)))
 
+enum loongarch_pcs
+{
+  LA_PCS_DEFAULT, // Base ABI
+  LA_PCS_SIMD,    // Vector ABI extension (Based on LP64D)
+  LA_PCS_UNKNOWN
+};
+
 typedef struct {
+  enum loongarch_pcs pcs;
   /* Number of integer registers used so far, up to MAX_ARGS_IN_REGISTERS.  */
   unsigned int num_gprs;
 
@@ -748,7 +756,8 @@ typedef struct {
    For a library call, FNTYPE is 0.  */
 
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, INDIRECT, N_NAMED_ARGS) \
-  memset (&(CUM), 0, sizeof (CUM))
+  loongarch_init_cumulative_args (&(CUM), (FNTYPE), (LIBNAME), (INDIRECT), \
+			(N_NAMED_ARGS) != -1)
 
 #define EPILOGUE_USES(REGNO) loongarch_epilogue_uses (REGNO)
 

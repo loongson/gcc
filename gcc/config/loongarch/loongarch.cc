@@ -265,6 +265,87 @@ loongarch_fp_conditions[16]= {LARCH_FP_CONDITIONS (STRINGIFY)};
 #define STACK_CLASH_PROTECTION_GUARD_SIZE \
   (1 << param_stack_clash_protection_guard_size)
 
+static const predefined_function_abi &
+loongarch_simd_abi (void)
+{
+  predefined_function_abi &simd_abi = function_abis[LA_PCS_SIMD];
+  if (!simd_abi.initialized_p ())
+    {
+      // Use default ABI's clobber values directly, because we don't need any
+      // changes for vector ABI extension.
+      HARD_REG_SET full_reg_clobbers =
+	default_function_abi.full_reg_clobbers ();
+      simd_abi.initialize (LA_PCS_SIMD, full_reg_clobbers);
+    }
+  return simd_abi;
+}
+
+static const predefined_function_abi &
+loongarch_fntype_abi (const_tree fntype)
+{
+  if (lookup_attribute ("vecarg", TYPE_ATTRIBUTES (fntype)))
+    {
+      return loongarch_simd_abi ();
+    }
+
+  return default_function_abi;
+}
+
+static int
+loongarch_comp_type_attributes (const_tree type1, const_tree type2)
+{
+  auto checking = [&](const char *attr) -> bool
+    {
+      auto lhs = lookup_attribute (attr, TYPE_ATTRIBUTES (type1));
+      auto rhs = lookup_attribute (attr, TYPE_ATTRIBUTES (type2));
+      if (!lhs && !rhs)
+	{
+	  return true;
+	}
+
+      return (lhs && rhs) && attribute_value_equal (lhs, rhs);
+    };
+
+  if (!checking ("vecarg"))
+    return 0;
+
+  return 1;
+}
+
+void
+loongarch_init_cumulative_args (CUMULATIVE_ARGS *cum,
+				tree fntype,
+				rtx libname ATTRIBUTE_UNUSED,
+				tree fndecl ATTRIBUTE_UNUSED,
+				int caller ATTRIBUTE_UNUSED)
+{
+  memset (cum, 0, sizeof (*cum));
+
+  if (fntype)
+    {
+      cum->pcs = (loongarch_pcs) fntype_abi (fntype).id ();
+    }
+  else
+    {
+      cum->pcs = LA_PCS_DEFAULT;
+    }
+}
+
+const predefined_function_abi &
+loongarch_insn_callee_abi (const rtx_insn *insn)
+{
+  rtx pat = PATTERN (insn);
+  gcc_assert (GET_CODE (pat) == PARALLEL);
+  rtx use = XVECEXP (pat, 0, 1);
+  gcc_assert (GET_CODE (use) == USE);
+  rtx unspec = XEXP (use, 0);
+  gcc_assert (GET_CODE (unspec) == UNSPEC
+	      && XINT (unspec, 1) == UNSPEC_CALLEE_PCS);
+  auto pcs = (loongarch_pcs) INTVAL (XVECEXP (unspec, 0, 0));
+  gcc_assert (pcs < LA_PCS_UNKNOWN);
+  return function_abis[pcs];
+}
+
 /* Implement TARGET_FUNCTION_ARG_BOUNDARY.  Every parameter gets at
    least PARM_BOUNDARY bits of alignment, but will be given anything up
    to PREFERRED_STACK_BOUNDARY bits if the type requires it.  */
@@ -313,8 +394,17 @@ typedef struct
 static int
 loongarch_flatten_aggregate_field (const_tree type,
 				   loongarch_aggregate_field fields[2], int n,
-				   HOST_WIDE_INT offset)
+				   HOST_WIDE_INT offset,
+				   loongarch_pcs pcs)
 {
+  bool lsx_p = LSX_SUPPORTED_MODE_P (TYPE_MODE (type))
+    && GET_MODE_SIZE (TYPE_MODE (type)) <= UNITS_PER_LSX_REG;
+  bool lasx_p = LASX_SUPPORTED_MODE_P (TYPE_MODE (type))
+    && GET_MODE_SIZE (TYPE_MODE (type)) <= UNITS_PER_LASX_REG;
+  bool vec_flatten_p = (TARGET_VECARG && VECTOR_TYPE_P (type)
+			&& pcs == LA_PCS_SIMD
+			&& (lsx_p || lasx_p));
+
   switch (TREE_CODE (type))
     {
     case RECORD_TYPE:
@@ -335,7 +425,7 @@ loongarch_flatten_aggregate_field (const_tree type,
 
 	    HOST_WIDE_INT pos = offset + int_byte_position (f);
 	    n = loongarch_flatten_aggregate_field (TREE_TYPE (f), fields, n,
-						   pos);
+						   pos, pcs);
 	    if (n < 0)
 	      return -1;
 	  }
@@ -349,7 +439,8 @@ loongarch_flatten_aggregate_field (const_tree type,
 	tree elt_size = TYPE_SIZE_UNIT (TREE_TYPE (type));
 	int n_subfields = loongarch_flatten_aggregate_field (TREE_TYPE (type),
 							     subfields, 0,
-							     offset);
+							     offset,
+							     pcs);
 
 	/* Can't handle incomplete types nor sizes that are not fixed.  */
 	if (n_subfields <= 0
@@ -402,11 +493,12 @@ loongarch_flatten_aggregate_field (const_tree type,
       }
 
     default:
-      if (n < 2
+      if ((n < 2
 	  && ((SCALAR_FLOAT_TYPE_P (type)
 	       && GET_MODE_SIZE (TYPE_MODE (type)) <= UNITS_PER_FP_ARG)
 	      || (INTEGRAL_TYPE_P (type)
 		  && GET_MODE_SIZE (TYPE_MODE (type)) <= UNITS_PER_WORD)))
+	      || vec_flatten_p)
 	{
 	  fields[n].type = type;
 	  fields[n].offset = offset;
@@ -422,12 +514,16 @@ loongarch_flatten_aggregate_field (const_tree type,
 
 static int
 loongarch_flatten_aggregate_argument (const_tree type,
-				      loongarch_aggregate_field fields[2])
+				      loongarch_aggregate_field fields[2],
+				      loongarch_pcs pcs)
 {
-  if (!type || TREE_CODE (type) != RECORD_TYPE)
+  bool vec_p = TARGET_VECARG && (type && TREE_CODE (type) == VECTOR_TYPE)
+    && pcs == LA_PCS_SIMD;
+
+  if (!type || !(TREE_CODE (type) == RECORD_TYPE || vec_p))
     return -1;
 
-  return loongarch_flatten_aggregate_field (type, fields, 0, 0);
+  return loongarch_flatten_aggregate_field (type, fields, 0, 0, pcs);
 }
 
 /* See whether TYPE is a record whose fields should be returned in one or
@@ -435,12 +531,14 @@ loongarch_flatten_aggregate_argument (const_tree type,
 
 static unsigned
 loongarch_pass_aggregate_num_fpr (const_tree type,
-				  loongarch_aggregate_field fields[2])
+				  loongarch_aggregate_field fields[2],
+				  loongarch_pcs pcs)
 {
-  int n = loongarch_flatten_aggregate_argument (type, fields);
+  int n = loongarch_flatten_aggregate_argument (type, fields, pcs);
 
   for (int i = 0; i < n; i++)
-    if (!SCALAR_FLOAT_TYPE_P (fields[i].type))
+    if (!SCALAR_FLOAT_TYPE_P (fields[i].type)
+	&& !VECTOR_TYPE_P (fields[i].type))
       return 0;
 
   return n > 0 ? n : 0;
@@ -452,18 +550,20 @@ loongarch_pass_aggregate_num_fpr (const_tree type,
 
 static bool
 loongarch_pass_aggregate_in_fpr_and_gpr_p (const_tree type,
-					   loongarch_aggregate_field fields[2])
+					   loongarch_aggregate_field fields[2],
+					   loongarch_pcs pcs)
 {
-  unsigned num_int = 0, num_float = 0;
-  int n = loongarch_flatten_aggregate_argument (type, fields);
+  unsigned num_int = 0, num_float = 0, num_vec = 0;
+  int n = loongarch_flatten_aggregate_argument (type, fields, pcs);
 
   for (int i = 0; i < n; i++)
     {
       num_float += SCALAR_FLOAT_TYPE_P (fields[i].type);
       num_int += INTEGRAL_TYPE_P (fields[i].type);
+      num_vec += VECTOR_TYPE_P (fields[i].type);
     }
 
-  return num_int == 1 && num_float == 1;
+  return num_int == 1 && (num_float == 1 || num_vec == 1);
 }
 
 /* Return the representation of an argument passed or returned in an FPR
@@ -529,6 +629,7 @@ loongarch_get_arg_info (struct loongarch_arg_info *info,
   memset (info, 0, sizeof (*info));
   info->gpr_offset = cum->num_gprs;
   info->fpr_offset = cum->num_fprs;
+  auto pcs = cum->pcs;
 
   if (named)
     {
@@ -538,7 +639,7 @@ loongarch_get_arg_info (struct loongarch_arg_info *info,
 
       /* Pass one- or two-element floating-point aggregates in FPRs.  */
       if ((info->num_fprs
-	   = loongarch_pass_aggregate_num_fpr (type, fields))
+	   = loongarch_pass_aggregate_num_fpr (type, fields, pcs))
 	  && info->fpr_offset + info->num_fprs <= MAX_ARGS_IN_REGISTERS)
 	switch (info->num_fprs)
 	  {
@@ -578,14 +679,15 @@ loongarch_get_arg_info (struct loongarch_arg_info *info,
 	  }
 
       /* Pass structs with one float and one integer in an FPR and a GPR.  */
-      if (loongarch_pass_aggregate_in_fpr_and_gpr_p (type, fields)
+      if (loongarch_pass_aggregate_in_fpr_and_gpr_p (type, fields, pcs)
 	  && info->gpr_offset < MAX_ARGS_IN_REGISTERS
 	  && info->fpr_offset < MAX_ARGS_IN_REGISTERS)
 	{
 	  info->num_gprs = 1;
 	  info->num_fprs = 1;
 
-	  if (!SCALAR_FLOAT_TYPE_P (fields[0].type))
+	  if (!SCALAR_FLOAT_TYPE_P (fields[0].type)
+	      && !VECTOR_TYPE_P (fields[0].type))
 	    std::swap (fregno, gregno);
 
 	  return loongarch_pass_fpr_pair (mode, fregno,
@@ -609,6 +711,13 @@ loongarch_get_arg_info (struct loongarch_arg_info *info,
   info->num_gprs = MIN (num_words, MAX_ARGS_IN_REGISTERS - info->gpr_offset);
   info->stack_p = (num_words - info->num_gprs) != 0;
 
+  /* Don't partition 128-bit vector if only single GAR available. */
+  if (LSX_SUPPORTED_MODE_P (mode) && pcs == LA_PCS_SIMD
+      && info->num_gprs == 1 && info->stack_p && !return_p)
+    {
+      info->num_gprs = 0;
+    }
+
   if (info->num_gprs || return_p)
     return gen_rtx_REG (mode, gpr_base + info->gpr_offset);
 
@@ -623,8 +732,9 @@ loongarch_function_arg (cumulative_args_t cum_v, const function_arg_info &arg)
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
   struct loongarch_arg_info info;
 
+  // Return ABI identifier. Corresponding to the call-template family's def.
   if (arg.end_marker_p ())
-    return NULL;
+    return gen_int_mode (cum->pcs, SImode);
 
   return loongarch_get_arg_info (&info, cum, arg.mode, arg.type, arg.named,
 				 false);
@@ -685,6 +795,15 @@ loongarch_function_value_1 (const_tree type, const_tree func,
     }
 
   memset (&args, 0, sizeof (args));
+
+  if (func != NULL_TREE)
+    {
+      // Get ABI info and write into args, because we need this info to check
+      // argument passing method.
+      args.pcs = (loongarch_pcs) (DECL_P (func)? fndecl_abi (func).id () :
+				  fntype_abi (func).id ());
+    }
+
   return loongarch_get_arg_info (&info, &args, mode, type, true, true);
 }
 
@@ -737,7 +856,7 @@ loongarch_pass_by_reference (cumulative_args_t cum_v,
 
 static bool
 loongarch_return_in_memory (const_tree type,
-			    const_tree fndecl ATTRIBUTE_UNUSED)
+			    const_tree fntype ATTRIBUTE_UNUSED)
 {
   CUMULATIVE_ARGS args;
   cumulative_args_t cum = pack_cumulative_args (&args);
@@ -745,6 +864,14 @@ loongarch_return_in_memory (const_tree type,
   /* The rules for returning in memory are the same as for passing the
      first named argument by reference.  */
   memset (&args, 0, sizeof (args));
+
+  if (fntype != NULL_TREE)
+    {
+      // Get ABI info and write into args, because we need this info to check
+      // argument passing method.
+      args.pcs = (loongarch_pcs) fntype_abi (fntype).id ();
+    }
+
   function_arg_info arg (const_cast<tree> (type), /*named=*/true);
   return loongarch_pass_by_reference (cum, arg);
 }
@@ -2801,6 +2928,7 @@ loongarch_call_tls_get_addr (rtx sym, enum loongarch_symbol_type type, rtx v0)
   else
     emit_insn (loongarch_load_tls (a0, loc, type));
 
+  auto pcs = gen_int_mode (LA_PCS_DEFAULT, SImode);
   if (flag_plt)
     {
       switch (la_target.cmodel)
@@ -2808,7 +2936,8 @@ loongarch_call_tls_get_addr (rtx sym, enum loongarch_symbol_type type, rtx v0)
 	case CMODEL_NORMAL:
 	  insn = emit_call_insn (gen_call_value_internal (v0,
 							  loongarch_tls_symbol,
-							  const0_rtx));
+							  const0_rtx,
+							  pcs));
 	  break;
 
 	case CMODEL_MEDIUM:
@@ -2827,7 +2956,8 @@ loongarch_call_tls_get_addr (rtx sym, enum loongarch_symbol_type type, rtx v0)
 					       loongarch_tls_symbol));
 		     call = gen_call_value_internal_1 (Pmode, v0, reg,
 						       loongarch_tls_symbol,
-						       const0_rtx);
+						       const0_rtx,
+						       pcs);
 		   }
 		 insn = emit_call_insn (call);
 		}
@@ -2837,7 +2967,8 @@ loongarch_call_tls_get_addr (rtx sym, enum loongarch_symbol_type type, rtx v0)
 		  emit_move_insn (reg, loongarch_tls_symbol);
 		  insn = emit_call_insn (gen_call_value_internal (v0,
 								  reg,
-								  const0_rtx));
+								  const0_rtx,
+								  pcs));
 		}
 	      break;
 	    }
@@ -2914,7 +3045,9 @@ loongarch_call_tls_get_addr (rtx sym, enum loongarch_symbol_type type, rtx v0)
 	  gcc_unreachable ();
 	}
 
-      insn = emit_call_insn (gen_call_value_internal (v0, dest, const0_rtx));
+      auto pcs = gen_int_mode (LA_PCS_DEFAULT, SImode);
+      insn = emit_call_insn (gen_call_value_internal (v0, dest,
+						      const0_rtx, pcs));
     }
 
   RTL_CONST_CALL_P (insn) = 1;
@@ -7512,7 +7645,8 @@ loongarch_output_mi_thunk (FILE *file, tree thunk_fndecl ATTRIBUTE_UNUSED,
 	 and const_call_insn_operand should have returned false.  */
       gcc_assert (!TARGET_CMODEL_EXTREME);
 
-      insn = emit_call_insn (gen_sibcall_internal (fnaddr, const0_rtx));
+      auto pcs = gen_int_mode (fndecl_abi (function).id (), SImode);
+      insn = emit_call_insn (gen_sibcall_internal (fnaddr, const0_rtx, pcs));
       SIBLING_CALL_P (insn) = 1;
     }
   else
@@ -8007,7 +8141,9 @@ TARGET_GNU_ATTRIBUTES (loongarch_attribute_table,
   /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
        affects_type_identity, handler, exclude } */
   { "model", 1, 1, true, false, false, false,
-    loongarch_handle_model_attribute, NULL }
+    loongarch_handle_model_attribute, NULL },
+  { "vecarg", 0, 0, false, true, true, true,
+    NULL, NULL },
 });
 
 bool
@@ -11255,6 +11391,13 @@ loongarch_asm_code_end (void)
 #undef TARGET_VECTORIZE_SUPPORT_VECTOR_MISALIGNMENT
 #define TARGET_VECTORIZE_SUPPORT_VECTOR_MISALIGNMENT \
   loongarch_builtin_support_vector_misalignment
+
+#undef TARGET_FNTYPE_ABI
+#define TARGET_FNTYPE_ABI loongarch_fntype_abi
+#undef TARGET_COMP_TYPE_ATTRIBUTES
+#define TARGET_COMP_TYPE_ATTRIBUTES loongarch_comp_type_attributes
+#undef TARGET_INSN_CALLEE_ABI
+#define TARGET_INSN_CALLEE_ABI loongarch_insn_callee_abi
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
