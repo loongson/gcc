@@ -283,7 +283,7 @@ loongarch_simd_abi (void)
 static const predefined_function_abi &
 loongarch_fntype_abi (const_tree fntype)
 {
-  if (lookup_attribute ("vecarg", TYPE_ATTRIBUTES (fntype)))
+  if (TARGET_VECARG || lookup_attribute ("vecarg", TYPE_ATTRIBUTES (fntype)))
     {
       return loongarch_simd_abi ();
     }
@@ -401,7 +401,7 @@ loongarch_flatten_aggregate_field (const_tree type,
     && GET_MODE_SIZE (TYPE_MODE (type)) <= UNITS_PER_LSX_REG;
   bool lasx_p = LASX_SUPPORTED_MODE_P (TYPE_MODE (type))
     && GET_MODE_SIZE (TYPE_MODE (type)) <= UNITS_PER_LASX_REG;
-  bool vec_flatten_p = (TARGET_VECARG && VECTOR_TYPE_P (type)
+  bool vec_flatten_p = (VECTOR_TYPE_P (type)
 			&& pcs == LA_PCS_SIMD
 			&& (lsx_p || lasx_p));
 
@@ -517,8 +517,7 @@ loongarch_flatten_aggregate_argument (const_tree type,
 				      loongarch_aggregate_field fields[2],
 				      loongarch_pcs pcs)
 {
-  bool vec_p = TARGET_VECARG && (type && TREE_CODE (type) == VECTOR_TYPE)
-    && pcs == LA_PCS_SIMD;
+  bool vec_p = (type && TREE_CODE (type) == VECTOR_TYPE) && pcs == LA_PCS_SIMD;
 
   if (!type || !(TREE_CODE (type) == RECORD_TYPE || vec_p))
     return -1;
