@@ -401,8 +401,11 @@ loongarch_flatten_aggregate_field (const_tree type,
     && GET_MODE_SIZE (TYPE_MODE (type)) <= UNITS_PER_LSX_REG;
   bool lasx_p = LASX_SUPPORTED_MODE_P (TYPE_MODE (type))
     && GET_MODE_SIZE (TYPE_MODE (type)) <= UNITS_PER_LASX_REG;
-  bool vec_flatten_p = (VECTOR_TYPE_P (type)
-			&& pcs == LA_PCS_SIMD
+  bool flatten_p = ((SCALAR_FLOAT_TYPE_P (type)
+		     && GET_MODE_SIZE (TYPE_MODE (type)) <= UNITS_PER_FP_ARG)
+		    || (INTEGRAL_TYPE_P (type)
+			&& GET_MODE_SIZE (TYPE_MODE (type)) <= UNITS_PER_WORD));
+  bool vec_flatten_p = (VECTOR_TYPE_P (type) && pcs == LA_PCS_SIMD
 			&& (lsx_p || lasx_p));
 
   switch (TREE_CODE (type))
@@ -493,12 +496,7 @@ loongarch_flatten_aggregate_field (const_tree type,
       }
 
     default:
-      if ((n < 2
-	  && ((SCALAR_FLOAT_TYPE_P (type)
-	       && GET_MODE_SIZE (TYPE_MODE (type)) <= UNITS_PER_FP_ARG)
-	      || (INTEGRAL_TYPE_P (type)
-		  && GET_MODE_SIZE (TYPE_MODE (type)) <= UNITS_PER_WORD)))
-	      || vec_flatten_p)
+      if (n < 2 && (flatten_p || vec_flatten_p))
 	{
 	  fields[n].type = type;
 	  fields[n].offset = offset;
