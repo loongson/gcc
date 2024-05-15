@@ -1,7 +1,7 @@
 /* { dg-do compile } */
 /* { dg-options "-O2 -mvecarg -mabi=lp64d -mdouble-float" } */
-/* { dg-final { scan-assembler "vpickve2gr\\.du\t\\\$r4,\\\$vr0,0" } } */
-/* { dg-final { scan-assembler "vpickve2gr\\.du\t\\\$r5,\\\$vr0,1" } } */
+/* { dg-final { scan-assembler "vpickve2gr\\.du\t\\\$r4,\\\$vr8,0" } } */
+/* { dg-final { scan-assembler "vpickve2gr\\.du\t\\\$r5,\\\$vr8,1" } } */
 
 #include <lsxintrin.h>
 
