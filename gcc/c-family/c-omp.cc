@@ -1793,22 +1793,46 @@ check_loop_binding_expr_r (tree *tp, int *walk_subtrees ATTRIBUTE_UNUSED,
 #define LOCATION_OR(loc1, loc2) \
   ((loc1) != UNKNOWN_LOCATION ? (loc1) : (loc2))
 
+enum check_loop_binding_expr_ctx {
+  CHECK_LOOP_BINDING_EXPR_CTX_LOOP_VAR,
+  CHECK_LOOP_BINDING_EXPR_CTX_IN_INIT,
+  CHECK_LOOP_BINDING_EXPR_CTX_END_TEST,
+  CHECK_LOOP_BINDING_EXPR_CTX_INCR
+};
+
 /* Check a single expression EXPR for references to variables bound in
    intervening code in BODY.  Return true if ok, otherwise give an error
    referencing CONTEXT and return false.  Use LOC for the error message
    if EXPR doesn't have one.  */
 static bool
-check_loop_binding_expr (tree expr, tree body, const char *context,
-			 location_t loc)
+check_loop_binding_expr (tree expr, tree body, location_t loc,
+			 check_loop_binding_expr_ctx ctx)
 {
   tree bad = walk_tree (&expr, check_loop_binding_expr_r, (void *)&body, NULL);
 
   if (bad)
     {
       location_t eloc = EXPR_LOCATION (expr);
-      error_at (LOCATION_OR (eloc, loc),
-		"variable %qD used %s is bound "
-		"in intervening code", bad, context);
+      eloc = LOCATION_OR (eloc, loc);
+      switch (ctx)
+	{
+	case CHECK_LOOP_BINDING_EXPR_CTX_LOOP_VAR:
+	  error_at (eloc, "variable %qD used as loop variable is bound "
+		    "in intervening code", bad);
+	  break;
+	case CHECK_LOOP_BINDING_EXPR_CTX_IN_INIT:
+	  error_at (eloc, "variable %qD used in initializer is bound "
+		    "in intervening code", bad);
+	  break;
+	case CHECK_LOOP_BINDING_EXPR_CTX_END_TEST:
+	  error_at (eloc, "variable %qD used in end test is bound "
+		    "in intervening code", bad);
+	  break;
+	case CHECK_LOOP_BINDING_EXPR_CTX_INCR:
+	  error_at (eloc, "variable %qD used in increment expression is bound "
+		    "in intervening code", bad);
+	  break;
+	}
       return false;
     }
   return true;
@@ -1839,13 +1863,15 @@ c_omp_check_loop_binding_exprs (tree stmt, vec<tree> *orig_inits)
 
       e = TREE_OPERAND (init, 1);
       eloc = LOCATION_OR (EXPR_LOCATION (init), loc);
-      if (!check_loop_binding_expr (decl, body, "as loop variable", eloc))
+      if (!check_loop_binding_expr (decl, body, eloc,
+				    CHECK_LOOP_BINDING_EXPR_CTX_LOOP_VAR))
 	ok = false;
-      if (!check_loop_binding_expr (e, body, "in initializer", eloc))
+      if (!check_loop_binding_expr (e, body, eloc,
+				    CHECK_LOOP_BINDING_EXPR_CTX_IN_INIT))
 	ok = false;
       if (orig_init
-	  && !check_loop_binding_expr (orig_init, body,
-				       "in initializer", eloc))
+	  && !check_loop_binding_expr (orig_init, body, eloc,
+				       CHECK_LOOP_BINDING_EXPR_CTX_IN_INIT))
 	ok = false;
 
       /* INCR and/or COND may be null if this is a template with a
@@ -1859,7 +1885,8 @@ c_omp_check_loop_binding_exprs (tree stmt, vec<tree> *orig_inits)
 	    e = TREE_OPERAND (cond, 0);
 	  else
 	    e = cond;
-	  if (!check_loop_binding_expr (e, body, "in end test", eloc))
+	  if (!check_loop_binding_expr (e, body, eloc,
+					CHECK_LOOP_BINDING_EXPR_CTX_END_TEST))
 	    ok = false;
 	}
 
@@ -1870,8 +1897,8 @@ c_omp_check_loop_binding_exprs (tree stmt, vec<tree> *orig_inits)
 	     increment/decrement.  We don't have to check the latter
 	     since there are no operands besides the iteration variable.  */
 	  if (TREE_CODE (incr) == MODIFY_EXPR
-	      && !check_loop_binding_expr (TREE_OPERAND (incr, 1), body,
-					   "in increment expression", eloc))
+	      && !check_loop_binding_expr (TREE_OPERAND (incr, 1), body, eloc,
+					   CHECK_LOOP_BINDING_EXPR_CTX_INCR))
 	    ok = false;
 	}
     }
@@ -2830,9 +2857,23 @@ c_omp_split_clauses (location_t loc, enum tree_code code,
 		    }
 		  else if (TREE_CODE (OMP_CLAUSE_DECL (c)) == TREE_LIST)
 		    {
+		      /* TODO: This can go away once we transition all uses of
+			 TREE_LIST for representing OMP array sections to
+			 OMP_ARRAY_SECTION.  */
 		      tree t;
 		      for (t = OMP_CLAUSE_DECL (c);
 			   TREE_CODE (t) == TREE_LIST; t = TREE_CHAIN (t))
+			;
+		      if (DECL_P (t))
+			bitmap_clear_bit (&allocate_head, DECL_UID (t));
+		      break;
+		    }
+		  else if (TREE_CODE (OMP_CLAUSE_DECL (c)) == OMP_ARRAY_SECTION)
+		    {
+		      tree t;
+		      for (t = OMP_CLAUSE_DECL (c);
+			   TREE_CODE (t) == OMP_ARRAY_SECTION;
+			   t = TREE_OPERAND (t, 0))
 			;
 		      if (DECL_P (t))
 			bitmap_clear_bit (&allocate_head, DECL_UID (t));
@@ -3379,6 +3420,7 @@ c_omp_address_inspector::map_supported_p ()
 	 || TREE_CODE (t) == SAVE_EXPR
 	 || TREE_CODE (t) == POINTER_PLUS_EXPR
 	 || TREE_CODE (t) == NON_LVALUE_EXPR
+	 || TREE_CODE (t) == OMP_ARRAY_SECTION
 	 || TREE_CODE (t) == NOP_EXPR)
     if (TREE_CODE (t) == COMPOUND_EXPR)
       t = TREE_OPERAND (t, 1);
@@ -3408,7 +3450,8 @@ c_omp_address_inspector::get_origin (tree t)
       else if (TREE_CODE (t) == POINTER_PLUS_EXPR
 	       || TREE_CODE (t) == SAVE_EXPR)
 	t = TREE_OPERAND (t, 0);
-      else if (TREE_CODE (t) == INDIRECT_REF
+      else if (!processing_template_decl_p ()
+	       && TREE_CODE (t) == INDIRECT_REF
 	       && TREE_CODE (TREE_TYPE (TREE_OPERAND (t, 0))) == REFERENCE_TYPE)
 	t = TREE_OPERAND (t, 0);
       else
@@ -3425,7 +3468,10 @@ c_omp_address_inspector::get_origin (tree t)
 tree
 c_omp_address_inspector::maybe_unconvert_ref (tree t)
 {
-  if (TREE_CODE (t) == INDIRECT_REF
+  /* Be careful not to dereference the type if we're processing a
+     template decl, else it might be NULL.  */
+  if (!processing_template_decl_p ()
+      && TREE_CODE (t) == INDIRECT_REF
       && TREE_CODE (TREE_TYPE (TREE_OPERAND (t, 0))) == REFERENCE_TYPE)
     return TREE_OPERAND (t, 0);
 

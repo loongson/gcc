@@ -1,10 +1,9 @@
-// { dg-options "-lstdc++exp" }
+// { dg-additional-options "-lstdc++exp" { target { *-*-mingw* } } }
 // { dg-do run { target c++23 } }
 // { dg-require-fileio "" }
 
 #include <print>
 #include <cstdio>
-#include <spanstream>
 #include <testsuite_hooks.h>
 #include <testsuite_fs.h>
 
@@ -74,6 +73,21 @@ test_vprint_nonunicode()
   // { dg-output "garbage in . garbage out" }
 }
 
+void
+test_errors()
+{
+#ifdef __cpp_exceptions
+  try
+  {
+    std::print(stdin, "{}", "nope");
+    VERIFY(false);
+  }
+  catch (const std::system_error&)
+  {
+  }
+#endif
+}
+
 int main()
 {
   test_print_default();
@@ -82,4 +96,5 @@ int main()
   test_println_file();
   test_print_raw();
   test_vprint_nonunicode();
+  test_errors();
 }

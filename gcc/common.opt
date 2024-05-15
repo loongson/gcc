@@ -422,6 +422,12 @@ Display target specific command line options (including assembler and linker opt
 -time
 Driver Alias(time)
 
+;; Truncate the file specified after linking.
+;; This option is used by lto-wrapper to reduce the peak disk-usage when
+;; linking with many .LTRANS units.
+truncate
+Driver Separate Undocumented MissingArgError(missing filename after %qs)
+
 -verbose
 Driver Alias(v)
 
@@ -870,6 +876,11 @@ Wcoverage-invalid-line-number
 Common Var(warn_coverage_invalid_linenum) Init(1) Warning
 Warn in case a function ends earlier than it begins due to an invalid linenum macros.
 
+Wcoverage-too-many-conditions
+Common Var(warn_too_many_conditions) Init(1) Warning
+Warn when a conditional has too many terms and condition coverage profiling
+gives up instrumenting the expression.
+
 Wmissing-profile
 Common Var(warn_missing_profile) Init(1) Warning
 Warn in case profiles in -fprofile-use do not exist.
@@ -1039,9 +1050,6 @@ Align the start of functions.
 
 falign-functions=
 Common RejectNegative Joined Var(str_align_functions) Optimization
-
-flimit-function-alignment
-Common Var(flag_limit_function_alignment) Optimization Init(0)
 
 falign-jumps
 Common Var(flag_align_jumps) Optimization
@@ -1262,7 +1270,7 @@ Common Var(flag_cprop_registers) Optimization
 Perform a register copy-propagation optimization pass.
 
 ffold-mem-offsets
-Target Bool Var(flag_fold_mem_offsets) Init(1)
+Common Var(flag_fold_mem_offsets) Init(1) Optimization
 Fold instructions calculating memory offsets to the memory access instruction if possible.
 
 fcrossjumping
@@ -2277,6 +2285,10 @@ fmessage-length=
 Common RejectNegative Joined UInteger
 -fmessage-length=<number>	Limit diagnostics to <number> characters per line.  0 suppresses line-wrapping.
 
+fmin-function-alignment=
+Common Joined RejectNegative UInteger Var(flag_min_function_alignment) Optimization
+Align the start of every function.
+
 fmodulo-sched
 Common Var(flag_modulo_sched) Optimization
 Perform SMS based modulo scheduling before the first scheduling pass.
@@ -2294,7 +2306,7 @@ Common Var(flag_move_loop_stores) Optimization
 Move stores out of loops.
 
 fmultiflags
-Common Driver
+Common Driver RejectNegative
 Building block for specs-based multilib-aware TFLAGS.
 
 fdce
@@ -2463,6 +2475,10 @@ fprofile-arcs
 Common Var(profile_arc_flag)
 Insert arc-based program profiling code.
 
+fcondition-coverage
+Common Var(condition_coverage_flag)
+Insert condition coverage profiling code.
+
 fprofile-dir=
 Common Joined RejectNegative Var(profile_data_prefix)
 Set the top-level directory for storing the profile data.
@@ -2600,6 +2616,9 @@ starts and when the destructor finishes.
 
 flifetime-dse=
 Common Joined RejectNegative UInteger Var(flag_lifetime_dse) Optimization IntegerRange(0, 2)
+
+flimit-function-alignment
+Common Var(flag_limit_function_alignment) Optimization Init(0)
 
 flive-patching
 Common RejectNegative Alias(flive-patching=,inline-clone) Optimization

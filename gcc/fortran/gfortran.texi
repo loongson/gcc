@@ -862,8 +862,8 @@ data types are:
 The @code{KIND} value matches the storage size in bytes, except for
 @code{COMPLEX} where the storage size is twice as much (or both real and
 imaginary part are a real value of the given size).  It is recommended to use
-the @ref{SELECTED_CHAR_KIND}, @ref{SELECTED_INT_KIND} and
-@ref{SELECTED_REAL_KIND} intrinsics or the @code{INT8}, @code{INT16},
+the @ref{SELECTED_CHAR_KIND}, @ref{SELECTED_INT_KIND}, @ref{SELECTED_LOGICAL_KIND}
+and @ref{SELECTED_REAL_KIND} intrinsics or the @code{INT8}, @code{INT16},
 @code{INT32}, @code{INT64}, @code{REAL32}, @code{REAL64}, and @code{REAL128}
 parameters of the @code{ISO_FORTRAN_ENV} module instead of the concrete values.
 The available kind parameters can be found in the constant arrays
@@ -1272,8 +1272,9 @@ equivalent to the standard-conforming declaration
 @noindent
 where @code{k} is the kind parameter suitable for the intended precision.  As
 kind parameters are implementation-dependent, use the @code{KIND},
-@code{SELECTED_INT_KIND} and @code{SELECTED_REAL_KIND} intrinsics to retrieve
-the correct value, for instance @code{REAL*8 x} can be replaced by:
+@code{SELECTED_INT_KIND}, @code{SELECTED_LOGICAL_KIND} and
+@code{SELECTED_REAL_KIND} intrinsics to retrieve the correct value, for
+instance @code{REAL*8 x} can be replaced by:
 @smallexample
 INTEGER, PARAMETER :: dbl = KIND(1.0d0)
 REAL(KIND=dbl) :: x
@@ -3262,6 +3263,9 @@ It must be placed immediately before a @code{DO} loop and applies only to the
 loop that follows.  N is an integer constant specifying the unrolling factor.
 The values of 0 and 1 block any unrolling of the loop.
 
+For @code{DO CONCURRENT} constructs the unrolling specification applies
+only to the first loop control variable.
+
 
 @node BUILTIN directive
 @subsection BUILTIN directive
@@ -3300,6 +3304,9 @@ whether a particular loop is vectorizable due to potential
 dependencies between iterations.  The purpose of the directive is to
 tell the compiler that vectorization is safe.
 
+For @code{DO CONCURRENT} constructs this annotation is implicit to all
+loop control variables.
+
 This directive is intended for annotation of existing code.  For new
 code it is recommended to consider OpenMP SIMD directives as potential
 alternative.
@@ -3316,6 +3323,9 @@ This directive tells the compiler to vectorize the following loop.  It
 must be placed immediately before a @code{DO} loop and applies only to
 the loop that follows.
 
+For @code{DO CONCURRENT} constructs this annotation applies to all loops
+specified in the concurrent header.
+
 
 @node NOVECTOR directive
 @subsection NOVECTOR directive
@@ -3327,6 +3337,9 @@ The syntax of the directive is
 This directive tells the compiler to not vectorize the following loop.
 It must be placed immediately before a @code{DO} loop and applies only
 to the loop that follows.
+
+For @code{DO CONCURRENT} constructs this annotation applies to all loops
+specified in the concurrent header.
 
 
 @node Non-Fortran Main Program

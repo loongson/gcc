@@ -82,6 +82,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "intl.h"
 #include "ifcvt.h"
 #include "symbol-summary.h"
+#include "sreal.h"
+#include "ipa-cp.h"
 #include "ipa-prop.h"
 #include "ipa-fnsummary.h"
 #include "wide-int-bitmask.h"
@@ -172,11 +174,12 @@ along with GCC; see the file COPYING3.  If not see
 #define m_ZNVER2 (HOST_WIDE_INT_1U<<PROCESSOR_ZNVER2)
 #define m_ZNVER3 (HOST_WIDE_INT_1U<<PROCESSOR_ZNVER3)
 #define m_ZNVER4 (HOST_WIDE_INT_1U<<PROCESSOR_ZNVER4)
+#define m_ZNVER5 (HOST_WIDE_INT_1U<<PROCESSOR_ZNVER5)
 #define m_BTVER1 (HOST_WIDE_INT_1U<<PROCESSOR_BTVER1)
 #define m_BTVER2 (HOST_WIDE_INT_1U<<PROCESSOR_BTVER2)
 #define m_BDVER	(m_BDVER1 | m_BDVER2 | m_BDVER3 | m_BDVER4)
 #define m_BTVER (m_BTVER1 | m_BTVER2)
-#define m_ZNVER	(m_ZNVER1 | m_ZNVER2 | m_ZNVER3 | m_ZNVER4)
+#define m_ZNVER (m_ZNVER1 | m_ZNVER2 | m_ZNVER3 | m_ZNVER4 | m_ZNVER5)
 #define m_AMD_MULTIPLE (m_ATHLON_K8 | m_AMDFAM10 | m_BDVER | m_BTVER \
 			| m_ZNVER)
 
@@ -813,7 +816,8 @@ static const struct processor_costs *processor_cost_table[] =
   &znver1_cost,
   &znver2_cost,
   &znver3_cost,
-  &znver4_cost
+  &znver4_cost,
+  &znver5_cost
 };
 
 /* Guarantee that the array is aligned with enum processor_type.  */
@@ -1427,6 +1431,7 @@ ix86_valid_target_attribute_tree (tree fndecl, tree args,
      scenario.  */
   if ((def->x_ix86_isa_flags2 & OPTION_MASK_ISA2_AVX10_1_256)
       && (opts->x_ix86_isa_flags & OPTION_MASK_ISA_AVX512F)
+      && (opts->x_ix86_isa_flags_explicit & OPTION_MASK_ISA_AVX512F)
       && !(def->x_ix86_isa_flags2_explicit & OPTION_MASK_ISA2_EVEX512)
       && !(opts->x_ix86_isa_flags2_explicit & OPTION_MASK_ISA2_EVEX512))
     opts->x_ix86_isa_flags2 |= OPTION_MASK_ISA2_EVEX512;
@@ -2188,6 +2193,15 @@ ix86_option_override_internal (bool main_args_p,
   if ((opts->x_flag_sanitize & SANITIZE_THREAD)
       && opts->x_ix86_abi != DEFAULT_ABI)
     error ("%<-mabi=%s%> not supported with %<-fsanitize=thread%>", abi_name);
+
+  /* Hwasan is supported with lam_u57 only.  */
+  if (opts->x_flag_sanitize & SANITIZE_HWADDRESS)
+    {
+      if (ix86_lam_type == lam_u48)
+	warning (0, "%<-mlam=u48%> is not compatible with Hardware-assisted "
+		 "AddressSanitizer, override to %<-mlam=u57%>");
+      ix86_lam_type = lam_u57;
+    }
 
   /* For targets using ms ABI enable ms-extensions, if not
      explicit turned off.  For non-ms ABI we turn off this
@@ -3229,7 +3243,7 @@ ix86_option_override_internal (bool main_args_p,
      on the command line.  */
   if (opts->x_flag_hardened && cf_okay_p)
     {
-      if (opts->x_flag_cf_protection == CF_NONE)
+      if (!opts_set->x_flag_cf_protection)
 	opts->x_flag_cf_protection = CF_FULL;
       else if (opts->x_flag_cf_protection != CF_FULL)
 	warning_at (UNKNOWN_LOCATION, OPT_Whardened,
@@ -3248,7 +3262,7 @@ ix86_option_override_internal (bool main_args_p,
       = (cf_protection_level) (opts->x_flag_cf_protection | CF_SET);
     }
 
-  if (ix86_tune_features [X86_TUNE_AVOID_256FMA_CHAINS])
+  if (ix86_tune_features [X86_TUNE_AVOID_512FMA_CHAINS])
     SET_OPTION_IF_UNSET (opts, opts_set, param_avoid_fma_max_bits, 512);
   else if (ix86_tune_features [X86_TUNE_AVOID_256FMA_CHAINS])
     SET_OPTION_IF_UNSET (opts, opts_set, param_avoid_fma_max_bits, 256);
@@ -3371,6 +3385,37 @@ ix86_simd_clone_adjust (struct cgraph_node *node)
 static void
 ix86_set_func_type (tree fndecl)
 {
+  /* No need to save and restore callee-saved registers for a noreturn
+     function with nothrow or compiled with -fno-exceptions unless when
+     compiling with -O0 or -Og, except that it interferes with debugging
+     of callers.  So that backtrace works for those at least
+     in most cases, save the bp register if it is used, because it often
+     is used in callers to compute CFA.
+
+     NB: Can't use just TREE_THIS_VOLATILE to check if this is a noreturn
+     function.  The local-pure-const pass turns an interrupt function
+     into a noreturn function by setting TREE_THIS_VOLATILE.  Normally
+     the local-pure-const pass is run after ix86_set_func_type is called.
+     When the local-pure-const pass is enabled for LTO, the interrupt
+     function is marked with TREE_THIS_VOLATILE in the IR output, which
+     leads to the incompatible attribute error in LTO1.  Ignore the
+     interrupt function in this case.  */
+  enum call_saved_registers_type no_callee_saved_registers
+    = TYPE_DEFAULT_CALL_SAVED_REGISTERS;
+  if (lookup_attribute ("no_callee_saved_registers",
+			TYPE_ATTRIBUTES (TREE_TYPE (fndecl))))
+    no_callee_saved_registers = TYPE_NO_CALLEE_SAVED_REGISTERS;
+  else if (ix86_noreturn_no_callee_saved_registers
+	   && TREE_THIS_VOLATILE (fndecl)
+	   && optimize
+	   && !optimize_debug
+	   && (TREE_NOTHROW (fndecl) || !flag_exceptions)
+	   && !lookup_attribute ("interrupt",
+				 TYPE_ATTRIBUTES (TREE_TYPE (fndecl)))
+	   && !lookup_attribute ("no_caller_saved_registers",
+				 TYPE_ATTRIBUTES (TREE_TYPE (fndecl))))
+    no_callee_saved_registers = TYPE_NO_CALLEE_SAVED_REGISTERS_EXCEPT_BP;
+
   if (cfun->machine->func_type == TYPE_UNKNOWN)
     {
       if (lookup_attribute ("interrupt",
@@ -3380,12 +3425,18 @@ ix86_set_func_type (tree fndecl)
 	    error_at (DECL_SOURCE_LOCATION (fndecl),
 		      "interrupt and naked attributes are not compatible");
 
+	  if (no_callee_saved_registers)
+	    error_at (DECL_SOURCE_LOCATION (fndecl),
+		      "%qs and %qs attributes are not compatible",
+		      "interrupt", "no_callee_saved_registers");
+
 	  int nargs = 0;
 	  for (tree arg = DECL_ARGUMENTS (fndecl);
 	       arg;
 	       arg = TREE_CHAIN (arg))
 	    nargs++;
-	  cfun->machine->no_caller_saved_registers = true;
+	  cfun->machine->call_saved_registers
+	    = TYPE_NO_CALLER_SAVED_REGISTERS;
 	  cfun->machine->func_type
 	    = nargs == 2 ? TYPE_EXCEPTION : TYPE_INTERRUPT;
 
@@ -3401,7 +3452,19 @@ ix86_set_func_type (tree fndecl)
 	  cfun->machine->func_type = TYPE_NORMAL;
 	  if (lookup_attribute ("no_caller_saved_registers",
 				TYPE_ATTRIBUTES (TREE_TYPE (fndecl))))
-	    cfun->machine->no_caller_saved_registers = true;
+	    cfun->machine->call_saved_registers
+	      = TYPE_NO_CALLER_SAVED_REGISTERS;
+	  if (no_callee_saved_registers)
+	    {
+	      if (cfun->machine->call_saved_registers
+		  == TYPE_NO_CALLER_SAVED_REGISTERS)
+		error_at (DECL_SOURCE_LOCATION (fndecl),
+			  "%qs and %qs attributes are not compatible",
+			  "no_caller_saved_registers",
+			  "no_callee_saved_registers");
+	      cfun->machine->call_saved_registers
+		= no_callee_saved_registers;
+	    }
 	}
     }
 }
@@ -3571,7 +3634,7 @@ ix86_set_current_function (tree fndecl)
     }
   ix86_previous_fndecl = fndecl;
 
-  static bool prev_no_caller_saved_registers;
+  static call_saved_registers_type prev_call_saved_registers;
 
   /* 64-bit MS and SYSV ABI have different set of call used registers.
      Avoid expensive re-initialization of init_regs each time we switch
@@ -3582,12 +3645,13 @@ ix86_set_current_function (tree fndecl)
     reinit_regs ();
   /* Need to re-initialize init_regs if caller-saved registers are
      changed.  */
-  else if (prev_no_caller_saved_registers
-	   != cfun->machine->no_caller_saved_registers)
+  else if (prev_call_saved_registers
+	   != cfun->machine->call_saved_registers)
     reinit_regs ();
 
   if (cfun->machine->func_type != TYPE_NORMAL
-      || cfun->machine->no_caller_saved_registers)
+      || (cfun->machine->call_saved_registers
+	  == TYPE_NO_CALLER_SAVED_REGISTERS))
     {
       /* Don't allow SSE, MMX nor x87 instructions since they
 	 may change processor state.  */
@@ -3614,12 +3678,12 @@ ix86_set_current_function (tree fndecl)
 		   "the %<no_caller_saved_registers%> attribute", isa);
 	  /* Don't issue the same error twice.  */
 	  cfun->machine->func_type = TYPE_NORMAL;
-	  cfun->machine->no_caller_saved_registers = false;
+	  cfun->machine->call_saved_registers
+	    = TYPE_DEFAULT_CALL_SAVED_REGISTERS;
 	}
     }
 
-  prev_no_caller_saved_registers
-    = cfun->machine->no_caller_saved_registers;
+  prev_call_saved_registers = cfun->machine->call_saved_registers;
 }
 
 /* Implement the TARGET_OFFLOAD_OPTIONS hook.  */
@@ -4018,8 +4082,8 @@ ix86_handle_fndecl_attribute (tree *node, tree name, tree args, int,
 }
 
 static tree
-ix86_handle_no_caller_saved_registers_attribute (tree *, tree, tree,
-						 int, bool *)
+ix86_handle_call_saved_registers_attribute (tree *, tree, tree,
+					    int, bool *)
 {
   return NULL_TREE;
 }
@@ -4181,7 +4245,9 @@ static const attribute_spec ix86_gnu_attributes[] =
   { "interrupt", 0, 0, false, true, true, false,
     ix86_handle_interrupt_attribute, NULL },
   { "no_caller_saved_registers", 0, 0, false, true, true, false,
-    ix86_handle_no_caller_saved_registers_attribute, NULL },
+    ix86_handle_call_saved_registers_attribute, NULL },
+  { "no_callee_saved_registers", 0, 0, false, true, true, true,
+    ix86_handle_call_saved_registers_attribute, NULL },
   { "naked", 0, 0, true, false, false, false,
     ix86_handle_fndecl_attribute, NULL },
   { "indirect_branch", 1, 1, true, false, false, false,

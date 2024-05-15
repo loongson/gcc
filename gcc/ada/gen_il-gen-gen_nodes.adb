@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---           Copyright (C) 2020-2023, Free Software Foundation, Inc.        --
+--           Copyright (C) 2020-2024, Free Software Foundation, Inc.        --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -492,7 +492,6 @@ begin -- Gen_IL.Gen.Gen_Nodes
         Sy (Null_Record_Present, Flag),
         Sy (Is_Parenthesis_Aggregate, Flag),
         Sy (Is_Homogeneous_Aggregate, Flag),
-        Sy (Is_Enum_Array_Aggregate, Flag),
         Sm (Aggregate_Bounds_Or_Ancestor_Type, Node_Id),
         Sm (Entity_Or_Associated_Node, Node_Id), -- just Associated_Node
         Sm (Compile_Time_Known_Aggregate, Flag),
@@ -1252,7 +1251,6 @@ begin -- Gen_IL.Gen.Gen_Nodes
        (Sy (Identifier, Node_Id, Default_Empty),
         Sy (Expression, Node_Id, Default_Empty),
         Sy (Class_Present, Flag),
-        Sy (Split_PPC, Flag),
         Sm (Aspect_On_Partial_View, Flag),
         Sm (Aspect_Rep_Item, Node_Id),
         Sm (Entity_Or_Associated_Node, Node_Id), -- just Entity
@@ -1331,7 +1329,6 @@ begin -- Gen_IL.Gen.Gen_Nodes
    Cc (N_Contract, Node_Kind,
        (Sm (Classifications, Node_Id),
         Sm (Contract_Test_Cases, Node_Id),
-        Sm (Is_Expanded_Contract, Flag),
         Sm (Pre_Post_Conditions, Node_Id)));
 
    Cc (N_Derived_Type_Definition, Node_Kind,
@@ -1376,6 +1373,7 @@ begin -- Gen_IL.Gen.Gen_Nodes
         Sy (Null_Exclusion_Present, Flag, Default_False),
         Sy (Discriminant_Type, Node_Id),
         Sy (Expression, Node_Id, Default_Empty),
+        Sy (Aspect_Specifications, List_Id, Default_No_List),
         Sm (More_Ids, Flag),
         Sm (Prev_Ids, Flag)));
 
@@ -1557,7 +1555,6 @@ begin -- Gen_IL.Gen.Gen_Nodes
        (Sy (Pragma_Argument_Associations, List_Id, Default_No_List),
         Sy (Pragma_Identifier, Node_Id),
         Sy (Class_Present, Flag),
-        Sy (Split_PPC, Flag),
         Sm (Corresponding_Aspect, Node_Id),
         Sm (From_Aspect_Specification, Flag),
         Sm (Import_Interface_Present, Flag),

@@ -116,15 +116,6 @@ get_gnu_namespace ()
   return gnu_namespace_cache;
 }
 
-/* Return base name of the attribute.  Ie '__attr__' is turned into 'attr'.
-   To avoid need for copying, we simply return length of the string.  */
-
-static void
-extract_attribute_substring (struct substring *str)
-{
-  canonicalize_attr_name (str->str, str->length);
-}
-
 /* Insert SPECS into its namespace.  IGNORED_P is true iff all unknown
    attributes in this namespace should be ignored for the purposes of
    -Wattributes.  The function returns the namespace into which the
@@ -398,7 +389,6 @@ lookup_scoped_attribute_spec (const_tree ns, const_tree name)
 
   attr.str = IDENTIFIER_POINTER (name);
   attr.length = IDENTIFIER_LENGTH (name);
-  extract_attribute_substring (&attr);
   return attrs->attribute_hash->find_with_hash (&attr,
 						substring_hash (attr.str,
 							       	attr.length));
@@ -478,7 +468,12 @@ diag_attr_exclusions (tree last_decl, tree node, tree attrname,
   if (DECL_P (node))
     {
       attrs[0] = DECL_ATTRIBUTES (node);
-      attrs[1] = TYPE_ATTRIBUTES (TREE_TYPE (node));
+      if (TREE_TYPE (node))
+	attrs[1] = TYPE_ATTRIBUTES (TREE_TYPE (node));
+      else
+	/* TREE_TYPE can be NULL e.g. while processing attributes on
+	   enumerators.  */
+	attrs[1] = NULL_TREE;
     }
   else
     {
@@ -1341,6 +1336,16 @@ build_type_attribute_qual_variant (tree otype, tree attribute, int quals)
       tree dtype = ntype = build_distinct_type_copy (ttype);
 
       TYPE_ATTRIBUTES (ntype) = attribute;
+      /* If the target-dependent attributes make NTYPE different from
+	 its canonical type, we will need to use structural equality
+	 checks for this type.
+
+	 We shouldn't get here for stripping attributes from a type;
+	 the no-attribute type might not need structural comparison.  But
+	 we can if was discarded from type_hash_table.  */
+      if (TYPE_STRUCTURAL_EQUALITY_P (ttype)
+	  || !comp_type_attributes (ntype, ttype))
+	SET_TYPE_STRUCTURAL_EQUALITY (ntype);
 
       hashval_t hash = type_hash_canon_hash (ntype);
       ntype = type_hash_canon (hash, ntype);
@@ -1348,16 +1353,6 @@ build_type_attribute_qual_variant (tree otype, tree attribute, int quals)
       if (ntype != dtype)
 	/* This variant was already in the hash table, don't mess with
 	   TYPE_CANONICAL.  */;
-      else if (TYPE_STRUCTURAL_EQUALITY_P (ttype)
-	       || !comp_type_attributes (ntype, ttype))
-	/* If the target-dependent attributes make NTYPE different from
-	   its canonical type, we will need to use structural equality
-	   checks for this type.
-
-	   We shouldn't get here for stripping attributes from a type;
-	   the no-attribute type might not need structural comparison.  But
-	   we can if was discarded from type_hash_table.  */
-	SET_TYPE_STRUCTURAL_EQUALITY (ntype);
       else if (TYPE_CANONICAL (ntype) == ntype)
 	TYPE_CANONICAL (ntype) = TYPE_CANONICAL (ttype);
 

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -482,11 +482,11 @@ package ALI is
       --  Indicates whether a package body or a spec has a library-level
       --  finalization routine.
 
-      Primary_Stack_Count : Int;
+      Primary_Stack_Count : Nat;
       --  Indicates the number of task objects declared in this unit that have
       --  default sized primary stacks.
 
-      Sec_Stack_Count : Int;
+      Sec_Stack_Count : Nat;
       --  Indicates the number of task objects declared in this unit that have
       --  default sized secondary stacks.
    end record;

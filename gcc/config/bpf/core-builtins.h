@@ -1,7 +1,7 @@
 #ifndef BPF_CORE_BUILTINS_H
 #define BPF_CORE_BUILTINS_H
 
-#include "coreout.h"
+#include "btfext-out.h"
 
 enum bpf_builtins
 {
@@ -59,5 +59,7 @@ void bpf_init_core_builtins (void);
 rtx bpf_expand_core_builtin (tree exp, enum bpf_builtins code);
 tree bpf_resolve_overloaded_core_builtin (location_t loc, tree fndecl,
 					  void *arglist);
+void
+bpf_output_core_reloc (rtx *operands, int nr_ops);
 
 #endif

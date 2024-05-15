@@ -33,7 +33,10 @@ typedef enum
   DK_LAST_DIAGNOSTIC_KIND,
   /* This is used for tagging pragma pops in the diagnostic
      classification history chain.  */
-  DK_POP
+  DK_POP,
+  /* This is used internally to note that a diagnostic is enabled
+     without mandating any specific type.  */
+  DK_ANY,
 } diagnostic_t;
 
 /* RAII-style class for grouping related diagnostics.  */
@@ -123,12 +126,12 @@ extern bool emit_diagnostic (diagnostic_t, rich_location *, int,
 			     const char *, ...) ATTRIBUTE_GCC_DIAG(4,5);
 extern bool emit_diagnostic_valist (diagnostic_t, location_t, int, const char *,
 				    va_list *) ATTRIBUTE_GCC_DIAG (4,0);
-extern bool emit_diagnostic_valist (diagnostic_t,
-				    rich_location *,
-				    const diagnostic_metadata *,
-				    int,
-				    const char *,
-				    va_list *) ATTRIBUTE_GCC_DIAG (5,0);
+extern bool emit_diagnostic_valist_meta (diagnostic_t,
+					 rich_location *,
+					 const diagnostic_metadata *,
+					 int,
+					 const char *,
+					 va_list *) ATTRIBUTE_GCC_DIAG (5,0);
 extern bool seen_error (void);
 
 #ifdef BUFSIZ

@@ -1,5 +1,9 @@
 /* { dg-require-effective-target sockets } */
-/* { dg-skip-if "" { powerpc*-*-aix* } } */
+
+/* Needed on some targets until we have exception-handling working (PR 111475).  */
+/* { dg-additional-options "-fno-exceptions" } */
+
+/* { dg-skip-if "" { hppa*-*-hpux* powerpc*-*-aix* } } */
 
 #include <string.h>
 #include <sys/socket.h>

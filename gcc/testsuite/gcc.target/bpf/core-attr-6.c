@@ -2,7 +2,7 @@
    LHS and both LHS and RHS of assignment.  */
 
 /* { dg-do compile } */
-/* { dg-options "-O2 -dA -gbtf -mco-re" } */
+/* { dg-options "-O2 -dA -gbtf -mco-re -masm=normal" } */
 
 struct U {
   int c;
@@ -37,10 +37,14 @@ func (struct T *t, int i)
   mset (&t->a);
 }
 
-/* { dg-final { scan-assembler-times "ascii \"0:3.0\"\[\t \]+\[^\n\]*btf_aux_string" 2 } } */
+/* { dg-final { scan-assembler-times "ascii \"0:3.0\"\[\t \]+\[^\n\]*btf_aux_string" 1 } } */
 /* { dg-final { scan-assembler-times "ascii \"0:1:1:1.0\"\[\t \]+\[^\n\]*btf_aux_string" 1 } } */
 /* { dg-final { scan-assembler-times "ascii \"0:1:2.0\"\[\t \]+\[^\n\]*btf_aux_string" 1 } } */
 /* { dg-final { scan-assembler-times "ascii \"0:0.0\"\[\t \]+\[^\n\]*btf_aux_string" 1 } } */
-/* { dg-final { scan-assembler-times "bpfcr_type \\(struct T \\*\\)" 3 } } */
-/* { dg-final { scan-assembler-times "bpfcr_type \\(struct U \\*\\)" 2 } } */
+/* { dg-final { scan-assembler-times "bpfcr_astr_off \\(\"0:1:1:1\"\\)" 1 } } */
+/* { dg-final { scan-assembler-times "bpfcr_astr_off \\(\"0:3\"\\)" 2 } } */
+/* { dg-final { scan-assembler-times "bpfcr_astr_off \\(\"0:1:2\"\\)" 1 } } */
+/* { dg-final { scan-assembler-times "bpfcr_astr_off \\(\"0:0\"\\)" 1 } } */
+/* { dg-final { scan-assembler-times "bpfcr_type \\(struct T\\)" 3 } } */
+/* { dg-final { scan-assembler-times "bpfcr_type \\(struct U\\)" 2 } } */
 

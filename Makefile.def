@@ -164,7 +164,7 @@ host_modules= { module= libcc1; extra_configure_flags=--enable-shared; };
 host_modules= { module= gotools; };
 host_modules= { module= libctf; bootstrap=true; };
 host_modules= { module= libsframe; bootstrap=true; };
-host_modules= { module= libgrust; };
+host_modules= { module= libgrust; bootstrap=true; };
 
 target_modules = { module= libstdc++-v3;
 		   bootstrap=true;
@@ -312,6 +312,7 @@ flags_to_pass = { flag= GNATBIND ; };
 flags_to_pass = { flag= GNATMAKE ; };
 flags_to_pass = { flag= GDC ; };
 flags_to_pass = { flag= GDCFLAGS ; };
+flags_to_pass = { flag= GUILE ; };
 
 // Target tools
 flags_to_pass = { flag= AR_FOR_TARGET ; };
@@ -374,6 +375,7 @@ dependencies = { module=configure-gcc; on=all-ld; };
 dependencies = { module=configure-gcc; on=all-gold; };
 dependencies = { module=configure-gcc; on=all-libiconv; };
 dependencies = { module=all-gcc; on=all-libiberty; hard=true; };
+dependencies = { module=all-gcc; on=all-libgrust; };
 dependencies = { module=all-gcc; on=all-gettext; };
 dependencies = { module=all-gcc; on=all-mpfr; };
 dependencies = { module=all-gcc; on=all-mpc; };

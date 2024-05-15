@@ -223,9 +223,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Tp>
     using __is_in_place_type = bool_constant<__is_in_place_type_v<_Tp>>;
 
+  template<typename>
+    inline constexpr bool __is_in_place_index_v = false;
+
+  template<size_t _Nm>
+    inline constexpr bool __is_in_place_index_v<in_place_index_t<_Nm>> = true;
+
 #endif // C++17
 
-#if __has_builtin(__type_pack_element)
+#if _GLIBCXX_USE_BUILTIN_TRAIT(__type_pack_element)
   template<size_t _Np, typename... _Types>
     struct _Nth_type
     { using type = __type_pack_element<_Np, _Types...>; };
@@ -264,6 +270,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct _Nth_type<1, _Tp0, _Tp1, _Tp2, _Rest...>
     { using type = _Tp1; };
 #endif
+#endif
+
+#if __glibcxx_ranges
+  namespace ranges::__detail
+  {
+    template<typename _Range>
+      inline constexpr bool __is_subrange = false;
+  } // namespace __detail
 #endif
 
 _GLIBCXX_END_NAMESPACE_VERSION

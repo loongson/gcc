@@ -209,7 +209,6 @@ ftms = {
   values = {
     v = 201304;
     cxxmin = 14;
-    extra_cond = "!defined(_GLIBCXX_DEBUG)";
   };
 };
 
@@ -739,6 +738,7 @@ ftms = {
   values = {
     v = 201907;
     cxxmin = 20;
+    extra_cond = "(__GCC_ATOMIC_INT_LOCK_FREE | __GCC_ATOMIC_LONG_LOCK_FREE | __GCC_ATOMIC_CHAR_LOCK_FREE) & 2";
   };
 };
 
@@ -763,6 +763,15 @@ ftms = {
   values = {
     v = 201907;
     cxxmin = 20;
+  };
+};
+
+ftms = {
+  name = bind_back;
+  values = {
+    v = 202202;
+    cxxmin = 23;
+    extra_cond = "__cpp_explicit_this_parameter";
   };
 };
 
@@ -1229,6 +1238,15 @@ ftms = {
 };
 
 ftms = {
+  name = constrained_equality;
+  values = {
+    v = 202403;
+    cxxmin = 20;
+    extra_cond = "__glibcxx_three_way_comparison";
+  };
+};
+
+ftms = {
   name = erase_if;
   values = {
     v = 202002;
@@ -1447,7 +1465,7 @@ ftms = {
 };
 
 //ftms = {
-//  name = container_ranges;
+//  name = containers_ranges;
 //  values = {
 //    v = 202202;
 //    cxxmin = 23;
@@ -1539,7 +1557,7 @@ ftms = {
 ftms = {
   name = ranges_as_const;
   values = {
-    v = 202207;
+    v = 202311;
     cxxmin = 23;
   };
 };
@@ -1629,6 +1647,15 @@ ftms = {
 };
 
 ftms = {
+  name = generator;
+  values = {
+    v = 202207;
+    cxxmin = 23;
+    extra_cond = "__glibcxx_coroutine";
+  };
+};
+
+ftms = {
   name = ios_noreplace;
   values = {
     v = 202207;
@@ -1710,6 +1737,14 @@ ftms = {
 };
 
 ftms = {
+  name = tuple_like;
+  values = {
+    v = 202207;
+    cxxmin = 23;
+  };
+};
+
+ftms = {
   name = unreachable;
   values = {
     v = 202202;
@@ -1735,10 +1770,28 @@ ftms = {
 };
 
 ftms = {
+  name = reference_wrapper;
+  values = {
+    v = 202403;
+    cxxmin = 26;
+  };
+};
+
+ftms = {
   name = saturation_arithmetic;
   values = {
     v = 202311;
     cxxmin = 26;
+  };
+};
+
+ftms = {
+  name = text_encoding;
+  values = {
+    v = 202306;
+    cxxmin = 26;
+    hosted = yes;
+    extra_cond = "_GLIBCXX_USE_NL_LANGINFO_L";
   };
 };
 
@@ -1749,15 +1802,6 @@ ftms = {
     cxxmin = 26;
     hosted = yes;
     extra_cond = "__glibcxx_to_chars";
-  };
-};
-
-ftms = {
-  name = generator;
-  values = {
-    v = 202207;
-    cxxmin = 23;
-    extra_cond = "__glibcxx_coroutine";
   };
 };
 

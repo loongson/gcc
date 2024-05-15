@@ -270,6 +270,10 @@ struct GTY(()) function {
   /* Value histograms attached to particular statements.  */
   htab_t GTY((skip)) value_histograms;
 
+  /* Annotated gconds so that basic conditions in the same expression map to
+     the same uid.  This is used for condition coverage.  */
+  hash_map <gcond*, unsigned> *GTY((skip)) cond_uids;
+
   /* For function.cc.  */
 
   /* Points to the FUNCTION_DECL of this function.  */
@@ -730,7 +734,7 @@ extern poly_int64 get_stack_dynamic_offset ();
 
 /* Returns the name of the current function.  */
 extern const char *fndecl_name (tree);
-extern const char *function_name (struct function *);
+extern const char *function_name (const function *);
 extern const char *current_function_name (void);
 
 extern void used_types_insert (tree);

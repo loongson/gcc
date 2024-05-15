@@ -386,6 +386,14 @@
   (and (match_code "const_int")
        (match_test "SINGLE_BIT_MASK_OPERAND (UINTVAL (op))")))
 
+;; Register, small constant or single bit constant for use in
+;; bseti/binvi.
+(define_predicate "arith_or_zbs_operand"
+  (ior (match_operand 0 "const_arith_operand")
+       (match_operand 0 "register_operand")
+       (and (match_test "TARGET_ZBS")
+	    (match_operand 0 "single_bit_mask_operand"))))
+
 (define_predicate "not_single_bit_mask_operand"
   (and (match_code "const_int")
        (match_test "SINGLE_BIT_MASK_OPERAND (~UINTVAL (op))")))
@@ -420,15 +428,47 @@
 	return true;
 })
 
+(define_predicate "const_two_s12"
+  (match_code "const_int")
+{
+  return SUM_OF_TWO_S12 (INTVAL (op));
+})
+
 ;; CORE-V Predicates:
 (define_predicate "immediate_register_operand"
   (ior (match_operand 0 "register_operand")
        (match_code "const_int")))
 
+(define_predicate "const_int6s_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), -32, 31)")))
+
+(define_predicate "int6s_operand"
+  (ior (match_operand 0 "const_int6s_operand")
+       (match_operand 0 "register_operand")))
+
+(define_predicate "const_int2_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 0, 3)")))
+
+(define_predicate "const_int6_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 0, 63)")))
+
+(define_predicate "int6_operand"
+  (ior (match_operand 0 "const_int6_operand")
+       (match_operand 0 "register_operand")))
+
+(define_predicate "const_int5s_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), -16, 15)")))
+
 ;; Predicates for the V extension.
 (define_special_predicate "vector_length_operand"
   (ior (match_operand 0 "pmode_register_operand")
-       (match_operand 0 "const_csr_operand")))
+       (and (ior (match_test "TARGET_XTHEADVECTOR && rtx_equal_p (op, const0_rtx)")
+		 (match_test "!TARGET_XTHEADVECTOR"))
+    (match_operand 0 "const_csr_operand"))))
 
 (define_special_predicate "autovec_length_operand"
   (ior (match_operand 0 "pmode_register_operand")

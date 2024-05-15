@@ -297,6 +297,9 @@ replace_loop_annotate_in_block (basic_block bb, class loop *loop)
 	  loop->can_be_parallel = true;
 	  loop->safelen = INT_MAX;
 	  break;
+	case annot_expr_maybe_infinite_kind:
+	  loop->finite_p = false;
+	  break;
 	default:
 	  gcc_unreachable ();
 	}
@@ -320,15 +323,12 @@ replace_loop_annotate (void)
 
   for (auto loop : loops_list (cfun, 0))
     {
-      /* First look into the header.  */
-      replace_loop_annotate_in_block (loop->header, loop);
-
-      /* Then look into the latch, if any.  */
-      if (loop->latch)
-	replace_loop_annotate_in_block (loop->latch, loop);
-
       /* Push the global flag_finite_loops state down to individual loops.  */
       loop->finite_p = flag_finite_loops;
+
+      /* Check all exit source blocks for annotations.  */
+      for (auto e : get_loop_exit_edges (loop))
+	replace_loop_annotate_in_block (e->src, loop);
     }
 
   /* Remove IFN_ANNOTATE.  Safeguard for the case loop->latch == NULL.  */
@@ -350,6 +350,7 @@ replace_loop_annotate (void)
 	    case annot_expr_no_vector_kind:
 	    case annot_expr_vector_kind:
 	    case annot_expr_parallel_kind:
+	    case annot_expr_maybe_infinite_kind:
 	      break;
 	    default:
 	      gcc_unreachable ();
@@ -4836,6 +4837,17 @@ verify_gimple_assign_single (gassign *stmt)
 static bool
 verify_gimple_assign (gassign *stmt)
 {
+  if (gimple_assign_nontemporal_move_p (stmt))
+    {
+      tree lhs = gimple_assign_lhs (stmt);
+      if (is_gimple_reg (lhs))
+	{
+	  error ("nontemporal store lhs cannot be a gimple register");
+	  debug_generic_stmt (lhs);
+	  return true;
+	}
+    }
+
   switch (gimple_assign_rhs_class (stmt))
     {
     case GIMPLE_SINGLE_RHS:
@@ -5817,7 +5829,7 @@ gimple_verify_flow_info (void)
 	  if (gimple_code (stmt) == GIMPLE_CALL
 	      && gimple_call_flags (stmt) & ECF_RETURNS_TWICE)
 	    {
-	      const char *misplaced = NULL;
+	      bool misplaced = false;
 	      /* TM is an exception: it points abnormal edges just after the
 		 call that starts a transaction, i.e. it must end the BB.  */
 	      if (gimple_call_builtin_p (stmt, BUILT_IN_TM_START))
@@ -5825,18 +5837,23 @@ gimple_verify_flow_info (void)
 		  if (single_succ_p (bb)
 		      && bb_has_abnormal_pred (single_succ (bb))
 		      && !gsi_one_nondebug_before_end_p (gsi))
-		    misplaced = "not last";
+		    {
+		      error ("returns_twice call is not last in basic block "
+			     "%d", bb->index);
+		      misplaced = true;
+		    }
 		}
 	      else
 		{
-		  if (seen_nondebug_stmt
-		      && bb_has_abnormal_pred (bb))
-		    misplaced = "not first";
+		  if (seen_nondebug_stmt && bb_has_abnormal_pred (bb))
+		    {
+		      error ("returns_twice call is not first in basic block "
+			     "%d", bb->index);
+		      misplaced = true;
+		    }
 		}
 	      if (misplaced)
 		{
-		  error ("returns_twice call is %s in basic block %d",
-			 misplaced, bb->index);
 		  print_gimple_stmt (stderr, stmt, 0, TDF_SLIM);
 		  err = true;
 		}
@@ -9007,10 +9024,30 @@ remove_edge_and_dominated_blocks (edge e)
 
   /* If we are removing a path inside a non-root loop that may change
      loop ownership of blocks or remove loops.  Mark loops for fixup.  */
+  class loop *src_loop = e->src->loop_father;
   if (current_loops
-      && loop_outer (e->src->loop_father) != NULL
-      && e->src->loop_father == e->dest->loop_father)
-    loops_state_set (LOOPS_NEED_FIXUP);
+      && loop_outer (src_loop) != NULL
+      && src_loop == e->dest->loop_father)
+    {
+      loops_state_set (LOOPS_NEED_FIXUP);
+      /* If we are removing a backedge clear the number of iterations
+	 and estimates.  */
+      class loop *dest_loop = e->dest->loop_father;
+      if (e->dest == src_loop->header
+	  || (e->dest == dest_loop->header
+	      && flow_loop_nested_p (dest_loop, src_loop)))
+	{
+	  free_numbers_of_iterations_estimates (dest_loop);
+	  /* If we removed the last backedge mark the loop for removal.  */
+	  FOR_EACH_EDGE (f, ei, dest_loop->header->preds)
+	    if (f != e
+		&& (f->src->loop_father == dest_loop
+		    || flow_loop_nested_p (dest_loop, f->src->loop_father)))
+	      break;
+	  if (!f)
+	    mark_loop_for_removal (dest_loop);
+	}
+    }
 
   if (!dom_info_available_p (CDI_DOMINATORS))
     {

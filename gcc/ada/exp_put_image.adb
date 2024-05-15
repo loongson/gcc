@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---             Copyright (C) 2020-2023, Free Software Foundation, Inc.      --
+--             Copyright (C) 2020-2024, Free Software Foundation, Inc.      --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -82,12 +82,11 @@ package body Exp_Put_Image is
    -------------------------------------
 
    procedure Build_Array_Put_Image_Procedure
-     (Nod  : Node_Id;
-      Typ  : Entity_Id;
+     (Typ  : Entity_Id;
       Decl : out Node_Id;
       Pnam : out Entity_Id)
    is
-      Loc  : constant Source_Ptr := Sloc (Nod);
+      Loc  : constant Source_Ptr := Sloc (Typ);
 
       function Wrap_In_Loop
         (Stms : List_Id;
@@ -132,7 +131,7 @@ package body Exp_Put_Image is
                  Expressions => New_List (
                    Make_Integer_Literal (Loc, Dim))));
          Loop_Stm : constant Node_Id :=
-           Make_Implicit_Loop_Statement (Nod, Statements => Stms);
+           Make_Implicit_Loop_Statement (Typ, Statements => Stms);
          Exit_Stm : constant Node_Id :=
            Make_Exit_Statement (Loc,
              Condition =>
@@ -549,11 +548,11 @@ package body Exp_Put_Image is
    --    end Put_Image;
 
    procedure Build_Record_Put_Image_Procedure
-     (Loc  : Source_Ptr;
-      Typ  : Entity_Id;
+     (Typ  : Entity_Id;
       Decl : out Node_Id;
       Pnam : out Entity_Id)
    is
+      Loc  : constant Source_Ptr := Sloc (Typ);
       Btyp : constant Entity_Id := Base_Type (Typ);
       pragma Assert (not Is_Class_Wide_Type (Btyp));
       pragma Assert (not Is_Unchecked_Union (Btyp));
@@ -1290,6 +1289,14 @@ package body Exp_Put_Image is
          Actions := New_List (Sink_Decl, Put_Im, Result_Decl);
       end if;
 
+      --  To avoid leaks, we need to manage the secondary stack, because Get is
+      --  returning a String allocated thereon. It might be cleaner to let the
+      --  normal mechanisms for functions returning on the secondary stack call
+      --  Set_Uses_Sec_Stack, but this expansion of 'Image is happening too
+      --  late for that.
+
+      Set_Uses_Sec_Stack (Current_Scope);
+
       return Make_Expression_With_Actions (Loc,
         Actions    => Actions,
         Expression => New_Occurrence_Of (Result_Entity, Loc));
@@ -1341,6 +1348,8 @@ package body Exp_Put_Image is
    begin
       if Is_Array_Type (E) and then Is_First_Subtype (E) then
          return E;
+      elsif Is_Private_Type (Base_Type (E)) and not Is_Private_Type (E) then
+         return Implementation_Base_Type (E);
       else
          return Base_Type (E);
       end if;

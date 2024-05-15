@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -57,11 +57,11 @@ package body Bindgen is
    Num_Elab_Calls : Nat := 0;
    --  Number of generated calls to elaboration routines
 
-   Num_Primary_Stacks : Int := 0;
+   Num_Primary_Stacks : Nat := 0;
    --  Number of default-sized primary stacks the binder needs to allocate for
    --  task objects declared in the program.
 
-   Num_Sec_Stacks : Int := 0;
+   Num_Sec_Stacks : Nat := 0;
    --  Number of default-sized primary stacks the binder needs to allocate for
    --  task objects declared in the program.
 

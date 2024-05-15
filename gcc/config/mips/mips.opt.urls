@@ -6,7 +6,8 @@ UrlSuffix(gcc/MIPS-Options.html#index-EB-2)
 EL
 UrlSuffix(gcc/MIPS-Options.html#index-EL-2)
 
-; skipping UrlSuffix for 'mabi=' due to finding no URLs
+mabi=
+UrlSuffix(gcc/MIPS-Options.html#index-mabi-3)
 
 mabicalls
 UrlSuffix(gcc/MIPS-Options.html#index-mabicalls)
@@ -65,8 +66,14 @@ UrlSuffix(gcc/MIPS-Options.html#index-membedded-data)
 meva
 UrlSuffix(gcc/MIPS-Options.html#index-meva)
 
+mexplicit-relocs=
+UrlSuffix(gcc/MIPS-Options.html#index-mexplicit-relocs-2)
+
 mexplicit-relocs
 UrlSuffix(gcc/MIPS-Options.html#index-mexplicit-relocs-2)
+
+mno-explicit-relocs
+UrlSuffix(gcc/MIPS-Options.html#index-mno-explicit-relocs-2)
 
 mextern-sdata
 UrlSuffix(gcc/MIPS-Options.html#index-mextern-sdata)
@@ -173,7 +180,8 @@ UrlSuffix(gcc/MIPS-Options.html#index-mno-float)
 mmcu
 UrlSuffix(gcc/MIPS-Options.html#index-mmcu-1)
 
-; skipping UrlSuffix for 'mno-flush-func' due to finding no URLs
+mno-flush-func
+UrlSuffix(gcc/MIPS-Options.html#index-mno-flush-func-1)
 
 mno-mdmx
 UrlSuffix(gcc/MIPS-Options.html#index-mno-mdmx)
@@ -225,8 +233,14 @@ UrlSuffix(gcc/MIPS-Options.html#index-mmadd4)
 mtune=
 UrlSuffix(gcc/MIPS-Options.html#index-mtune-10)
 
+mstrict-align
+UrlSuffix(gcc/MIPS-Options.html#index-mstrict-align-3)
+
 munaligned-access
 UrlSuffix(gcc/MIPS-Options.html#index-munaligned-access-1)
+
+mno-unaligned-access
+UrlSuffix(gcc/MIPS-Options.html#index-mno-unaligned-access-1)
 
 muninit-const-in-rodata
 UrlSuffix(gcc/MIPS-Options.html#index-muninit-const-in-rodata)

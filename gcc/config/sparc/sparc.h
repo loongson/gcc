@@ -734,6 +734,13 @@ along with GCC; see the file COPYING3.  If not see
      parameter regs.  */
 #define STACK_POINTER_OFFSET (FIRST_PARM_OFFSET(0) + SPARC_STACK_BIAS)
 
+/* Unbias the stack pointer if needed, and move past the register save area,
+   that is never in use while a function is active, so that it is regarded as a
+   callee save area rather than as part of the function's own stack area.  This
+   enables __strub_leave() to do a better job of clearing the stack frame of a
+   previously-called sibling.  */
+#define STACK_ADDRESS_OFFSET STACK_POINTER_OFFSET
+
 /* Base register for access to local variables of the function.  */
 #define HARD_FRAME_POINTER_REGNUM 30
 
@@ -1693,3 +1700,6 @@ extern int sparc_indent_opcode;
 #define SPARC_LOW_FE_EXCEPT_VALUES 0
 
 #define TARGET_SUPPORTS_WIDE_INT 1
+
+/* Define this to 1 to accept ABI changes to match the vendor compiler.  */
+#define SUN_V9_ABI_COMPATIBILITY 0

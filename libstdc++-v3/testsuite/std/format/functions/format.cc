@@ -157,6 +157,11 @@ test_std_examples()
 
     // Restore
     std::locale::global(std::locale::classic());
+
+    string s5 = format("{}", -100); // PR libstdc++/114325
+    VERIFY(s5 == "-100");
+    string s6 = format("{:d} {:d}", -123, 999);
+    VERIFY(s6 == "-123 999");
   }
 }
 
@@ -181,6 +186,12 @@ test_alternate_forms()
   // PR libstdc++/108046
   s = std::format("{0:#.0} {0:#.1} {0:#.0g}", 10.0);
   VERIFY( s == "1.e+01 1.e+01 1.e+01" );
+
+  // PR libstdc++/113512
+  s = std::format("{:#.3g}", 0.025);
+  VERIFY( s == "0.0250" );
+  s = std::format("{:#07.3g}", 0.02);
+  VERIFY( s == "00.0200" );
 }
 
 void
@@ -236,6 +247,14 @@ test_locale()
 
   s = std::format(cloc, "{:05L}", -1.0); // PR libstdc++/110968
   VERIFY( s == "-0001" );
+
+  // PR libstdc++/114863 grouping applied to nan and inf
+  double inf = std::numeric_limits<double>::infinity();
+  s = std::format(eloc, "{0:Le} {0:Lf} {0:Lg}", -inf);
+  VERIFY( s == "-inf -inf -inf" );
+  double nan = std::numeric_limits<double>::quiet_NaN();
+  s = std::format(eloc, "{0:Le} {0:Lf} {0:Lg}", -nan);
+  VERIFY( s == "-nan -nan -nan" );
 
   // Restore
   std::locale::global(cloc);
@@ -365,7 +384,7 @@ test_minmax()
     s = std::format("{:b}" , std::numeric_limits<U>::max());
     VERIFY( s == '1' + ones );
   };
-  check(std::int8_t(0));
+  check((signed char)(0)); // int8_t is char on Solaris, see PR 113450
   check(std::int16_t(0));
   check(std::int32_t(0));
   check(std::int64_t(0));

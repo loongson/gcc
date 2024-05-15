@@ -42,6 +42,18 @@ range_query::range_on_edge (vrange &r, edge, tree expr)
 }
 
 bool
+range_query::range_on_entry (vrange &r, basic_block, tree expr)
+{
+  return range_of_expr (r, expr);
+}
+
+bool
+range_query::range_on_exit (vrange &r, basic_block, tree expr)
+{
+  return range_of_expr (r, expr);
+}
+
+bool
 range_query::range_of_stmt (vrange &r, gimple *stmt, tree name)
 {
   if (!name)
@@ -53,6 +65,9 @@ range_query::range_of_stmt (vrange &r, gimple *stmt, tree name)
     return range_of_expr (r, name);
   return false;
 }
+
+// If the range of expr EXPR at STMT is a single value, return it.
+// Otherwise return NULL_TREE.
 
 tree
 range_query::value_of_expr (tree expr, gimple *stmt)
@@ -76,6 +91,9 @@ range_query::value_of_expr (tree expr, gimple *stmt)
   return NULL_TREE;
 }
 
+// If the range on edge E for EXPR is a single value, return it.
+// Otherwise return NULL_TREE.
+
 tree
 range_query::value_on_edge (edge e, tree expr)
 {
@@ -94,8 +112,10 @@ range_query::value_on_edge (edge e, tree expr)
 	return t;
     }
   return NULL_TREE;
-
 }
+
+// If the range of STMT for NAME is a single value, return it.
+// Otherwise return NULL_TREE.
 
 tree
 range_query::value_of_stmt (gimple *stmt, tree name)
@@ -113,7 +133,44 @@ range_query::value_of_stmt (gimple *stmt, tree name)
   if (range_of_stmt (r, stmt, name) && r.singleton_p (&t))
     return t;
   return NULL_TREE;
+}
 
+// If the range on entry to BB for EXPR is a single value, return it.
+// Otherwise return NULL_TREE.
+
+tree
+range_query::value_on_entry (basic_block bb, tree expr)
+{
+  tree t;
+
+  gcc_checking_assert (bb);
+  if (!Value_Range::supports_type_p (TREE_TYPE (expr)))
+    return NULL_TREE;
+
+  Value_Range r (TREE_TYPE (expr));
+
+  if (range_on_entry (r, bb, expr) && r.singleton_p (&t))
+    return t;
+  return NULL_TREE;
+}
+
+// If the range on exit to BB for EXPR is a single value, return it.
+// Otherwise return NULL_TREE.
+
+tree
+range_query::value_on_exit (basic_block bb, tree expr)
+{
+  tree t;
+
+  gcc_checking_assert (bb);
+  if (!Value_Range::supports_type_p (TREE_TYPE (expr)))
+    return NULL_TREE;
+
+  Value_Range r (TREE_TYPE (expr));
+
+  if (range_on_exit (r, bb, expr) && r.singleton_p (&t))
+    return t;
+  return NULL_TREE;
 }
 
 void
@@ -130,11 +187,36 @@ range_query::~range_query ()
 {
 }
 
-// Return a range in R for the tree EXPR.  Return true if a range is
-// representable, and UNDEFINED/false if not.
+// This routine will invoke the equivalent of range_of_expr on
+// either a gimple statement STMT, on entry to block BBENTRY, or on
+// exit from block BBEXIT.   Only one of these 3 fields may be set.
+// It is valid for none of them to be set, in wqhich case there is no context.
 
 bool
-range_query::get_tree_range (vrange &r, tree expr, gimple *stmt)
+range_query::invoke_range_of_expr (vrange &r, tree expr, gimple *stmt,
+				   basic_block bbentry, basic_block bbexit)
+{
+  if (bbentry)
+    {
+      gcc_checking_assert (!stmt && !bbexit);
+      return range_on_entry (r, bbentry, expr);
+    }
+  if (bbexit)
+    {
+      gcc_checking_assert (!stmt);
+      return range_on_exit (r, bbexit, expr);
+    }
+
+  return range_of_expr (r, expr, stmt);
+}
+
+// Return a range in R for the tree EXPR.  The context can be either a STMT,
+// or on entry to block BBENTRY or exit from block BBEXIT.
+// Return true if a range is representable, and UNDEFINED/false if not.
+
+bool
+range_query::get_tree_range (vrange &r, tree expr, gimple *stmt,
+			     basic_block bbentry, basic_block bbexit)
 {
   tree type;
   if (TYPE_P (expr))
@@ -156,11 +238,9 @@ range_query::get_tree_range (vrange &r, tree expr, gimple *stmt)
     {
     case INTEGER_CST:
       {
-	irange &i = as_a <irange> (r);
 	if (TREE_OVERFLOW_P (expr))
 	  expr = drop_tree_overflow (expr);
-	wide_int w = wi::to_wide (expr);
-	i.set (TREE_TYPE (expr), w, w);
+	r.set (expr, expr);
 	return true;
       }
 
@@ -182,6 +262,9 @@ range_query::get_tree_range (vrange &r, tree expr, gimple *stmt)
       }
 
     case SSA_NAME:
+      // If this is not an abnormal or virtual ssa, invoke range_of_expr.
+      if (gimple_range_ssa_p (expr))
+	return invoke_range_of_expr (r, expr, stmt, bbentry, bbexit);
       gimple_range_global (r, expr);
       return true;
 
@@ -212,8 +295,8 @@ range_query::get_tree_range (vrange &r, tree expr, gimple *stmt)
 	{
 	  Value_Range r0 (TREE_TYPE (op0));
 	  Value_Range r1 (TREE_TYPE (op1));
-	  range_of_expr (r0, op0, stmt);
-	  range_of_expr (r1, op1, stmt);
+	  invoke_range_of_expr (r0, op0, stmt, bbentry, bbexit);
+	  invoke_range_of_expr (r1, op1, stmt, bbentry, bbexit);
 	  if (!op.fold_range (r, type, r0, r1))
 	    r.set_varying (type);
 	}
@@ -230,7 +313,8 @@ range_query::get_tree_range (vrange &r, tree expr, gimple *stmt)
 	  Value_Range r0 (TREE_TYPE (TREE_OPERAND (expr, 0)));
 	  Value_Range r1 (type);
 	  r1.set_varying (type);
-	  range_of_expr (r0, TREE_OPERAND (expr, 0), stmt);
+	  invoke_range_of_expr (r0, TREE_OPERAND (expr, 0), stmt, bbentry,
+				bbexit);
 	  if (!op.fold_range (r, type, r0, r1))
 	    r.set_varying (type);
 	}
@@ -282,11 +366,15 @@ get_ssa_name_ptr_info_nonnull (const_tree name)
 // Update the global range for NAME into the SSA_RANGE_NAME_INFO and
 // Return the legacy global range for NAME if it has one, otherwise
 // return VARYING.
+// See discussion here regarding why there use to be a wrapper function:
+// https://gcc.gnu.org/pipermail/gcc-patches/2021-June/571709.html
+// Legacy EVRP has been removed, leaving just this function.
 
-static void
-get_range_global (vrange &r, tree name, struct function *fun = cfun)
+void
+gimple_range_global (vrange &r, tree name, struct function *fun)
 {
   tree type = TREE_TYPE (name);
+  gcc_checking_assert (TREE_CODE (name) == SSA_NAME);
 
   if (SSA_NAME_IS_DEFAULT_DEF (name))
     {
@@ -334,36 +422,6 @@ get_range_global (vrange &r, tree name, struct function *fun = cfun)
     r.set_varying (type);
 }
 
-// This is where the ranger picks up global info to seed initial
-// requests.  It is a slightly restricted version of
-// get_range_global() above.
-//
-// The reason for the difference is that we can always pick the
-// default definition of an SSA with no adverse effects, but for other
-// SSAs, if we pick things up to early, we may prematurely eliminate
-// builtin_unreachables.
-//
-// Without this restriction, the test in g++.dg/tree-ssa/pr61034.C has
-// all of its unreachable calls removed too early.
-//
-// See discussion here:
-// https://gcc.gnu.org/pipermail/gcc-patches/2021-June/571709.html
-
-void
-gimple_range_global (vrange &r, tree name, struct function *fun)
-{
-  tree type = TREE_TYPE (name);
-  gcc_checking_assert (TREE_CODE (name) == SSA_NAME);
-
-  if (SSA_NAME_IS_DEFAULT_DEF (name) || (fun && fun->after_inlining)
-      || is_a<gphi *> (SSA_NAME_DEF_STMT (name)))
-    {
-      get_range_global (r, name, fun);
-      return;
-    }
-  r.set_varying (type);
-}
-
 // ----------------------------------------------
 // global_range_query implementation.
 
@@ -375,7 +433,7 @@ global_range_query::range_of_expr (vrange &r, tree expr, gimple *stmt)
   if (!gimple_range_ssa_p (expr))
     return get_tree_range (r, expr, stmt);
 
-  get_range_global (r, expr);
+  gimple_range_global (r, expr);
 
   return true;
 }

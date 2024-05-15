@@ -43,7 +43,7 @@ experimental_dir =
 endif
 
 ## Keep this list sync'd with acinclude.m4:GLIBCXX_CONFIGURE.
-SUBDIRS = c++98 c++11 c++17 c++20 c++23 \
+SUBDIRS = c++98 c++11 c++17 c++20 c++23 c++26 \
 	$(filesystem_dir) $(backtrace_dir) $(experimental_dir)
 
 # Cross compiler support.
@@ -77,6 +77,7 @@ vpath % $(top_srcdir)/src/c++11
 vpath % $(top_srcdir)/src/c++17
 vpath % $(top_srcdir)/src/c++20
 vpath % $(top_srcdir)/src/c++23
+vpath % $(top_srcdir)/src/c++26
 if ENABLE_FILESYSTEM_TS
 vpath % $(top_srcdir)/src/filesystem
 endif
@@ -349,9 +350,7 @@ libstdc++-symbols.ver-sun : libstdc++-symbols.ver \
 	CXXFILT="$(CXXFILT)"; export CXXFILT; \
 	perl $(toplevel_srcdir)/contrib/make_sunver.pl \
 	  libstdc++-symbols.ver \
-	  $(libstdc___la_OBJECTS:%.lo=.libs/%.o) \
-	 `echo ' $(libstdc___la_LIBADD) ' | \
-	    sed -e 's,/\([^/.]*\)\.la,/.libs/\1.a,g' -e 's/ -l[^ ]* / /'` \
+	  $(libstdc___la_OBJECTS) $(libstdc___la_LIBADD) \
 	 > $@ || (rm -f $@ ; exit 1)
 endif
 if ENABLE_SYMVERS_DARWIN

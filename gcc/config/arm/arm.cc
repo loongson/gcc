@@ -3259,6 +3259,52 @@ static sbitmap isa_all_fpubits_internal;
 static sbitmap isa_all_fpbits;
 static sbitmap isa_quirkbits;
 
+static void
+arm_handle_no_branch_protection (void)
+{
+  aarch_ra_sign_scope = AARCH_FUNCTION_NONE;
+  aarch_enable_bti = 0;
+}
+
+static void
+arm_handle_standard_branch_protection (void)
+{
+  aarch_ra_sign_scope = AARCH_FUNCTION_NON_LEAF;
+  aarch_enable_bti = 1;
+}
+
+static void
+arm_handle_pac_ret_protection (void)
+{
+  aarch_ra_sign_scope = AARCH_FUNCTION_NON_LEAF;
+}
+
+static void
+arm_handle_pac_ret_leaf (void)
+{
+  aarch_ra_sign_scope = AARCH_FUNCTION_ALL;
+}
+
+static void
+arm_handle_bti_protection (void)
+{
+  aarch_enable_bti = 1;
+}
+
+static const struct aarch_branch_protect_type arm_pac_ret_subtypes[] = {
+  { "leaf", false, arm_handle_pac_ret_leaf, NULL, 0 },
+  { NULL, false, NULL, NULL, 0 }
+};
+
+static const struct aarch_branch_protect_type arm_branch_protect_types[] = {
+  { "none", true, arm_handle_no_branch_protection, NULL, 0 },
+  { "standard", true, arm_handle_standard_branch_protection, NULL, 0 },
+  { "pac-ret", false, arm_handle_pac_ret_protection, arm_pac_ret_subtypes,
+    ARRAY_SIZE (arm_pac_ret_subtypes) },
+  { "bti", false, arm_handle_bti_protection, NULL, 0 },
+  { NULL, false, NULL, NULL, 0 }
+};
+
 /* Configure a build target TARGET from the user-specified options OPTS and
    OPTS_SET.  If WARN_COMPATIBLE, emit a diagnostic if both the CPU and
    architecture have been specified, but the two are not identical.  */
@@ -3306,14 +3352,9 @@ arm_configure_build_target (struct arm_build_target *target,
 
   if (opts->x_arm_branch_protection_string)
     {
-      aarch_validate_mbranch_protection (opts->x_arm_branch_protection_string,
+      aarch_validate_mbranch_protection (arm_branch_protect_types,
+					 opts->x_arm_branch_protection_string,
 					 "-mbranch-protection=");
-
-      if (aarch_ra_sign_key != AARCH_KEY_A)
-	{
-	  warning (0, "invalid key type for %<-mbranch-protection=%>");
-	  aarch_ra_sign_key = AARCH_KEY_A;
-	}
     }
 
   if (arm_selected_arch)
@@ -7980,10 +8021,13 @@ arm_function_ok_for_sibcall (tree decl, tree exp)
       && DECL_WEAK (decl))
     return false;
 
-  /* We cannot do a tailcall for an indirect call by descriptor if all the
-     argument registers are used because the only register left to load the
-     address is IP and it will already contain the static chain.  */
-  if (!decl && CALL_EXPR_BY_DESCRIPTOR (exp) && !flag_trampolines)
+  /* We cannot tailcall an indirect call by descriptor if all the call-clobbered
+     general registers are live (r0-r3 and ip).  This can happen when:
+      - IP contains the static chain, or
+      - IP is needed for validating the PAC signature.  */
+  if (!decl
+      && ((CALL_EXPR_BY_DESCRIPTOR (exp) && !flag_trampolines)
+	  || arm_current_function_pac_enabled_p()))
     {
       tree fntype = TREE_TYPE (TREE_TYPE (CALL_EXPR_FN (exp)));
       CUMULATIVE_ARGS cum;
@@ -19166,6 +19210,30 @@ cmse_nonsecure_call_inline_register_clear (void)
 	  end_sequence ();
 	  emit_insn_before (seq, insn);
 
+	  /* The AAPCS requires the callee to widen integral types narrower
+	     than 32 bits to the full width of the register; but when handling
+	     calls to non-secure space, we cannot trust the callee to have
+	     correctly done so.  So forcibly re-widen the result here.  */
+	  tree ret_type = TREE_TYPE (fntype);
+	  if ((TREE_CODE (ret_type) == INTEGER_TYPE
+	      || TREE_CODE (ret_type) == ENUMERAL_TYPE
+	      || TREE_CODE (ret_type) == BOOLEAN_TYPE)
+	      && known_lt (GET_MODE_SIZE (TYPE_MODE (ret_type)), 4))
+	    {
+	      machine_mode ret_mode = TYPE_MODE (ret_type);
+	      rtx extend;
+	      if (TYPE_UNSIGNED (ret_type))
+		extend = gen_rtx_ZERO_EXTEND (SImode,
+					      gen_rtx_REG (ret_mode, R0_REGNUM));
+	      else
+		extend = gen_rtx_SIGN_EXTEND (SImode,
+					      gen_rtx_REG (ret_mode, R0_REGNUM));
+	      emit_insn_after (gen_rtx_SET (gen_rtx_REG (SImode, R0_REGNUM),
+					     extend), insn);
+
+	    }
+
+
 	  if (TARGET_HAVE_FPCXT_CMSE)
 	    {
 	      rtx_insn *last, *pop_insn, *after = insn;
@@ -23608,6 +23676,51 @@ arm_expand_prologue (void)
 
   ip_rtx = gen_rtx_REG (SImode, IP_REGNUM);
 
+  /* The AAPCS requires the callee to widen integral types narrower
+     than 32 bits to the full width of the register; but when handling
+     calls to non-secure space, we cannot trust the callee to have
+     correctly done so.  So forcibly re-widen the result here.  */
+  if (IS_CMSE_ENTRY (func_type))
+    {
+      function_args_iterator args_iter;
+      CUMULATIVE_ARGS args_so_far_v;
+      cumulative_args_t args_so_far;
+      bool first_param = true;
+      tree arg_type;
+      tree fndecl = current_function_decl;
+      tree fntype = TREE_TYPE (fndecl);
+      arm_init_cumulative_args (&args_so_far_v, fntype, NULL_RTX, fndecl);
+      args_so_far = pack_cumulative_args (&args_so_far_v);
+      FOREACH_FUNCTION_ARGS (fntype, arg_type, args_iter)
+	{
+	  rtx arg_rtx;
+
+	  if (VOID_TYPE_P (arg_type))
+	    break;
+
+	  function_arg_info arg (arg_type, /*named=*/true);
+	  if (!first_param)
+	    /* We should advance after processing the argument and pass
+	       the argument we're advancing past.  */
+	    arm_function_arg_advance (args_so_far, arg);
+	  first_param = false;
+	  arg_rtx = arm_function_arg (args_so_far, arg);
+	  gcc_assert (REG_P (arg_rtx));
+	  if ((TREE_CODE (arg_type) == INTEGER_TYPE
+	      || TREE_CODE (arg_type) == ENUMERAL_TYPE
+	      || TREE_CODE (arg_type) == BOOLEAN_TYPE)
+	      && known_lt (GET_MODE_SIZE (GET_MODE (arg_rtx)), 4))
+	    {
+	      if (TYPE_UNSIGNED (arg_type))
+		emit_set_insn (gen_rtx_REG (SImode, REGNO (arg_rtx)),
+			       gen_rtx_ZERO_EXTEND (SImode, arg_rtx));
+	      else
+		emit_set_insn (gen_rtx_REG (SImode, REGNO (arg_rtx)),
+			       gen_rtx_SIGN_EXTEND (SImode, arg_rtx));
+	    }
+	}
+    }
+
   if (IS_STACKALIGN (func_type))
     {
       rtx r0, r1;
@@ -25610,11 +25723,12 @@ arm_final_prescan_insn (rtx_insn *insn)
 	      break;
 
 	    case INSN:
-	      /* Instructions using or affecting the condition codes make it
-		 fail.  */
+	      /* Check the instruction is explicitly marked as predicable.
+		 Instructions using or affecting the condition codes are not.  */
 	      scanbody = PATTERN (this_insn);
 	      if (!(GET_CODE (scanbody) == SET
 		    || GET_CODE (scanbody) == PARALLEL)
+		  || get_attr_predicable (this_insn) != PREDICABLE_YES
 		  || get_attr_conds (this_insn) != CONDS_NOCOND)
 		fail = TRUE;
 	      break;
@@ -29257,6 +29371,8 @@ arm_output_mi_thunk (FILE *file, tree thunk, HOST_WIDE_INT delta,
   const char *fnname = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (thunk));
 
   assemble_start_function (thunk, fnname);
+  if (aarch_bti_enabled ())
+    emit_insn (aarch_gen_bti_c ());
   if (TARGET_32BIT)
     arm32_output_mi_thunk (file, thunk, delta, vcall_offset, function);
   else

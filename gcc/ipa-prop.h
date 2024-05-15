@@ -308,6 +308,7 @@ public:
   tree type () const { return m_type; }
   void get_vrange (Value_Range &) const;
   bool equal_p (const vrange &) const;
+  bool equal_p (const ipa_vr &) const;
   const vrange_storage *storage () const { return m_storage; }
   void streamer_read (lto_input_block *, class data_in *);
   void streamer_write (output_block *) const;
@@ -627,7 +628,7 @@ public:
   vec<ipa_param_descriptor, va_gc> *descriptors;
   /* Pointer to an array of structures describing individual formal
      parameters.  */
-  class ipcp_param_lattices * GTY((skip)) lattices;
+  vec<ipcp_param_lattices> GTY((skip)) lattices;
   /* Only for versioned nodes this field would not be NULL,
      it points to the node that IPA cp cloned from.  */
   struct cgraph_node * GTY((skip)) ipcp_orig_node;
@@ -662,7 +663,7 @@ public:
 
 inline
 ipa_node_params::ipa_node_params ()
-: descriptors (NULL), lattices (NULL), ipcp_orig_node (NULL),
+: descriptors (NULL), lattices (vNULL), ipcp_orig_node (NULL),
   known_csts (vNULL), known_contexts (vNULL), analysis_done (0),
   node_enqueued (0), do_clone_for_all_contexts (0), is_all_contexts_clone (0),
   node_dead (0), node_within_scc (0), node_is_self_scc (0),
@@ -673,8 +674,8 @@ ipa_node_params::ipa_node_params ()
 inline
 ipa_node_params::~ipa_node_params ()
 {
-  free (lattices);
   vec_free (descriptors);
+  lattices.release ();
   known_csts.release ();
   known_contexts.release ();
 }
@@ -1255,6 +1256,8 @@ tree ipcp_get_aggregate_const (struct function *func, tree parm, bool by_ref,
 bool unadjusted_ptr_and_unit_offset (tree op, tree *ret,
 				     poly_int64 *offset_ret);
 
+void ipa_prop_cc_finalize (void);
+
 /* From tree-sra.cc:  */
 tree build_ref_for_offset (location_t, tree, poly_int64, bool, tree,
 			   gimple_stmt_iterator *, bool);
@@ -1276,5 +1279,7 @@ ipa_range_set_and_normalize (vrange &r, tree val)
 
 bool ipa_return_value_range (Value_Range &range, tree decl);
 void ipa_record_return_value_range (Value_Range val);
+bool ipa_jump_functions_equivalent_p (ipa_jump_func *jf1, ipa_jump_func *jf2);
+
 
 #endif /* IPA_PROP_H */

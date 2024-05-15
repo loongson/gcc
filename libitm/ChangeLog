@@ -1,3 +1,19 @@
+2024-05-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.am [LIBITM_BUILD_VERSIONED_SHLIB_SUN] (libitm.map-sun):
+	Pass $(libitm_la_OBJECTS), $(libitm_la_LIBADD) to make_sunver.pl
+	unmodified.
+	* Makefile.in: Regenerate.
+
+2024-04-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* beginend.cc (GTM::gtm_thread::begin_transaction): Fix duplicated
+	words in comment; not not -> not to.
+
+2024-02-05  Marek Polacek  <polacek@redhat.com>
+
+	* containers.h (vector): Remove the template-id in constructors.
+
 2024-01-03  Jakub Jelinek  <jakub@redhat.com>
 
 	* libitm.texi: Bump @copying's copyright year.

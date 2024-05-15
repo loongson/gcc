@@ -104,6 +104,7 @@ std_headers = \
 	${std_srcdir}/streambuf \
 	${std_srcdir}/string \
 	${std_srcdir}/system_error \
+	${std_srcdir}/text_encoding \
 	${std_srcdir}/thread \
 	${std_srcdir}/unordered_map \
 	${std_srcdir}/unordered_set \
@@ -159,6 +160,7 @@ bits_freestanding = \
 	${bits_srcdir}/stl_raw_storage_iter.h \
 	${bits_srcdir}/stl_relops.h \
 	${bits_srcdir}/stl_uninitialized.h \
+	${bits_srcdir}/text_encoding-data.h \
 	${bits_srcdir}/version.h \
 	${bits_srcdir}/string_view.tcc \
 	${bits_srcdir}/unicode.h \
@@ -833,6 +835,7 @@ experimental_bits_headers = \
 	${experimental_bits_srcdir}/simd_neon.h \
 	${experimental_bits_srcdir}/simd_ppc.h \
 	${experimental_bits_srcdir}/simd_scalar.h \
+	${experimental_bits_srcdir}/simd_sve.h \
 	${experimental_bits_srcdir}/simd_x86.h \
 	${experimental_bits_srcdir}/simd_x86_conversions.h \
 	${experimental_bits_srcdir}/string_view.tcc \
@@ -1477,6 +1480,12 @@ ${pch3_output}: ${pch3_source} ${pch2_output}
 update-version:
 	cd ${bits_srcdir} && \
 	autogen version.def
+
+if MAINTAINER_MODE
+# Regenerate it automatically in maintainer mode.
+${bits_srcdir}/version.h: ${bits_srcdir}/version.def ${bits_srcdir}/version.tpl
+	$(MAKE) update-version
+endif
 
 # The real deal.
 install-data-local: install-headers

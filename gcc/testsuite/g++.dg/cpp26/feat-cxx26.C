@@ -394,8 +394,8 @@
 
 #ifndef __cpp_structured_bindings
 #  error "__cpp_structured_bindings"
-#elif __cpp_structured_bindings != 201606
-#  error "__cpp_structured_bindings != 201606"
+#elif __cpp_structured_bindings != 202403
+#  error "__cpp_structured_bindings != 202403"
 #endif
 
 #ifndef __cpp_template_template_args
@@ -578,6 +578,12 @@
 #  error "__cpp_implicit_move != 202207"
 #endif
 
+#ifndef __cpp_explicit_this_parameter
+#  error "__cpp_explicit_this_parameter"
+#elif __cpp_explicit_this_parameter != 202110
+#  error "__cpp_explicit_this_parameter != 202110"
+#endif
+
 #ifndef __cpp_auto_cast
 #  error "__cpp_auto_cast"
 #elif __cpp_auto_cast != 202110
@@ -602,4 +608,16 @@
 #  error "__cpp_placeholder_variables"
 #elif __cpp_placeholder_variables != 202306
 #  error "__cpp_placeholder_variables != 202306"
+#endif
+
+#ifndef __cpp_deleted_function
+#  error "__cpp_deleted_function"
+#elif __cpp_deleted_function != 202403
+#  error "__cpp_deleted_function != 202403"
+#endif
+
+#ifndef __cpp_variadic_friend
+#  error "__cpp_variadic_friend"
+#elif __cpp_variadic_friend != 202403
+#  error "__cpp_variadic_friend != 202403"
 #endif

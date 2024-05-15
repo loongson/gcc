@@ -22,6 +22,9 @@ along with GCC; see the file COPYING3.  If not see
 /* LoongArch external variables defined in loongarch.cc.  */
 
 #include "config/loongarch/loongarch-opts.h"
+#include "config/loongarch/loongarch-evolution.h"
+
+#define SWITCHABLE_TARGET 1
 
 #define TARGET_SUPPORTS_WIDE_INT 1
 
@@ -138,19 +141,16 @@ along with GCC; see the file COPYING3.  If not see
 /* Width of a LASX vector register in bits.  */
 #define BITS_PER_LASX_REG (UNITS_PER_LASX_REG * BITS_PER_UNIT)
 
-/* For LARCH, width of a floating point register.  */
-#define UNITS_PER_FPREG (TARGET_DOUBLE_FLOAT ? 8 : 4)
-
 /* The largest size of value that can be held in floating-point
    registers and moved with a single instruction.  */
 #define UNITS_PER_HWFPVALUE \
-  (TARGET_SOFT_FLOAT ? 0 : UNITS_PER_FPREG)
+  (TARGET_SOFT_FLOAT ? 0 : UNITS_PER_FP_REG)
 
 /* The largest size of value that can be held in floating-point
    registers.  */
 #define UNITS_PER_FPVALUE \
   (TARGET_SOFT_FLOAT ? 0 \
-   : TARGET_SINGLE_FLOAT ? UNITS_PER_FPREG \
+   : TARGET_SINGLE_FLOAT ? UNITS_PER_FP_REG \
 			 : LONG_DOUBLE_TYPE_SIZE / BITS_PER_UNIT)
 
 /* The number of bytes in a double.  */
@@ -713,12 +713,18 @@ enum reg_class
 			| RECIP_MASK_RSQRT | RECIP_MASK_VEC_SQRT \
 			| RECIP_MASK_VEC_DIV | RECIP_MASK_VEC_RSQRT)
 
-#define TARGET_RECIP_DIV        ((recip_mask & RECIP_MASK_DIV) != 0 || TARGET_uARCH_LA664)
-#define TARGET_RECIP_SQRT       ((recip_mask & RECIP_MASK_SQRT) != 0 || TARGET_uARCH_LA664)
-#define TARGET_RECIP_RSQRT      ((recip_mask & RECIP_MASK_RSQRT) != 0 || TARGET_uARCH_LA664)
-#define TARGET_RECIP_VEC_DIV    ((recip_mask & RECIP_MASK_VEC_DIV) != 0 || TARGET_uARCH_LA664)
-#define TARGET_RECIP_VEC_SQRT   ((recip_mask & RECIP_MASK_VEC_SQRT) != 0 || TARGET_uARCH_LA664)
-#define TARGET_RECIP_VEC_RSQRT  ((recip_mask & RECIP_MASK_VEC_RSQRT) != 0 || TARGET_uARCH_LA664)
+#define TARGET_RECIP_DIV \
+  ((recip_mask & RECIP_MASK_DIV) != 0 && ISA_HAS_FRECIPE)
+#define TARGET_RECIP_SQRT \
+  ((recip_mask & RECIP_MASK_SQRT) != 0 && ISA_HAS_FRECIPE)
+#define TARGET_RECIP_RSQRT \
+  ((recip_mask & RECIP_MASK_RSQRT) != 0 && ISA_HAS_FRECIPE)
+#define TARGET_RECIP_VEC_DIV \
+  ((recip_mask & RECIP_MASK_VEC_DIV) != 0 && ISA_HAS_FRECIPE)
+#define TARGET_RECIP_VEC_SQRT \
+  ((recip_mask & RECIP_MASK_VEC_SQRT) != 0 && ISA_HAS_FRECIPE)
+#define TARGET_RECIP_VEC_RSQRT \
+  ((recip_mask & RECIP_MASK_VEC_RSQRT) != 0 && ISA_HAS_FRECIPE)
 
 /* 1 if N is a possible register number for function argument passing.
    We have no FP argument registers when soft-float.  */
@@ -728,7 +734,15 @@ enum reg_class
   (IN_RANGE ((N), GP_ARG_FIRST, GP_ARG_LAST) \
    || (UNITS_PER_FP_ARG && IN_RANGE ((N), FP_ARG_FIRST, FP_ARG_LAST)))
 
+enum loongarch_pcs
+{
+  LA_PCS_DEFAULT, // Base ABI
+  LA_PCS_SIMD,    // Vector ABI extension (Based on LP64D)
+  LA_PCS_UNKNOWN
+};
+
 typedef struct {
+  enum loongarch_pcs pcs;
   /* Number of integer registers used so far, up to MAX_ARGS_IN_REGISTERS.  */
   unsigned int num_gprs;
 
@@ -742,7 +756,8 @@ typedef struct {
    For a library call, FNTYPE is 0.  */
 
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, INDIRECT, N_NAMED_ARGS) \
-  memset (&(CUM), 0, sizeof (CUM))
+  loongarch_init_cumulative_args (&(CUM), (FNTYPE), (LIBNAME), (INDIRECT), \
+			(N_NAMED_ARGS) != -1)
 
 #define EPILOGUE_USES(REGNO) loongarch_epilogue_uses (REGNO)
 
@@ -868,7 +883,8 @@ typedef struct {
 /* A C expression for the cost of a branch instruction.  A value of
    1 is the default; other values are interpreted relative to that.  */
 
-#define BRANCH_COST(speed_p, predictable_p) loongarch_branch_cost
+#define BRANCH_COST(speed_p, predictable_p) la_branch_cost
+#define LOGICAL_OP_NON_SHORT_CIRCUIT 0
 
 /* Return the asm template for a conditional branch instruction.
    OPCODE is the opcode's mnemonic and OPERANDS is the asm template for
@@ -930,6 +946,7 @@ typedef struct {
   { "t8",	20 + GP_REG_FIRST },					\
   { "x",	21 + GP_REG_FIRST },					\
   { "fp",	22 + GP_REG_FIRST },					\
+  { "s9",	22 + GP_REG_FIRST },					\
   { "s0",	23 + GP_REG_FIRST },					\
   { "s1",	24 + GP_REG_FIRST },					\
   { "s2",	25 + GP_REG_FIRST },					\

@@ -12,7 +12,7 @@ UrlSuffix(gcc/RISC-V-Options.html#index-mbranch-cost-4)
 ; skipping UrlSuffix for 'mplt' due to finding no URLs
 
 mabi=
-UrlSuffix(gcc/RISC-V-Options.html#index-mabi-4)
+UrlSuffix(gcc/RISC-V-Options.html#index-mabi-5)
 
 mpreferred-stack-boundary=
 UrlSuffix(gcc/RISC-V-Options.html#index-mpreferred-stack-boundary)
@@ -44,12 +44,12 @@ UrlSuffix(gcc/RISC-V-Options.html#index-mshorten-memrefs)
 ; skipping UrlSuffix for 'mcmodel=' due to finding no URLs
 
 mstrict-align
-UrlSuffix(gcc/RISC-V-Options.html#index-mstrict-align-3)
+UrlSuffix(gcc/RISC-V-Options.html#index-mstrict-align-4)
 
 ; skipping UrlSuffix for 'mexplicit-relocs' due to finding no URLs
 
 mrelax
-UrlSuffix(gcc/RISC-V-Options.html#index-mrelax-5)
+UrlSuffix(gcc/RISC-V-Options.html#index-mrelax-6)
 
 mcsr-check
 UrlSuffix(gcc/RISC-V-Options.html#index-mcsr-check)
@@ -88,4 +88,6 @@ UrlSuffix(gcc/RISC-V-Options.html#index-minline-strncmp)
 
 minline-strlen
 UrlSuffix(gcc/RISC-V-Options.html#index-minline-strlen)
+
+; skipping UrlSuffix for 'mtls-dialect=' due to finding no URLs
 

@@ -87,6 +87,10 @@
 ;; the same template.
 (define_mode_iterator HQI [HI QI])
 
+;; This mode iterator allows the SI and HI patterns to be defined from
+;; the same template.
+(define_mode_iterator SHI [SI HI])
+
 
 ;; Attributes.
 
@@ -189,6 +193,20 @@
   [(set_attr "type"	"arith")
    (set_attr "mode"	"SI")
    (set_attr "length"	"3")])
+
+(define_split
+  [(set (match_operand:SI 0 "register_operand")
+	(plus:SI (ashift:SI (match_operand:SI 1 "register_operand")
+			    (match_operand:SI 3 "addsubx_operand"))
+		 (match_operand:SI 2 "const_int_operand")))]
+  "TARGET_ADDX && can_create_pseudo_p ()"
+  [(set (match_dup 0)
+	(plus:SI (ashift:SI (match_dup 1)
+			    (match_dup 3))
+		 (match_dup 2)))]
+{
+  operands[2] = force_reg (SImode, operands[2]);
+})
 
 (define_expand "adddi3"
   [(set (match_operand:DI 0 "register_operand")
@@ -1244,7 +1262,7 @@
 (define_split
   [(set (match_operand:DI 0 "register_operand")
 	(match_operand:DI 1 "const_int_operand"))]
-  "!TARGET_CONST16 && !TARGET_AUTO_LITPOOLS
+  "!TARGET_CONST16
    && ! xtensa_split1_finished_p ()"
   [(set (match_dup 0)
 	(match_dup 1))
@@ -1266,13 +1284,15 @@
 })
 
 (define_insn "movsi_internal"
-  [(set (match_operand:SI 0 "nonimmed_operand" "=D,D,D,D,R,R,a,q,a,a,W,a,a,U,*a,*A")
-	(match_operand:SI 1 "move_operand" "M,D,d,R,D,d,r,r,I,Y,i,T,U,r,*A,*r"))]
+  [(set (match_operand:SI 0 "nonimmed_operand" "=D,D,D,a,U,D,R,R,a,q,a,a,W,a,*a,*A")
+	(match_operand:SI 1 "move_operand" "M,D,d,U,r,R,D,d,r,r,I,Y,i,T,*A,*r"))]
   "xtensa_valid_move (SImode, operands)"
   "@
    movi.n\t%0, %x1
    mov.n\t%0, %1
    mov.n\t%0, %1
+   %v1l32i\t%0, %1
+   %v0s32i\t%1, %0
    %v1l32i.n\t%0, %1
    %v0s32i.n\t%1, %0
    %v0s32i.n\t%1, %0
@@ -1282,37 +1302,37 @@
    movi\t%0, %1
    const16\t%0, %t1\;const16\t%0, %b1
    %v1l32r\t%0, %1
-   %v1l32i\t%0, %1
-   %v0s32i\t%1, %0
    rsr\t%0, ACCLO
    wsr\t%1, ACCLO"
-  [(set_attr "type"	"move,move,move,load,store,store,move,move,move,move,move,load,load,store,rsr,wsr")
+  [(set_attr "type"	"move,move,move,load,store,load,store,store,move,move,move,move,move,load,rsr,wsr")
    (set_attr "mode"	"SI")
-   (set_attr "length"	"2,2,2,2,2,2,3,3,3,3,6,3,3,3,3,3")])
+   (set_attr "length"	"2,2,2,3,3,2,2,2,3,3,3,3,6,3,3,3")])
 
 (define_split
-  [(set (match_operand:SI 0 "register_operand")
-	(match_operand:SI 1 "const_int_operand"))]
+  [(set (match_operand:SHI 0 "register_operand")
+	(match_operand:SHI 1 "const_int_operand"))]
   "!TARGET_CONST16 && !TARGET_AUTO_LITPOOLS
    && ! xtensa_split1_finished_p ()
    && ! xtensa_simm12b (INTVAL (operands[1]))"
   [(set (match_dup 0)
 	(match_dup 1))]
 {
-  operands[1] = force_const_mem (SImode, operands[1]);
+  operands[1] = force_const_mem (<MODE>mode, operands[1]);
 })
 
 (define_split
-  [(set (match_operand:SI 0 "register_operand")
-	(match_operand:SI 1 "constantpool_operand"))]
+  [(set (match_operand:SHI 0 "register_operand")
+	(match_operand:SHI 1 "constantpool_operand"))]
   "! optimize_debug && reload_completed"
   [(const_int 0)]
 {
-  rtx x = avoid_constant_pool_reference (operands[1]);
+  rtx x = avoid_constant_pool_reference (operands[1]), dst = operands[0];
   if (! CONST_INT_P (x))
     FAIL;
-  if (! xtensa_constantsynth (operands[0], INTVAL (x)))
-    emit_move_insn (operands[0], x);
+  if (<MODE>mode == HImode)
+    dst = gen_rtx_REG (SImode, REGNO (dst));
+  if (! xtensa_constantsynth (dst, INTVAL (x)))
+    emit_move_insn (dst, x);
   DONE;
 })
 
@@ -1328,8 +1348,8 @@
 })
 
 (define_insn "movhi_internal"
-  [(set (match_operand:HI 0 "nonimmed_operand" "=D,D,a,a,a,a,U,*a,*A")
-	(match_operand:HI 1 "move_operand" "M,d,r,I,Y,U,r,*A,*r"))]
+  [(set (match_operand:HI 0 "nonimmed_operand" "=D,D,a,a,a,a,a,U,*a,*A")
+	(match_operand:HI 1 "move_operand" "M,d,r,I,Y,T,U,r,*A,*r"))]
   "xtensa_valid_move (HImode, operands)"
   "@
    movi.n\t%0, %x1
@@ -1337,13 +1357,14 @@
    mov\t%0, %1
    movi\t%0, %x1
    movi\t%0, %1
+   %v1l32r\t%0, %1
    %v1l16ui\t%0, %1
    %v0s16i\t%1, %0
    rsr\t%0, ACCLO
    wsr\t%1, ACCLO"
-  [(set_attr "type"	"move,move,move,move,move,load,store,rsr,wsr")
+  [(set_attr "type"	"move,move,move,move,move,load,load,store,rsr,wsr")
    (set_attr "mode"	"HI")
-   (set_attr "length"	"2,2,3,3,3,3,3,3,3")])
+   (set_attr "length"	"2,2,3,3,3,3,3,3,3,3")])
 
 ;; 8-bit Integer moves
 
@@ -1420,7 +1441,7 @@
   if ((!register_operand (operands[0], SFmode)
        && !register_operand (operands[1], SFmode))
       || (FP_REG_P (xt_true_regnum (operands[0]))
-	  && !(reload_in_progress | reload_completed)
+	  && can_create_pseudo_p ()
 	  && (constantpool_mem_p (operands[1])
 	      || CONSTANT_P (operands[1]))))
     operands[1] = force_reg (SFmode, operands[1]);
@@ -2368,14 +2389,12 @@
 	      (set (match_dup 0)
 		   (plus:SI (match_dup 0)
 			    (const_int -1)))
-	      (unspec [(const_int 0)] UNSPEC_LSETUP_END)
-	      (clobber (match_dup 2))])] ; match_scratch
+	      (unspec [(const_int 0)] UNSPEC_LSETUP_END)])]
   "TARGET_LOOPS && optimize"
 {
   /* The loop optimizer doesn't check the predicates... */
   if (GET_MODE (operands[0]) != SImode)
     FAIL;
-  operands[2] = gen_rtx_SCRATCH (SImode);
 })
 
 
@@ -3264,7 +3283,7 @@
 
 (define_insn_and_split "*eqne_zero_masked_bits"
   [(set (match_operand:SI 0 "register_operand" "=a")
-	(match_operator 3 "boolean_operator"
+	(match_operator:SI 3 "boolean_operator"
 		[(and:SI (match_operand:SI 1 "register_operand" "r")
 			 (match_operand:SI 2 "const_int_operand" "i"))
 		 (const_int 0)]))]

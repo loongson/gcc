@@ -38,7 +38,10 @@ IGNORED_COMMITS = (
         '86d8e0c0652ef5236a460b75c25e4f7093cc0651',
         'e4cba49413ca429dc82f6aa2e88129ecb3fdd943',
         '1957bedf29a1b2cc231972aba680fe80199d5498',
-        '040e5b0edbca861196d9e2ea2af5e805769c8d5d')
+        '040e5b0edbca861196d9e2ea2af5e805769c8d5d',
+        '8057f9aa1f7e70490064de796d7a8d42d446caf8',
+        '109f1b28fc94c93096506e3df0c25e331cef19d0',
+        '39f81924d88e3cc197fc3df74204c9b5e01e12f7')
 
 FORMAT = '%(asctime)s:%(levelname)s:%(name)s:%(message)s'
 logging.basicConfig(level=logging.INFO, format=FORMAT,
@@ -75,8 +78,8 @@ def prepend_to_changelog_files(repo, folder, git_commit, add_to_git):
             repo.git.add(full_path)
 
 
-active_refs = ['master',
-               'releases/gcc-11', 'releases/gcc-12', 'releases/gcc-13']
+active_refs = ['master', 'releases/gcc-11',
+               'releases/gcc-12', 'releases/gcc-13', 'releases/gcc-14']
 
 parser = argparse.ArgumentParser(description='Update DATESTAMP and generate '
                                  'ChangeLog entries')

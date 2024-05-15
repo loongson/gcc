@@ -50,6 +50,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "asan.h"
 #include "optabs-query.h"
 #include "omp-general.h"
+#include "escaped_string.h"
 
 /* Id for dumping the raw trees.  */
 int raw_dump_id;
@@ -275,11 +276,8 @@ build_artificial_parm (tree fn, tree name, tree type)
   return parm;
 }
 
-/* Constructors for types with virtual baseclasses need an "in-charge" flag
-   saying whether this constructor is responsible for initialization of
-   virtual baseclasses or not.  All destructors also need this "in-charge"
-   flag, which additionally determines whether or not the destructor should
-   free the memory for the object.
+/* 'structors for types with virtual baseclasses need an "in-charge" flag
+   saying whether this function is responsible for virtual baseclasses or not.
 
    This function adds the "in-charge" flag to member function FN if
    appropriate.  It is called from grokclassfn and tsubst.
@@ -302,10 +300,9 @@ maybe_retrofit_in_chrg (tree fn)
   if (processing_template_decl)
     return;
 
-  /* We don't need an in-charge parameter for constructors that don't
+  /* We don't need an in-charge parameter for 'structors that don't
      have virtual bases.  */
-  if (DECL_CONSTRUCTOR_P (fn)
-      && !CLASSTYPE_VBASECLASSES (DECL_CONTEXT (fn)))
+  if (!CLASSTYPE_VBASECLASSES (DECL_CONTEXT (fn)))
     return;
 
   arg_types = TYPE_ARG_TYPES (TREE_TYPE (fn));
@@ -617,6 +614,43 @@ grok_array_decl (location_t loc, tree array_expr, tree index_exp,
   return expr;
 }
 
+/* Build an OMP_ARRAY_SECTION expression, handling usage in template
+   definitions, etc.  */
+
+tree
+grok_omp_array_section (location_t loc, tree array_expr, tree index,
+			tree length)
+{
+  tree orig_array_expr = array_expr;
+  tree orig_index = index;
+  tree orig_length = length;
+
+  if (error_operand_p (array_expr)
+      || error_operand_p (index)
+      || error_operand_p (length))
+    return error_mark_node;
+
+  if (processing_template_decl
+      && (type_dependent_expression_p (array_expr)
+	  || type_dependent_expression_p (index)
+	  || type_dependent_expression_p (length)))
+    return build_min_nt_loc (loc, OMP_ARRAY_SECTION, array_expr, index, length);
+
+  index = fold_non_dependent_expr (index);
+  length = fold_non_dependent_expr (length);
+
+  /* NOTE: We can pass through invalidly-typed index/length fields
+     here (e.g. if the user tries to use a floating-point index/length).
+     This is diagnosed later in semantics.cc:handle_omp_array_sections_1.  */
+
+  tree expr = build_omp_array_section (loc, array_expr, index, length);
+
+  if (processing_template_decl)
+    expr = build_min_non_dep (OMP_ARRAY_SECTION, expr, orig_array_expr,
+			      orig_index, orig_length);
+  return expr;
+}
+
 /* Given the cast expression EXP, checking out its validity.   Either return
    an error_mark_node if there was an unavoidable error, return a cast to
    void for trying to delete a pointer w/ the value 0, or return the
@@ -910,10 +944,10 @@ note_vague_linkage_fn (tree decl)
   vec_safe_push (deferred_fns, decl);
 }
 
-/* As above, but for variable template instantiations.  */
+/* As above, but for variables.  */
 
 void
-note_variable_template_instantiation (tree decl)
+note_vague_linkage_variable (tree decl)
 {
   vec_safe_push (pending_statics, decl);
 }
@@ -1005,7 +1039,10 @@ grokfield (const cp_declarator *declarator,
     init = NULL_TREE;
 
   int initialized;
-  if (init == ridpointers[(int)RID_DELETE])
+  if (init == ridpointers[(int)RID_DELETE]
+      || (init
+	  && TREE_CODE (init) == STRING_CST
+	  && TREE_TYPE (init) == ridpointers[(int)RID_DELETE]))
     initialized = SD_DELETED;
   else if (init == ridpointers[(int)RID_DEFAULT])
     initialized = SD_DEFAULTED;
@@ -1090,10 +1127,14 @@ grokfield (const cp_declarator *declarator,
     {
       if (TREE_CODE (value) == FUNCTION_DECL)
 	{
-	  if (init == ridpointers[(int)RID_DELETE])
+	  if (init == ridpointers[(int)RID_DELETE]
+	      || (TREE_CODE (init) == STRING_CST
+		  && TREE_TYPE (init) == ridpointers[(int)RID_DELETE]))
 	    {
 	      DECL_DELETED_FN (value) = 1;
 	      DECL_DECLARED_INLINE_P (value) = 1;
+	      if (TREE_CODE (init) == STRING_CST)
+		DECL_INITIAL (value) = init;
 	    }
 	  else if (init == ridpointers[(int)RID_DEFAULT])
 	    {
@@ -2389,17 +2430,26 @@ import_export_class (tree ctype)
       import_export = -1;
   else if (TYPE_POLYMORPHIC_P (ctype))
     {
-      /* The ABI specifies that the virtual table and associated
-	 information are emitted with the key method, if any.  */
-      tree method = CLASSTYPE_KEY_METHOD (ctype);
-      /* If weak symbol support is not available, then we must be
-	 careful not to emit the vtable when the key function is
-	 inline.  An inline function can be defined in multiple
-	 translation units.  If we were to emit the vtable in each
-	 translation unit containing a definition, we would get
-	 multiple definition errors at link-time.  */
-      if (method && (flag_weak || ! DECL_DECLARED_INLINE_P (method)))
-	import_export = (DECL_REALLY_EXTERN (method) ? -1 : 1);
+      tree cdecl = TYPE_NAME (ctype);
+      if (DECL_LANG_SPECIFIC (cdecl) && DECL_MODULE_ATTACH_P (cdecl))
+	/* For class types attached to a named module, the ABI specifies
+	   that the tables are uniquely emitted in the object for the
+	   module unit in which it is defined.  */
+	import_export = (DECL_MODULE_IMPORT_P (cdecl) ? -1 : 1);
+      else
+	{
+	  /* The ABI specifies that the virtual table and associated
+	     information are emitted with the key method, if any.  */
+	  tree method = CLASSTYPE_KEY_METHOD (ctype);
+	  /* If weak symbol support is not available, then we must be
+	     careful not to emit the vtable when the key function is
+	     inline.  An inline function can be defined in multiple
+	     translation units.  If we were to emit the vtable in each
+	     translation unit containing a definition, we would get
+	     multiple definition errors at link-time.  */
+	  if (method && (flag_weak || ! DECL_DECLARED_INLINE_P (method)))
+	    import_export = (DECL_REALLY_EXTERN (method) ? -1 : 1);
+	}
     }
 
   /* When MULTIPLE_SYMBOL_SPACES is set, we cannot count on seeing
@@ -2681,7 +2731,12 @@ min_vis_expr_r (tree *tp, int */*walk_subtrees*/, void *data)
       /* Fall through.  */
     case VAR_DECL:
     case FUNCTION_DECL:
-      if (! TREE_PUBLIC (t))
+      if (decl_constant_var_p (t))
+	/* The ODR allows definitions in different TUs to refer to distinct
+	   constant variables with internal or no linkage, so such a reference
+	   shouldn't affect visibility (PR110323).  FIXME but only if the
+	   lvalue-rvalue conversion is applied.  */;
+      else if (! TREE_PUBLIC (t))
 	tpvis = VISIBILITY_ANON;
       else
 	tpvis = DECL_VISIBILITY (t);
@@ -3287,6 +3342,35 @@ tentative_decl_linkage (tree decl)
     }
 }
 
+/* For a polymorphic class type CTYPE, whether its vtables are emitted in a
+   unique object as per the ABI.  */
+
+static bool
+vtables_uniquely_emitted (tree ctype)
+{
+  /* If the class is templated, the tables are emitted in every object that
+     references any of them.  */
+  if (CLASSTYPE_USE_TEMPLATE (ctype))
+    return false;
+
+  /* Otherwise, if the class is attached to a module, the tables are uniquely
+     emitted in the object for the module unit in which it is defined.  */
+  tree cdecl = TYPE_NAME (ctype);
+  if (DECL_LANG_SPECIFIC (cdecl) && DECL_MODULE_ATTACH_P (cdecl))
+    return true;
+
+  /* Otherwise, if the class has a key function, the tables are emitted in the
+     object for the TU containing the definition of the key function.  This is
+     unique if the key function is not inline.  */
+  tree key_method = CLASSTYPE_KEY_METHOD (ctype);
+  if (key_method && !DECL_DECLARED_INLINE_P (key_method))
+    return true;
+
+  /* Otherwise, the tables are emitted in every object that references
+     any of them.  */
+  return false;
+}
+
 /* DECL is a FUNCTION_DECL or VAR_DECL.  If the object file linkage
    for DECL has not already been determined, do so now by setting
    DECL_EXTERNAL, DECL_COMDAT and other related flags.  Until this
@@ -3323,7 +3407,9 @@ import_export_decl (tree decl)
 
      * implicit instantiations of function templates
 
-     * inline function
+     * inline functions
+
+     * inline variables
 
      * implicit instantiations of static data members of class
        templates
@@ -3346,6 +3432,7 @@ import_export_decl (tree decl)
 		|| DECL_DECLARED_INLINE_P (decl));
   else
     gcc_assert (DECL_IMPLICIT_INSTANTIATION (decl)
+		|| DECL_INLINE_VAR_P (decl)
 		|| DECL_VTABLE_OR_VTT_P (decl)
 		|| DECL_TINFO_P (decl));
   /* Check that a definition of DECL is available in this translation
@@ -3366,15 +3453,13 @@ import_export_decl (tree decl)
 	  && CLASSTYPE_INTERFACE_ONLY (class_type))
 	import_p = true;
       else if ((!flag_weak || TARGET_WEAK_NOT_IN_ARCHIVE_TOC)
-	       && !CLASSTYPE_USE_TEMPLATE (class_type)
-	       && CLASSTYPE_KEY_METHOD (class_type)
-	       && !DECL_DECLARED_INLINE_P (CLASSTYPE_KEY_METHOD (class_type)))
-	/* The ABI requires that all virtual tables be emitted with
-	   COMDAT linkage.  However, on systems where COMDAT symbols
-	   don't show up in the table of contents for a static
-	   archive, or on systems without weak symbols (where we
-	   approximate COMDAT linkage by using internal linkage), the
-	   linker will report errors about undefined symbols because
+	       && !vtables_uniquely_emitted (class_type))
+	/* The ABI historically required that all virtual tables be
+	   emitted with COMDAT linkage.  However, on systems where
+	   COMDAT symbols don't show up in the table of contents for
+	   a static archive, or on systems without weak symbols (where
+	   we approximate COMDAT linkage by using internal linkage),
+	   the linker will report errors about undefined symbols because
 	   it will not see the virtual table definition.  Therefore,
 	   in the case that we know that the virtual table will be
 	   emitted in only one translation unit, we make the virtual
@@ -3395,16 +3480,17 @@ import_export_decl (tree decl)
 	    DECL_EXTERNAL (decl) = 0;
 	  else
 	    {
-	      /* The generic C++ ABI says that class data is always
-		 COMDAT, even if there is a key function.  Some
-		 variants (e.g., the ARM EABI) says that class data
-		 only has COMDAT linkage if the class data might be
-		 emitted in more than one translation unit.  When the
-		 key method can be inline and is inline, we still have
-		 to arrange for comdat even though
+	      /* The generic C++ ABI used to say that class data is always
+		 COMDAT, even if emitted in a unique object.  This is no
+		 longer true, but for now we continue to do so for
+		 compatibility with programs that are not strictly valid.
+		 However, some variants (e.g., the ARM EABI) explicitly say
+		 that class data only has COMDAT linkage if the class data
+		 might be emitted in more than one translation unit.
+		 When the key method can be inline and is inline, we still
+		 have to arrange for comdat even though
 		 class_data_always_comdat is false.  */
-	      if (!CLASSTYPE_KEY_METHOD (class_type)
-		  || DECL_DECLARED_INLINE_P (CLASSTYPE_KEY_METHOD (class_type))
+	      if (!vtables_uniquely_emitted (class_type)
 		  || targetm.cxx.class_data_always_comdat ())
 		{
 		  /* The ABI requires COMDAT linkage.  Normally, we
@@ -3444,8 +3530,7 @@ import_export_decl (tree decl)
 		  && !CLASSTYPE_INTERFACE_ONLY (type))
 		{
 		  comdat_p = (targetm.cxx.class_data_always_comdat ()
-			      || (CLASSTYPE_KEY_METHOD (type)
-				  && DECL_DECLARED_INLINE_P (CLASSTYPE_KEY_METHOD (type))));
+			      || !vtables_uniquely_emitted (class_type));
 		  mark_needed (decl);
 		  if (!flag_weak)
 		    {
@@ -3474,7 +3559,7 @@ import_export_decl (tree decl)
 	   this entity as undefined in this translation unit.  */
 	import_p = true;
     }
-  else if (DECL_FUNCTION_MEMBER_P (decl))
+  else if (TREE_CODE (decl) == FUNCTION_DECL && DECL_FUNCTION_MEMBER_P (decl))
     {
       if (!DECL_DECLARED_INLINE_P (decl))
 	{
@@ -3519,6 +3604,9 @@ import_export_decl (tree decl)
     }
 
   DECL_INTERFACE_KNOWN (decl) = 1;
+
+  if (DECL_CLONED_FUNCTION_P (decl))
+    maybe_optimize_cdtor (decl);
 }
 
 /* Return an expression that performs the destruction of DECL, which
@@ -3860,6 +3948,7 @@ get_tls_wrapper_fn (tree var)
       TREE_PUBLIC (fn) = TREE_PUBLIC (var);
       DECL_ARTIFICIAL (fn) = true;
       DECL_IGNORED_P (fn) = 1;
+      DECL_CONTEXT (fn) = DECL_CONTEXT (var);
       /* The wrapper is inline and emitted everywhere var is used.  */
       DECL_DECLARED_INLINE_P (fn) = true;
       if (TREE_PUBLIC (var))
@@ -4651,8 +4740,19 @@ no_linkage_error (tree decl)
       bool d = false;
       auto_diagnostic_group grp;
       if (cxx_dialect >= cxx11)
-	d = permerror (DECL_SOURCE_LOCATION (decl), "%q#D, declared using "
-		       "unnamed type, is used but never defined", decl);
+	{
+	  /* If t is declared in a module CMI, then decl could actually
+	     be defined in a different TU, so don't warn since C++20.  */
+	  tree relaxed = no_linkage_check (t, /*relaxed_p=*/true);
+	  if (relaxed != NULL_TREE)
+	    d = permerror (DECL_SOURCE_LOCATION (decl),
+			   "%q#D, declared using an unnamed type, "
+			   "is used but never defined", decl);
+	  else if (cxx_dialect < cxx20)
+	    d = pedwarn (DECL_SOURCE_LOCATION (decl), OPT_Wc__20_extensions,
+			 "%q#D, declared using an unnamed type, "
+			 "is used but not defined", decl);
+	}
       else if (DECL_EXTERN_C_P (decl))
 	/* Allow this; it's pretty common in C.  */;
       else if (VAR_P (decl))
@@ -4671,13 +4771,31 @@ no_linkage_error (tree decl)
 	inform (DECL_SOURCE_LOCATION (TYPE_NAME (t)), "%q#D does not refer "
 		"to the unqualified type, so it is not used for linkage",
 		TYPE_NAME (t));
+      /* Suppress warning from check_global_declaration if needed.  */
+      if (d)
+	suppress_warning (decl, OPT_Wunused);
     }
   else if (cxx_dialect >= cxx11)
     {
       if (VAR_P (decl) || !DECL_PURE_VIRTUAL_P (decl))
-	permerror (DECL_SOURCE_LOCATION (decl),
-		   "%q#D, declared using local type "
-		   "%qT, is used but never defined", decl, t);
+	{
+	  /* Similarly for local types in a function with vague linkage or
+	     defined in a module CMI, then decl could actually be defined
+	     in a different TU, so don't warn since C++20.  */
+	  bool d = false;
+	  tree relaxed = no_linkage_check (t, /*relaxed_p=*/true);
+	  if (relaxed != NULL_TREE)
+	    d = permerror (DECL_SOURCE_LOCATION (decl),
+			   "%q#D, declared using local type "
+			   "%qT, is used but never defined", decl, t);
+	  else if (cxx_dialect < cxx20)
+	    d = pedwarn (DECL_SOURCE_LOCATION (decl), OPT_Wc__20_extensions,
+			 "%q#D, declared using local type "
+			 "%qT, is used but not defined here", decl, t);
+	  /* Suppress warning from check_global_declaration if needed.  */
+	  if (d)
+	    suppress_warning (decl, OPT_Wunused);
+	}
     }
   else if (VAR_P (decl))
     warning_at (DECL_SOURCE_LOCATION (decl), 0, "type %qT with no linkage "
@@ -5289,10 +5407,11 @@ c_parse_final_cleanups (void)
 	     #pragma interface, etc.) we decided not to emit the
 	     definition here.  */
 	  && !DECL_INITIAL (decl)
-	  /* A defaulted fn in a header module can be synthesized on
-	     demand later.  (In non-header modules we should have
-	     synthesized it above.)  */
-	  && !(DECL_DEFAULTED_FN (decl) && header_module_p ())
+	  /* A defaulted fn or TLS wrapper in a header module can be
+	     synthesized on demand later.  (In non-header modules we
+	     should have synthesized it above.)  */
+	  && !(header_module_p ()
+	       && (DECL_DEFAULTED_FN (decl) || decl_tls_wrapper_p (decl)))
 	  /* Don't complain if the template was defined.  */
 	  && !(DECL_TEMPLATE_INSTANTIATION (decl)
 	       && DECL_INITIAL (DECL_TEMPLATE_RESULT
@@ -5639,7 +5758,7 @@ cp_handle_deprecated_or_unavailable (tree decl, tsubst_flags_t complain)
   if (cxx_dialect >= cxx11
       && DECL_P (decl)
       && DECL_ARTIFICIAL (decl)
-      && DECL_NONSTATIC_MEMBER_FUNCTION_P (decl)
+      && DECL_IOBJ_MEMBER_FUNCTION_P (decl)
       && copy_fn_p (decl))
     {
       /* Don't warn if the flag was disabled around the class definition
@@ -5801,7 +5920,16 @@ mark_used (tree decl, tsubst_flags_t complain /* = tf_warning_or_error */)
 	    sorry ("converting lambda that uses %<...%> to function pointer");
 	  else if (complain & tf_error)
 	    {
-	      error ("use of deleted function %qD", decl);
+	      if (DECL_INITIAL (decl)
+		  && TREE_CODE (DECL_INITIAL (decl)) == STRING_CST)
+		{
+		  escaped_string msg;
+		  msg.escape (TREE_STRING_POINTER (DECL_INITIAL (decl)));
+		  error ("use of deleted function %qD: %s",
+			 decl, (const char *) msg);
+		}
+	      else
+		error ("use of deleted function %qD", decl);
 	      if (!maybe_explain_implicit_delete (decl))
 		inform (DECL_SOURCE_LOCATION (decl), "declared here");
 	    }

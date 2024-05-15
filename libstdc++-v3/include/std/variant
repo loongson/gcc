@@ -33,6 +33,7 @@
 
 #define __glibcxx_want_freestanding_variant
 #define __glibcxx_want_variant
+#define __glibcxx_want_constrained_equality
 #include <bits/version.h>
 
 #ifdef __cpp_lib_variant // C++ >= 17
@@ -42,7 +43,7 @@
 #include <bits/exception_defines.h>
 #include <bits/functional_hash.h>
 #include <bits/invoke.h>
-#include <bits/parse_numbers.h>
+#include <bits/parse_numbers.h> // _Select_int
 #include <bits/stl_iterator_base_funcs.h>
 #include <bits/stl_construct.h>
 #include <bits/utility.h> // in_place_index_t
@@ -392,7 +393,7 @@ namespace __variant
     };
 
   // Defines members and ctors.
-  template<typename... _Types>
+  template<bool __trivially_destructible, typename... _Types>
     union _Variadic_union
     {
       _Variadic_union() = default;
@@ -401,8 +402,8 @@ namespace __variant
 	_Variadic_union(in_place_index_t<_Np>, _Args&&...) = delete;
     };
 
-  template<typename _First, typename... _Rest>
-    union _Variadic_union<_First, _Rest...>
+  template<bool __trivially_destructible, typename _First, typename... _Rest>
+    union _Variadic_union<__trivially_destructible, _First, _Rest...>
     {
       constexpr _Variadic_union() : _M_rest() { }
 
@@ -427,13 +428,12 @@ namespace __variant
       ~_Variadic_union() = default;
 
       constexpr ~_Variadic_union()
-	requires (!is_trivially_destructible_v<_First>)
-	      || (!is_trivially_destructible_v<_Variadic_union<_Rest...>>)
+	requires (!__trivially_destructible)
       { }
 #endif
 
       _Uninitialized<_First> _M_first;
-      _Variadic_union<_Rest...> _M_rest;
+      _Variadic_union<__trivially_destructible, _Rest...> _M_rest;
     };
 
   // _Never_valueless_alt is true for variant alternatives that can
@@ -514,7 +514,7 @@ namespace __variant
 	return this->_M_index != __index_type(variant_npos);
       }
 
-      _Variadic_union<_Types...> _M_u;
+      _Variadic_union<false, _Types...> _M_u;
       using __index_type = __select_index<_Types...>;
       __index_type _M_index;
     };
@@ -552,7 +552,7 @@ namespace __variant
 	return this->_M_index != static_cast<__index_type>(variant_npos);
       }
 
-      _Variadic_union<_Types...> _M_u;
+      _Variadic_union<true, _Types...> _M_u;
       using __index_type = __select_index<_Types...>;
       __index_type _M_index;
     };
@@ -1237,9 +1237,19 @@ namespace __variant
 
   struct monostate { };
 
-#define _VARIANT_RELATION_FUNCTION_TEMPLATE(__OP, __NAME) \
+#if __cpp_lib_concepts
+# define _VARIANT_RELATION_FUNCTION_CONSTRAINTS(TYPES, OP) \
+  requires ((requires (const TYPES& __t) { \
+	{ __t OP __t } -> __detail::__boolean_testable; }) && ...)
+#else
+# define _VARIANT_RELATION_FUNCTION_CONSTRAINTS(TYPES, OP)
+#endif
+
+#define _VARIANT_RELATION_FUNCTION_TEMPLATE(__OP) \
   template<typename... _Types> \
-    constexpr bool operator __OP(const variant<_Types...>& __lhs, \
+    _VARIANT_RELATION_FUNCTION_CONSTRAINTS(_Types, __OP) \
+    constexpr bool \
+    operator __OP [[nodiscard]] (const variant<_Types...>& __lhs, \
 				 const variant<_Types...>& __rhs) \
     { \
       bool __ret = true; \
@@ -1252,22 +1262,20 @@ namespace __variant
 	        { \
 		  auto& __this_mem = std::get<__rhs_index>(__lhs);	\
                   __ret = __this_mem __OP __rhs_mem; \
+		  return; \
                 } \
-	      else \
-		__ret = (__lhs.index() + 1) __OP (__rhs_index + 1); \
             } \
-          else \
-            __ret = (__lhs.index() + 1) __OP (__rhs_index + 1); \
+	  __ret = (__lhs.index() + 1) __OP (__rhs_index + 1); \
 	}, __rhs); \
       return __ret; \
     }
 
-  _VARIANT_RELATION_FUNCTION_TEMPLATE(<, less)
-  _VARIANT_RELATION_FUNCTION_TEMPLATE(<=, less_equal)
-  _VARIANT_RELATION_FUNCTION_TEMPLATE(==, equal)
-  _VARIANT_RELATION_FUNCTION_TEMPLATE(!=, not_equal)
-  _VARIANT_RELATION_FUNCTION_TEMPLATE(>=, greater_equal)
-  _VARIANT_RELATION_FUNCTION_TEMPLATE(>, greater)
+  _VARIANT_RELATION_FUNCTION_TEMPLATE(<)
+  _VARIANT_RELATION_FUNCTION_TEMPLATE(<=)
+  _VARIANT_RELATION_FUNCTION_TEMPLATE(==)
+  _VARIANT_RELATION_FUNCTION_TEMPLATE(!=)
+  _VARIANT_RELATION_FUNCTION_TEMPLATE(>=)
+  _VARIANT_RELATION_FUNCTION_TEMPLATE(>)
 
 #undef _VARIANT_RELATION_FUNCTION_TEMPLATE
 
@@ -1415,7 +1423,8 @@ namespace __variant
 
       template<typename _Tp>
 	static constexpr bool __not_in_place_tag
-	  = !__is_in_place_tag<__remove_cvref_t<_Tp>>::value;
+	  = !__is_in_place_type_v<__remove_cvref_t<_Tp>>
+	      && !__is_in_place_index_v<__remove_cvref_t<_Tp>>;
 
     public:
 #if __cpp_concepts
@@ -1690,21 +1699,6 @@ namespace __variant
       template<size_t _Np, typename _Vp>
 	friend constexpr decltype(auto)
 	__detail::__variant::__get(_Vp&& __v) noexcept;
-
-#define _VARIANT_RELATION_FUNCTION_TEMPLATE(__OP) \
-      template<typename... _Tp> \
-	friend constexpr bool \
-	operator __OP(const variant<_Tp...>& __lhs, \
-		      const variant<_Tp...>& __rhs);
-
-      _VARIANT_RELATION_FUNCTION_TEMPLATE(<)
-      _VARIANT_RELATION_FUNCTION_TEMPLATE(<=)
-      _VARIANT_RELATION_FUNCTION_TEMPLATE(==)
-      _VARIANT_RELATION_FUNCTION_TEMPLATE(!=)
-      _VARIANT_RELATION_FUNCTION_TEMPLATE(>=)
-      _VARIANT_RELATION_FUNCTION_TEMPLATE(>)
-
-#undef _VARIANT_RELATION_FUNCTION_TEMPLATE
     };
 
   template<size_t _Np, typename... _Types>

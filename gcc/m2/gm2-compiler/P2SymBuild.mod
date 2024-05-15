@@ -26,7 +26,7 @@ FROM libc IMPORT strlen ;
 FROM NameKey IMPORT Name, MakeKey, makekey, KeyToCharStar, NulName, LengthKey, WriteKey ;
 FROM StrLib IMPORT StrEqual ;
 FROM M2Debug IMPORT Assert, WriteDebug ;
-FROM M2LexBuf IMPORT UnknownTokenNo, GetTokenNo ;
+FROM M2LexBuf IMPORT UnknownTokenNo, GetTokenNo, MakeVirtual2Tok ;
 FROM M2Error IMPORT InternalError, WriteFormat1, WriteFormat2, WriteFormat0, ErrorStringAt, ErrorStringAt2 ;
 FROM M2MetaError IMPORT MetaError1, MetaError2, MetaErrorsT2, MetaErrors1, MetaErrors2, MetaErrorString1 ;
 FROM DynamicStrings IMPORT String, InitString, InitStringCharStar, Mark, Slice, ConCat, KillString, string ;
@@ -55,7 +55,7 @@ FROM SymbolTable IMPORT NulSym,
                         GetCurrentModule, GetMainModule,
                         MakeTemporary, CheckAnonymous, IsNameAnonymous,
                         MakeConstLit,
-                        MakeConstLitString,
+                        MakeConstString,
                         MakeSubrange,
                         MakeVar, MakeType, PutType,
                         MakeModuleCtor,
@@ -87,7 +87,7 @@ FROM SymbolTable IMPORT NulSym,
                         MakeVarient, MakeFieldVarient,
                         MakeArray, PutArraySubscript,
                         MakeSubscript, PutSubscript,
-                        PutConstString, GetString,
+                        PutConstStringKnown, GetString,
                         PutArray, IsArray,
                         GetType, SkipType,
                         IsProcType, MakeProcType,
@@ -790,7 +790,7 @@ BEGIN
    THEN
       stop
    END ;
-   Sym := MakeConstLitString (tok, makekey (string (Mark (Slice (Mark (InitStringCharStar (KeyToCharStar (name))), 1, -1))))) ;
+   Sym := MakeConstString (tok, makekey (string (Mark (Slice (Mark (InitStringCharStar (KeyToCharStar (name))), 1, -1))))) ;
    PushTFtok (Sym, NulSym, tok) ;
    Annotate ("%1s(%1d)|%3d||constant string")
 END BuildString ;
@@ -2130,25 +2130,27 @@ END BuildNoReturnAttribute ;
                       |------------|              |-------------|
 *)
 
-PROCEDURE BuildPointerType ;
+PROCEDURE BuildPointerType (pointerpos: CARDINAL) ;
 VAR
-   tok      : CARDINAL ;
+   combined,
+   namepos,
+   typepos  : CARDINAL ;
    name     : Name ;
    Type,
    PtrToType: CARDINAL ;
 BEGIN
-   PopTtok(Type, tok) ;
-   PopT(name) ;
-   name := CheckAnonymous(name) ;
+   PopTtok (Type, typepos) ;
+   PopTtok (name, namepos) ;
+   name := CheckAnonymous (name) ;
 
-   PtrToType := MakePointer(tok, name) ;
-   PutPointer(PtrToType, Type) ;
+   combined := MakeVirtual2Tok (pointerpos, typepos) ;
+   PtrToType := MakePointer (combined, name) ;
+   PutPointer (PtrToType, Type) ;
    CheckForExportedImplementation(PtrToType) ;   (* May be an exported hidden type *)
-   PushTtok(name, tok) ;
+   PushTtok (name, namepos) ;
    Annotate("%1n|%3d||pointer type name") ;
-   PushTtok(PtrToType, tok) ;
+   PushTtok(PtrToType, combined) ;
    Annotate("%1s(%1d)|%3d||pointer type")
-
 END BuildPointerType ;
 
 
@@ -2168,21 +2170,24 @@ END BuildPointerType ;
                   |------------|              |-------------|
 *)
 
-PROCEDURE BuildSetType (ispacked: BOOLEAN) ;
+PROCEDURE BuildSetType (setpos: CARDINAL; ispacked: BOOLEAN) ;
 VAR
-   tok    : CARDINAL ;
-   name   : Name ;
+   combined,
+   namepos,
+   typepos : CARDINAL ;
+   name    : Name ;
    Type,
-   SetType: CARDINAL ;
+   SetType : CARDINAL ;
 BEGIN
-   PopTtok(Type, tok) ;
-   PopT(name) ;
-   SetType := MakeSet (tok, name) ;
+   PopTtok (Type, typepos) ;
+   PopTtok (name, namepos) ;
+   combined := MakeVirtual2Tok (setpos, typepos) ;
+   SetType := MakeSet (combined, name) ;
    CheckForExportedImplementation(SetType) ;   (* May be an exported hidden type *)
    PutSet(SetType, Type, ispacked) ;
-   PushT(name) ;
+   PushTtok (name, namepos) ;
    Annotate("%1n||set type name") ;
-   PushTtok (SetType, tok) ;
+   PushTtok (SetType, combined) ;
    Annotate ("%1s(%1d)|%3d||set type|token no")
 END BuildSetType ;
 
@@ -3050,7 +3055,7 @@ BEGIN
    CASE type OF
 
    set        :  PutConstSet(Sym) |
-   str        :  PutConstString(GetTokenNo(), Sym, MakeKey('')) |
+   str        :  PutConstStringKnown (GetTokenNo(), Sym, MakeKey(''), FALSE, FALSE) |
    array,
    constructor:  PutConstructor(Sym) |
    cast       :  PutConst(Sym, castType) |

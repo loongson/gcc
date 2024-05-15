@@ -55,6 +55,11 @@
   (and (match_code "const_int")
        (match_test "ival == 2")))
 
+(define_constraint "c03"
+  "Constant value 3"
+  (and (match_code "const_int")
+       (match_test "ival == 3")))
+
 (define_constraint "c04"
   "Constant value 4"
   (and (match_code "const_int")
@@ -74,6 +79,12 @@
   "A U-type 20-bit signed immediate."
   (and (match_code "const_int")
        (match_test "LUI_OPERAND (ival)")))
+
+(define_constraint "MiG"
+  "const can be represented as sum of any S12 values."
+  (and (match_code "const_int")
+       (ior (match_test "IN_RANGE (ival,  2048,  4094)")
+	    (match_test "IN_RANGE (ival, -4096, -2049)"))))
 
 (define_constraint "Ds3"
   "@internal
@@ -153,29 +164,6 @@
 
 (define_register_constraint "vm" "TARGET_VECTOR ? VM_REGS : NO_REGS"
   "A vector mask register (if available).")
-
-;; These following constraints are used by RVV instructions with dest EEW > src EEW.
-;; RISC-V 'V' Spec 5.2. Vector Operands:
-;; The destination EEW is greater than the source EEW, the source EMUL is at least 1,
-;; and the overlap is in the highest-numbered part of the destination register group.
-;; (e.g., when LMUL=8, vzext.vf4 v0, v6 is legal, but a source of v0, v2, or v4 is not).
-(define_register_constraint "W21" "TARGET_VECTOR ? V_REGS : NO_REGS"
-  "A vector register has register number % 2 == 1." "regno % 2 == 1")
-
-(define_register_constraint "W42" "TARGET_VECTOR ? V_REGS : NO_REGS"
-  "A vector register has register number % 4 == 2." "regno % 4 == 2")
-
-(define_register_constraint "W84" "TARGET_VECTOR ? V_REGS : NO_REGS"
-  "A vector register has register number % 8 == 4." "regno % 8 == 4")
-
-(define_register_constraint "W43" "TARGET_VECTOR ? V_REGS : NO_REGS"
-  "A vector register has register number % 4 == 3." "regno % 4 == 3")
-
-(define_register_constraint "W86" "TARGET_VECTOR ? V_REGS : NO_REGS"
-  "A vector register has register number % 8 == 6." "regno % 8 == 6")
-
-(define_register_constraint "W87" "TARGET_VECTOR ? V_REGS : NO_REGS"
-  "A vector register has register number % 8 == 7." "regno % 8 == 7")
 
 ;; This constraint is used to match instruction "csrr %0, vlenb" which is generated in "mov<mode>".
 ;; VLENB is a run-time constant which represent the vector register length in bytes.
@@ -262,3 +250,34 @@
   (and (match_code "const_int")
        (and (match_test "IN_RANGE (ival, 0, 1073741823)")
             (match_test "exact_log2 (ival + 1) != -1"))))
+
+(define_constraint "CV_bi_sign5"
+  "@internal
+   A 5-bit signed immediate for CORE-V Immediate Branch."
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (ival, -16, 15)")))
+
+(define_constraint "CV_simd_si6"
+  "A 6-bit signed immediate for SIMD."
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (ival, -32, 31)")))
+
+(define_constraint "CV_simd_un6"
+  "A 6-bit unsigned immediate for SIMD."
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (ival, 0, 63)")))
+
+(define_constraint "CV_simd_i01"
+  "Shifting immediate for SIMD shufflei1."
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (ival, 64, 127)")))
+
+(define_constraint "CV_simd_i02"
+  "Shifting immediate for SIMD shufflei2."
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (ival, -128, -65)")))
+
+(define_constraint "CV_simd_i03"
+  "Shifting immediate for SIMD shufflei3."
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (ival, -64, -1)")))

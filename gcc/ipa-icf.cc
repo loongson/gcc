@@ -73,6 +73,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple-iterator.h"
 #include "tree-cfg.h"
 #include "symbol-summary.h"
+#include "sreal.h"
+#include "ipa-cp.h"
 #include "ipa-prop.h"
 #include "ipa-fnsummary.h"
 #include "except.h"
@@ -1385,6 +1387,23 @@ sem_function::init (ipa_icf_gimple::func_checker *checker)
 	  cfg_checksum = iterative_hash_host_wide_int (e->flags,
 			 cfg_checksum);
 
+	/* TODO: We should be able to match PHIs with different order of
+	   parameters.  This needs to be also updated in
+	   sem_function::compare_phi_node.  */
+	gphi_iterator si;
+	for (si = gsi_start_nonvirtual_phis (bb); !gsi_end_p (si);
+	     gsi_next_nonvirtual_phi (&si))
+	  {
+	    hstate.add_int (GIMPLE_PHI);
+	    gphi *phi = si.phi ();
+	    m_checker->hash_operand (gimple_phi_result (phi), hstate, 0,
+				     func_checker::OP_NORMAL);
+	    hstate.add_int (gimple_phi_num_args (phi));
+	    for (unsigned int i = 0; i < gimple_phi_num_args (phi); i++)
+	      m_checker->hash_operand (gimple_phi_arg_def (phi, i),
+				       hstate, 0, func_checker::OP_NORMAL);
+	  }
+
 	for (gimple_stmt_iterator gsi = gsi_start_bb (bb); !gsi_end_p (gsi);
 	     gsi_next (&gsi))
 	  {
@@ -1577,6 +1596,8 @@ sem_function::compare_phi_node (basic_block bb1, basic_block bb2)
       if (size1 != size2)
 	return return_false ();
 
+      /* TODO: We should be able to match PHIs with different order of
+	 parameters.  This needs to be also updated in sem_function::init.  */
       for (i = 0; i < size1; ++i)
 	{
 	  t1 = gimple_phi_arg (phi1, i)->def;
@@ -3191,8 +3212,9 @@ sem_item_optimizer::process_cong_reduction (void)
 	worklist_push ((*it)->classes[i]);
 
   if (dump_file)
-    fprintf (dump_file, "Worklist has been filled with: %lu\n",
-	     (unsigned long) worklist.nodes ());
+    fprintf (dump_file, "Worklist has been filled with: "
+			HOST_SIZE_T_PRINT_UNSIGNED "\n",
+	     (fmt_size_t) worklist.nodes ());
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     fprintf (dump_file, "Congruence class reduction\n");
@@ -3239,8 +3261,9 @@ sem_item_optimizer::dump_cong_classes (void)
       }
 
   fprintf (dump_file,
-	   "Congruence classes: %lu with total: %u items (in a non-singular "
-	   "class: %u)\n", (unsigned long) m_classes.elements (),
+	   "Congruence classes: " HOST_SIZE_T_PRINT_UNSIGNED " with total: "
+	   "%u items (in a non-singular class: %u)\n",
+	   (fmt_size_t) m_classes.elements (),
 	   m_items.length (), m_items.length () - single_element_classes);
   fprintf (dump_file,
 	   "Class size histogram [number of members]: number of classes\n");
@@ -3394,6 +3417,7 @@ sem_item_optimizer::merge_classes (unsigned int prev_class_count,
 	  continue;
 
 	sem_item *source = c->members[0];
+	bool this_merged_p = false;
 
 	if (DECL_NAME (source->decl)
 	    && MAIN_NAME_P (DECL_NAME (source->decl)))
@@ -3441,12 +3465,41 @@ sem_item_optimizer::merge_classes (unsigned int prev_class_count,
 	    if (dbg_cnt (merged_ipa_icf))
 	      {
 		bool merged = source->merge (alias);
-		merged_p |= merged;
+		this_merged_p |= merged;
 
 		if (merged && alias->type == VAR)
 		  {
 		    symtab_pair p = symtab_pair (source->node, alias->node);
 		    m_merged_variables.safe_push (p);
+		  }
+	      }
+	  }
+
+	merged_p |= this_merged_p;
+	if (this_merged_p
+	    && source->type == FUNC
+	    && (!flag_wpa || flag_checking))
+	  {
+	    unsigned i;
+	    tree name;
+	    FOR_EACH_SSA_NAME (i, name, DECL_STRUCT_FUNCTION (source->decl))
+	      {
+		/* We need to either merge or reset SSA_NAME_*_INFO.
+		   For merging we don't preserve the mapping between
+		   original and alias SSA_NAMEs from successful equals
+		   calls.  */
+		if (POINTER_TYPE_P (TREE_TYPE (name)))
+		  {
+		    if (SSA_NAME_PTR_INFO (name))
+		      {
+			gcc_checking_assert (!flag_wpa);
+			SSA_NAME_PTR_INFO (name) = NULL;
+		      }
+		  }
+		else if (SSA_NAME_RANGE_INFO (name))
+		  {
+		    gcc_checking_assert (!flag_wpa);
+		    SSA_NAME_RANGE_INFO (name) = NULL;
 		  }
 	      }
 	  }
@@ -3662,4 +3715,13 @@ ipa_opt_pass_d *
 make_pass_ipa_icf (gcc::context *ctxt)
 {
   return new ipa_icf::pass_ipa_icf (ctxt);
+}
+
+/* Reset all state within ipa-icf.cc so that we can rerun the compiler
+   within the same process.  For use by toplev::finalize.  */
+
+void
+ipa_icf_cc_finalize (void)
+{
+  ipa_icf::optimizer = NULL;
 }

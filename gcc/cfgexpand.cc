@@ -320,22 +320,22 @@ public:
   unsigned int alignb;
 
   /* The partition representative.  */
-  size_t representative;
+  unsigned representative;
 
   /* The next stack variable in the partition, or EOC.  */
-  size_t next;
+  unsigned next;
 
   /* The numbers of conflicting stack variables.  */
   bitmap conflicts;
 };
 
-#define EOC  ((size_t)-1)
+#define EOC  ((unsigned)-1)
 
 /* We have an array of such objects while deciding allocation.  */
 static class stack_var *stack_vars;
-static size_t stack_vars_alloc;
-static size_t stack_vars_num;
-static hash_map<tree, size_t> *decl_to_stack_part;
+static unsigned stack_vars_alloc;
+static unsigned stack_vars_num;
+static hash_map<tree, unsigned> *decl_to_stack_part;
 
 /* Conflict bitmaps go on this obstack.  This allows us to destroy
    all of them in one big sweep.  */
@@ -343,7 +343,7 @@ static bitmap_obstack stack_var_bitmap_obstack;
 
 /* An array of indices such that stack_vars[stack_vars_sorted[i]].size
    is non-decreasing.  */
-static size_t *stack_vars_sorted;
+static unsigned *stack_vars_sorted;
 
 /* The phase of the stack frame.  This is the known misalignment of
    virtual_stack_vars_rtx from PREFERRED_STACK_BOUNDARY.  That is,
@@ -457,7 +457,7 @@ add_stack_var (tree decl, bool really_expand)
 	= XRESIZEVEC (class stack_var, stack_vars, stack_vars_alloc);
     }
   if (!decl_to_stack_part)
-    decl_to_stack_part = new hash_map<tree, size_t>;
+    decl_to_stack_part = new hash_map<tree, unsigned>;
 
   v = &stack_vars[stack_vars_num];
   decl_to_stack_part->put (decl, stack_vars_num);
@@ -491,7 +491,7 @@ add_stack_var (tree decl, bool really_expand)
 /* Make the decls associated with luid's X and Y conflict.  */
 
 static void
-add_stack_var_conflict (size_t x, size_t y)
+add_stack_var_conflict (unsigned x, unsigned y)
 {
   class stack_var *a = &stack_vars[x];
   class stack_var *b = &stack_vars[y];
@@ -508,7 +508,7 @@ add_stack_var_conflict (size_t x, size_t y)
 /* Check whether the decls associated with luid's X and Y conflict.  */
 
 static bool
-stack_var_conflict_p (size_t x, size_t y)
+stack_var_conflict_p (unsigned x, unsigned y)
 {
   class stack_var *a = &stack_vars[x];
   class stack_var *b = &stack_vars[y];
@@ -537,7 +537,7 @@ visit_op (gimple *, tree op, tree, void *data)
       && DECL_P (op)
       && DECL_RTL_IF_SET (op) == pc_rtx)
     {
-      size_t *v = decl_to_stack_part->get (op);
+      unsigned *v = decl_to_stack_part->get (op);
       if (v)
 	bitmap_set_bit (active, *v);
     }
@@ -557,10 +557,10 @@ visit_conflict (gimple *, tree op, tree, void *data)
       && DECL_P (op)
       && DECL_RTL_IF_SET (op) == pc_rtx)
     {
-      size_t *v = decl_to_stack_part->get (op);
+      unsigned *v = decl_to_stack_part->get (op);
       if (v && bitmap_set_bit (active, *v))
 	{
-	  size_t num = *v;
+	  unsigned num = *v;
 	  bitmap_iterator bi;
 	  unsigned i;
 	  gcc_assert (num < stack_vars_num);
@@ -569,6 +569,26 @@ visit_conflict (gimple *, tree op, tree, void *data)
 	}
     }
   return false;
+}
+
+/* Helper function for add_scope_conflicts_1.  For USE on
+   a stmt, if it is a SSA_NAME and in its SSA_NAME_DEF_STMT is known to be
+   based on some ADDR_EXPR, invoke VISIT on that ADDR_EXPR.  */
+
+static inline void
+add_scope_conflicts_2 (tree use, bitmap work,
+		       walk_stmt_load_store_addr_fn visit)
+{
+  if (TREE_CODE (use) == SSA_NAME
+      && (POINTER_TYPE_P (TREE_TYPE (use))
+	  || INTEGRAL_TYPE_P (TREE_TYPE (use))))
+    {
+      gimple *g = SSA_NAME_DEF_STMT (use);
+      if (is_gimple_assign (g))
+	if (tree op = gimple_assign_rhs1 (g))
+	  if (TREE_CODE (op) == ADDR_EXPR)
+	    visit (g, TREE_OPERAND (op, 0), op, work);
+    }
 }
 
 /* Helper routine for add_scope_conflicts, calculating the active partitions
@@ -583,6 +603,8 @@ add_scope_conflicts_1 (basic_block bb, bitmap work, bool for_conflict)
   edge_iterator ei;
   gimple_stmt_iterator gsi;
   walk_stmt_load_store_addr_fn visit;
+  use_operand_p use_p;
+  ssa_op_iter iter;
 
   bitmap_clear (work);
   FOR_EACH_EDGE (e, ei, bb->preds)
@@ -593,7 +615,10 @@ add_scope_conflicts_1 (basic_block bb, bitmap work, bool for_conflict)
   for (gsi = gsi_start_phis (bb); !gsi_end_p (gsi); gsi_next (&gsi))
     {
       gimple *stmt = gsi_stmt (gsi);
+      gphi *phi = as_a <gphi *> (stmt);
       walk_stmt_load_store_addr_ops (stmt, work, NULL, NULL, visit);
+      FOR_EACH_PHI_ARG (use_p, phi, iter, SSA_OP_USE)
+	add_scope_conflicts_2 (USE_FROM_PTR (use_p), work, visit);
     }
   for (gsi = gsi_after_labels (bb); !gsi_end_p (gsi); gsi_next (&gsi))
     {
@@ -602,7 +627,7 @@ add_scope_conflicts_1 (basic_block bb, bitmap work, bool for_conflict)
       if (gimple_clobber_p (stmt))
 	{
 	  tree lhs = gimple_assign_lhs (stmt);
-	  size_t *v;
+	  unsigned *v;
 	  /* Nested function lowering might introduce LHSs
 	     that are COMPONENT_REFs.  */
 	  if (!VAR_P (lhs))
@@ -613,27 +638,48 @@ add_scope_conflicts_1 (basic_block bb, bitmap work, bool for_conflict)
 	}
       else if (!is_gimple_debug (stmt))
 	{
-	  if (for_conflict
-	      && visit == visit_op)
+	  if (for_conflict && visit == visit_op)
 	    {
-	      /* If this is the first real instruction in this BB we need
-	         to add conflicts for everything live at this point now.
-		 Unlike classical liveness for named objects we can't
-		 rely on seeing a def/use of the names we're interested in.
-		 There might merely be indirect loads/stores.  We'd not add any
-		 conflicts for such partitions.  */
+	      /* When we are inheriting live variables from our predecessors
+		 through a CFG merge we might not see an actual mention of
+		 the variables to record the approprate conflict as defs/uses
+		 might be through indirect stores/loads.  For this reason
+		 we have to make sure each live variable conflicts with
+		 each other.  When there's just a single predecessor the
+		 set of conflicts is already up-to-date.
+		 We perform this delayed at the first real instruction to
+		 allow clobbers starting this block to remove variables from
+		 the set of live variables.  */
 	      bitmap_iterator bi;
 	      unsigned i;
-	      EXECUTE_IF_SET_IN_BITMAP (work, 0, i, bi)
-		{
-		  class stack_var *a = &stack_vars[i];
-		  if (!a->conflicts)
-		    a->conflicts = BITMAP_ALLOC (&stack_var_bitmap_obstack);
-		  bitmap_ior_into (a->conflicts, work);
-		}
+	      if (EDGE_COUNT (bb->preds) > 1)
+		EXECUTE_IF_SET_IN_BITMAP (work, 0, i, bi)
+		  {
+		    class stack_var *a = &stack_vars[i];
+		    if (!a->conflicts)
+		      a->conflicts = BITMAP_ALLOC (&stack_var_bitmap_obstack);
+		    bitmap_ior_into (a->conflicts, work);
+		  }
 	      visit = visit_conflict;
 	    }
 	  walk_stmt_load_store_addr_ops (stmt, work, visit, visit, visit);
+	  FOR_EACH_SSA_USE_OPERAND (use_p, stmt, iter, SSA_OP_USE)
+	    add_scope_conflicts_2 (USE_FROM_PTR (use_p), work, visit);
+	}
+    }
+
+  /* When there was no real instruction but there's a CFG merge we need
+     to add the conflicts now.  */
+  if (for_conflict && visit == visit_op && EDGE_COUNT (bb->preds) > 1)
+    {
+      bitmap_iterator bi;
+      unsigned i;
+      EXECUTE_IF_SET_IN_BITMAP (work, 0, i, bi)
+	{
+	  class stack_var *a = &stack_vars[i];
+	  if (!a->conflicts)
+	    a->conflicts = BITMAP_ALLOC (&stack_var_bitmap_obstack);
+	  bitmap_ior_into (a->conflicts, work);
 	}
     }
 }
@@ -697,8 +743,8 @@ add_scope_conflicts (void)
 static int
 stack_var_cmp (const void *a, const void *b)
 {
-  size_t ia = *(const size_t *)a;
-  size_t ib = *(const size_t *)b;
+  unsigned ia = *(const unsigned *)a;
+  unsigned ib = *(const unsigned *)b;
   unsigned int aligna = stack_vars[ia].alignb;
   unsigned int alignb = stack_vars[ib].alignb;
   poly_int64 sizea = stack_vars[ia].size;
@@ -746,8 +792,8 @@ stack_var_cmp (const void *a, const void *b)
   return 0;
 }
 
-struct part_traits : unbounded_int_hashmap_traits <size_t, bitmap> {};
-typedef hash_map<size_t, bitmap, part_traits> part_hashmap;
+struct part_traits : unbounded_int_hashmap_traits <unsigned , bitmap> {};
+typedef hash_map<unsigned, bitmap, part_traits> part_hashmap;
 
 /* If the points-to solution *PI points to variables that are in a partition
    together with other variables add all partition members to the pointed-to
@@ -798,7 +844,7 @@ static void
 update_alias_info_with_stack_vars (void)
 {
   part_hashmap *decls_to_partitions = NULL;
-  size_t i, j;
+  unsigned i, j;
   tree var = NULL_TREE;
 
   for (i = 0; i < stack_vars_num; i++)
@@ -877,7 +923,7 @@ update_alias_info_with_stack_vars (void)
    Merge them into a single partition A.  */
 
 static void
-union_stack_vars (size_t a, size_t b)
+union_stack_vars (unsigned a, unsigned b)
 {
   class stack_var *vb = &stack_vars[b];
   bitmap_iterator bi;
@@ -923,20 +969,20 @@ union_stack_vars (size_t a, size_t b)
 static void
 partition_stack_vars (void)
 {
-  size_t si, sj, n = stack_vars_num;
+  unsigned si, sj, n = stack_vars_num;
 
-  stack_vars_sorted = XNEWVEC (size_t, stack_vars_num);
+  stack_vars_sorted = XNEWVEC (unsigned, stack_vars_num);
   for (si = 0; si < n; ++si)
     stack_vars_sorted[si] = si;
 
   if (n == 1)
     return;
 
-  qsort (stack_vars_sorted, n, sizeof (size_t), stack_var_cmp);
+  qsort (stack_vars_sorted, n, sizeof (unsigned), stack_var_cmp);
 
   for (si = 0; si < n; ++si)
     {
-      size_t i = stack_vars_sorted[si];
+      unsigned i = stack_vars_sorted[si];
       unsigned int ialign = stack_vars[i].alignb;
       poly_int64 isize = stack_vars[i].size;
 
@@ -948,7 +994,7 @@ partition_stack_vars (void)
 
       for (sj = si + 1; sj < n; ++sj)
 	{
-	  size_t j = stack_vars_sorted[sj];
+	  unsigned j = stack_vars_sorted[sj];
 	  unsigned int jalign = stack_vars[j].alignb;
 	  poly_int64 jsize = stack_vars[j].size;
 
@@ -988,7 +1034,7 @@ partition_stack_vars (void)
 static void
 dump_stack_var_partition (void)
 {
-  size_t si, i, j, n = stack_vars_num;
+  unsigned si, i, j, n = stack_vars_num;
 
   for (si = 0; si < n; ++si)
     {
@@ -998,7 +1044,7 @@ dump_stack_var_partition (void)
       if (stack_vars[i].representative != i)
 	continue;
 
-      fprintf (dump_file, "Partition %lu: size ", (unsigned long) i);
+      fprintf (dump_file, "Partition %u: size ", i);
       print_dec (stack_vars[i].size, dump_file);
       fprintf (dump_file, " align %u\n", stack_vars[i].alignb);
 
@@ -1081,9 +1127,9 @@ public:
    a unique location within the stack frame.  Update each partition member
    with that location.  */
 static void
-expand_stack_vars (bool (*pred) (size_t), class stack_vars_data *data)
+expand_stack_vars (bool (*pred) (unsigned), class stack_vars_data *data)
 {
-  size_t si, i, j, n = stack_vars_num;
+  unsigned si, i, j, n = stack_vars_num;
   poly_uint64 large_size = 0, large_alloc = 0;
   rtx large_base = NULL;
   rtx large_untagged_base = NULL;
@@ -1351,7 +1397,7 @@ expand_stack_vars (bool (*pred) (size_t), class stack_vars_data *data)
 static poly_uint64
 account_stack_vars (void)
 {
-  size_t si, j, i, n = stack_vars_num;
+  unsigned si, j, i, n = stack_vars_num;
   poly_uint64 size = 0;
 
   for (si = 0; si < n; ++si)
@@ -1981,13 +2027,13 @@ stack_protect_decl_phase (tree decl)
    as callbacks for expand_stack_vars.  */
 
 static bool
-stack_protect_decl_phase_1 (size_t i)
+stack_protect_decl_phase_1 (unsigned i)
 {
   return stack_protect_decl_phase (stack_vars[i].decl) == 1;
 }
 
 static bool
-stack_protect_decl_phase_2 (size_t i)
+stack_protect_decl_phase_2 (unsigned i)
 {
   return stack_protect_decl_phase (stack_vars[i].decl) == 2;
 }
@@ -1997,7 +2043,7 @@ stack_protect_decl_phase_2 (size_t i)
    Returns true if any of the vars in the partition need to be protected.  */
 
 static bool
-asan_decl_phase_3 (size_t i)
+asan_decl_phase_3 (unsigned i)
 {
   while (i != EOC)
     {
@@ -2015,7 +2061,7 @@ asan_decl_phase_3 (size_t i)
 static bool
 add_stack_protection_conflicts (void)
 {
-  size_t i, j, n = stack_vars_num;
+  unsigned i, j, n = stack_vars_num;
   unsigned char *phase;
   bool ret = false;
 
@@ -2060,7 +2106,7 @@ init_vars_expansion (void)
   bitmap_obstack_initialize (&stack_var_bitmap_obstack);
 
   /* A map from decl to stack partition.  */
-  decl_to_stack_part = new hash_map<tree, size_t>;
+  decl_to_stack_part = new hash_map<tree, unsigned>;
 
   /* Initialize local stack smashing state.  */
   has_protected_decls = false;
@@ -2097,7 +2143,7 @@ HOST_WIDE_INT
 estimated_stack_frame_size (struct cgraph_node *node)
 {
   poly_int64 size = 0;
-  size_t i;
+  unsigned i;
   tree var;
   struct function *fn = DECL_STRUCT_FUNCTION (node->decl);
 
@@ -2112,7 +2158,7 @@ estimated_stack_frame_size (struct cgraph_node *node)
   if (stack_vars_num > 0)
     {
       /* Fake sorting the stack vars for account_stack_vars ().  */
-      stack_vars_sorted = XNEWVEC (size_t, stack_vars_num);
+      stack_vars_sorted = XNEWVEC (unsigned , stack_vars_num);
       for (i = 0; i < stack_vars_num; ++i)
 	stack_vars_sorted[i] = i;
       size += account_stack_vars ();
@@ -3645,17 +3691,22 @@ expand_asm_stmt (gasm *stmt)
 	{
 	  edge e;
 	  edge_iterator ei;
-	  
+	  unsigned int cnt = EDGE_COUNT (gimple_bb (stmt)->succs);
+
 	  FOR_EACH_EDGE (e, ei, gimple_bb (stmt)->succs)
 	    {
-	      start_sequence ();
-	      for (rtx_insn *curr = after_rtl_seq;
-		   curr != NULL_RTX;
-		   curr = NEXT_INSN (curr))
-		emit_insn (copy_insn (PATTERN (curr)));
-	      rtx_insn *copy = get_insns ();
-	      end_sequence ();
-	      insert_insn_on_edge (copy, e);
+	      rtx_insn *copy;
+	      if (--cnt == 0)
+		copy = after_rtl_seq;
+	      else
+		{
+		  start_sequence ();
+		  duplicate_insn_chain (after_rtl_seq, after_rtl_end,
+					NULL, NULL);
+		  copy = get_insns ();
+		  end_sequence ();
+		}
+	      prepend_insn_to_edge (copy, e);
 	    }
 	}
     }
@@ -3970,38 +4021,18 @@ expand_gimple_stmt_1 (gimple *stmt)
 	else
 	  {
 	    rtx target, temp;
-	    bool nontemporal = gimple_assign_nontemporal_move_p (assign_stmt);
-	    struct separate_ops ops;
+	    gcc_assert (!gimple_assign_nontemporal_move_p (assign_stmt));
 	    bool promoted = false;
 
 	    target = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
 	    if (GET_CODE (target) == SUBREG && SUBREG_PROMOTED_VAR_P (target))
 	      promoted = true;
 
-	    ops.code = gimple_assign_rhs_code (assign_stmt);
-	    ops.type = TREE_TYPE (lhs);
-	    switch (get_gimple_rhs_class (ops.code))
-	      {
-		case GIMPLE_TERNARY_RHS:
-		  ops.op2 = gimple_assign_rhs3 (assign_stmt);
-		  /* Fallthru */
-		case GIMPLE_BINARY_RHS:
-		  ops.op1 = gimple_assign_rhs2 (assign_stmt);
-		  /* Fallthru */
-		case GIMPLE_UNARY_RHS:
-		  ops.op0 = gimple_assign_rhs1 (assign_stmt);
-		  break;
-		default:
-		  gcc_unreachable ();
-	      }
-	    ops.location = gimple_location (stmt);
-
-	    /* If we want to use a nontemporal store, force the value to
-	       register first.  If we store into a promoted register,
-	       don't directly expand to target.  */
-	    temp = nontemporal || promoted ? NULL_RTX : target;
-	    temp = expand_expr_real_2 (&ops, temp, GET_MODE (target),
-				       EXPAND_NORMAL);
+	   /* If we store into a promoted register, don't directly
+	      expand to target.  */
+	    temp = promoted ? NULL_RTX : target;
+	    temp = expand_expr_real_gassign (assign_stmt, temp,
+					     GET_MODE (target), EXPAND_NORMAL);
 
 	    if (temp == target)
 	      ;
@@ -4013,7 +4044,7 @@ expand_gimple_stmt_1 (gimple *stmt)
 		if (CONSTANT_P (temp) && GET_MODE (temp) == VOIDmode)
 		  {
 		    temp = convert_modes (GET_MODE (target),
-					  TYPE_MODE (ops.type),
+					  TYPE_MODE (TREE_TYPE (lhs)),
 					  temp, unsignedp);
 		    temp = convert_modes (GET_MODE (SUBREG_REG (target)),
 					  GET_MODE (target), temp, unsignedp);
@@ -4021,8 +4052,6 @@ expand_gimple_stmt_1 (gimple *stmt)
 
 		convert_move (SUBREG_REG (target), temp, unsignedp);
 	      }
-	    else if (nontemporal && emit_storent_insn (target, temp))
-	      ;
 	    else
 	      {
 		temp = force_operand (temp, target);
@@ -6354,11 +6383,15 @@ discover_nonconstant_array_refs_r (tree * tp, int *walk_subtrees,
   /* References of size POLY_INT_CST to a fixed-size object must go
      through memory.  It's more efficient to force that here than
      to create temporary slots on the fly.
-     RTL expansion expectes TARGET_MEM_REF to always address actual memory.  */
+     RTL expansion expectes TARGET_MEM_REF to always address actual memory.
+     Also, force to stack non-BLKmode vars accessed through VIEW_CONVERT_EXPR
+     to BLKmode type.  */
   else if (TREE_CODE (t) == TARGET_MEM_REF
 	   || (TREE_CODE (t) == MEM_REF
 	       && TYPE_SIZE (TREE_TYPE (t))
-	       && POLY_INT_CST_P (TYPE_SIZE (TREE_TYPE (t)))))
+	       && POLY_INT_CST_P (TYPE_SIZE (TREE_TYPE (t))))
+	   || (TREE_CODE (t) == VIEW_CONVERT_EXPR
+	       && TYPE_MODE (TREE_TYPE (t)) == BLKmode))
     {
       tree base = get_base_address (t);
       if (base

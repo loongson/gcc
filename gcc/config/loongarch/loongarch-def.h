@@ -23,12 +23,10 @@ along with GCC; see the file COPYING3.  If not see
     - ISA extensions		(isa_ext),
     - base ABI types		(abi_base),
     - ABI extension types	(abi_ext).
-
-    - code models		      (cmodel)
-    - other command-line switches     (switch)
+    - code models		(cmodel)
 
    These values are primarily used for implementing option handling
-   logic in "loongarch.opt", "loongarch-driver.c" and "loongarch-opt.c".
+   logic in "loongarch.opt", "loongarch-driver.cc" and "loongarch-opt.cc".
 
    As for the result of this option handling process, the following
    scheme is adopted to represent the final configuration:
@@ -53,65 +51,90 @@ along with GCC; see the file COPYING3.  If not see
 #include "loongarch-def-array.h"
 #include "loongarch-tune.h"
 
-/* enum isa_base */
 
-/* LoongArch V1.00.  */
-#define ISA_BASE_LA64V100	0
-#define N_ISA_BASE_TYPES	1
+/* ISA base */
+enum {
+  ISA_BASE_LA64		= 0,  /* LoongArch64 */
+  N_ISA_BASE_TYPES	= 1
+};
+
 extern loongarch_def_array<const char *, N_ISA_BASE_TYPES>
   loongarch_isa_base_strings;
 
-/* enum isa_ext_* */
-#define ISA_EXT_NONE	      0
-#define ISA_EXT_FPU32	      1
-#define ISA_EXT_FPU64	      2
-#define N_ISA_EXT_FPU_TYPES   3
-#define ISA_EXT_SIMD_LSX      3
-#define ISA_EXT_SIMD_LASX     4
-#define N_ISA_EXT_TYPES	      5
+
+/* ISA extensions */
+enum {
+  ISA_EXT_NONE		= 0,
+  ISA_EXT_FPU32		= 1,
+  ISA_EXT_FPU64		= 2,
+  N_ISA_EXT_FPU_TYPES   = 3,
+  ISA_EXT_SIMD_LSX      = 3,
+  ISA_EXT_SIMD_LASX     = 4,
+  N_ISA_EXT_TYPES	= 5
+};
+
 extern loongarch_def_array<const char *, N_ISA_EXT_TYPES>
   loongarch_isa_ext_strings;
 
-/* enum abi_base */
-#define ABI_BASE_LP64D	      0
-#define ABI_BASE_LP64F	      1
-#define ABI_BASE_LP64S	      2
-#define N_ABI_BASE_TYPES      3
+
+/* Base ABI */
+enum {
+  ABI_BASE_LP64D	= 0,
+  ABI_BASE_LP64F	= 1,
+  ABI_BASE_LP64S	= 2,
+  N_ABI_BASE_TYPES	= 3
+};
+
 extern loongarch_def_array<const char *, N_ABI_BASE_TYPES>
   loongarch_abi_base_strings;
 
 #define TO_LP64_ABI_BASE(C) (C)
 
-#define ABI_FPU_64(abi_base) \
+#define ABI_LP64_P(abi_base) \
+  (abi_base == ABI_BASE_LP64D \
+   || abi_base == ABI_BASE_LP64F \
+   || abi_base == ABI_BASE_LP64S)
+
+#define ABI_FPU64_P(abi_base) \
   (abi_base == ABI_BASE_LP64D)
-#define ABI_FPU_32(abi_base) \
+#define ABI_FPU32_P(abi_base) \
   (abi_base == ABI_BASE_LP64F)
-#define ABI_FPU_NONE(abi_base) \
+#define ABI_NOFPU_P(abi_base) \
   (abi_base == ABI_BASE_LP64S)
 
 
-/* enum abi_ext */
-#define ABI_EXT_BASE	      0
-#define N_ABI_EXT_TYPES	      1
+/* ABI Extension */
+enum {
+  ABI_EXT_BASE		= 0,
+  N_ABI_EXT_TYPES	= 1
+};
+
 extern loongarch_def_array<const char *, N_ABI_EXT_TYPES>
   loongarch_abi_ext_strings;
 
-/* enum cmodel */
-#define CMODEL_NORMAL	      0
-#define CMODEL_TINY	      1
-#define CMODEL_TINY_STATIC    2
-#define CMODEL_MEDIUM	      3
-#define CMODEL_LARGE	      4
-#define CMODEL_EXTREME	      5
-#define N_CMODEL_TYPES	      6
+
+/* Code Model */
+enum {
+  CMODEL_NORMAL		= 0,
+  CMODEL_TINY		= 1,
+  CMODEL_TINY_STATIC	= 2,
+  CMODEL_MEDIUM		= 3,
+  CMODEL_LARGE		= 4,
+  CMODEL_EXTREME	= 5,
+  N_CMODEL_TYPES	= 6
+};
+
 extern loongarch_def_array<const char *, N_CMODEL_TYPES>
   loongarch_cmodel_strings;
 
-/* enum explicit_relocs */
-#define EXPLICIT_RELOCS_AUTO	0
-#define EXPLICIT_RELOCS_NONE	1
-#define EXPLICIT_RELOCS_ALWAYS	2
-#define N_EXPLICIT_RELOCS_TYPES	3
+
+/* Explicit Reloc Type */
+enum {
+  EXPLICIT_RELOCS_AUTO	    = 0,
+  EXPLICIT_RELOCS_NONE	    = 1,
+  EXPLICIT_RELOCS_ALWAYS    = 2,
+  N_EXPLICIT_RELOCS_TYPES   = 3
+};
 
 /* The common default value for variables whose assignments
    are triggered by command-line options.  */
@@ -132,8 +155,11 @@ struct loongarch_isa
 
      Using int64_t instead of HOST_WIDE_INT for C compatibility.  */
   int64_t evolution;
+  int64_t evolution_set;
 
-  loongarch_isa () : base (0), fpu (0), simd (0), evolution (0) {}
+  loongarch_isa () :
+    base (0), fpu (0), simd (0), evolution (0), evolution_set (0)
+  {}
   loongarch_isa base_ (int _base) { base = _base; return *this; }
   loongarch_isa fpu_ (int _fpu) { fpu = _fpu; return *this; }
   loongarch_isa simd_ (int _simd) { simd = _simd; return *this; }
@@ -151,24 +177,45 @@ struct loongarch_target
 {
   struct loongarch_isa isa;
   struct loongarch_abi abi;
-  int cpu_arch;	    /* CPU_ */
-  int cpu_tune;	    /* same */
+  int cpu_arch;	    /* ARCH_ */
+  int cpu_tune;	    /* TUNE_ */
   int cmodel;	    /* CMODEL_ */
+  int tls_dialect;  /* TLS_ */
 };
 
-/* CPU properties.  */
-/* index */
-#define CPU_NATIVE	  0
-#define CPU_ABI_DEFAULT   1
-#define CPU_LOONGARCH64	  2
-#define CPU_LA464	  3
-#define CPU_LA664	  4
-#define N_ARCH_TYPES	  5
-#define N_TUNE_TYPES	  5
+/* ISA target presets (-march=*) */
+enum {
+  ARCH_NATIVE       = 0,
+  ARCH_ABI_DEFAULT  = 1,
+  ARCH_LOONGARCH64  = 2,
+  ARCH_LA464	    = 3,
+  ARCH_LA664	    = 4,
+  ARCH_LA64V1_0     = 5,
+  ARCH_LA64V1_1     = 6,
+  N_ARCH_TYPES      = 7,
+};
 
-/* parallel tables.  */
+/* Tune target presets (-mtune=*) */
+enum {
+  TUNE_NATIVE       = 0,
+  TUNE_GENERIC      = 1,
+  TUNE_LOONGARCH64  = 2,
+  TUNE_LA464	    = 3,
+  TUNE_LA664	    = 4,
+  N_TUNE_TYPES      = 5,
+};
+
+/* TLS types.  */
+enum {
+  TLS_TRADITIONAL = 0,
+  TLS_DESCRIPTORS = 1
+};
+
+/* Target preset properties */
 extern loongarch_def_array<const char *, N_ARCH_TYPES>
-  loongarch_cpu_strings;
+  loongarch_arch_strings;
+extern loongarch_def_array<const char *, N_TUNE_TYPES>
+  loongarch_tune_strings;
 extern loongarch_def_array<loongarch_isa, N_ARCH_TYPES>
   loongarch_cpu_default_isa;
 extern loongarch_def_array<int, N_TUNE_TYPES>
@@ -181,5 +228,8 @@ extern loongarch_def_array<loongarch_align, N_TUNE_TYPES>
   loongarch_cpu_align;
 extern loongarch_def_array<loongarch_rtx_cost_data, N_TUNE_TYPES>
   loongarch_cpu_rtx_cost_data;
+extern loongarch_def_array<
+  loongarch_def_array<loongarch_isa, N_ABI_EXT_TYPES>,
+  N_ABI_BASE_TYPES> abi_minimal_isa;
 
 #endif /* LOONGARCH_DEF_H */

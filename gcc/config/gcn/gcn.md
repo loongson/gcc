@@ -23,9 +23,7 @@
 
 ; Named registers
 (define_constants
-  [(FIRST_SGPR_REG		 0)
-   (CC_SAVE_REG			 22)
-   (LAST_SGPR_REG		 101)
+  [(CC_SAVE_REG			 22)
    (FLAT_SCRATCH_REG		 102)
    (FLAT_SCRATCH_LO_REG		 102)
    (FLAT_SCRATCH_HI_REG		 103)
@@ -49,11 +47,7 @@
    (EXEC_LO_REG			 126)
    (EXEC_HI_REG			 127)
    (EXECZ_REG			 128)
-   (SCC_REG			 129)
-   (FIRST_VGPR_REG		 160)
-   (LAST_VGPR_REG		 415)
-   (FIRST_AVGPR_REG		 416)
-   (LAST_AVGPR_REG		 671)])
+   (SCC_REG			 129)])
 
 (define_constants
   [(SP_REGNUM 16)
@@ -1618,7 +1612,7 @@
 	(mult:SI
 	  (any_extend:SI (match_operand:HI 1 "register_operand" "%v"))
 	  (any_extend:SI (match_operand:HI 2 "register_operand" " v"))))]
-  ""
+  "!TARGET_RDNA3"
   "v_mul_<iu>32_<iu>24_sdwa\t%0, %<e>1, %<e>2 src0_sel:WORD_0 src1_sel:WORD_0"
   [(set_attr "type" "vop_sdwa")
    (set_attr "length" "8")])
@@ -1628,7 +1622,7 @@
 	(mult:HI
 	  (any_extend:HI (match_operand:QI 1 "register_operand" "%v"))
 	  (any_extend:HI (match_operand:QI 2 "register_operand" " v"))))]
-  ""
+  "!TARGET_RDNA3"
   "v_mul_<iu>32_<iu>24_sdwa\t%0, %<e>1, %<e>2 src0_sel:BYTE_0 src1_sel:BYTE_0"
   [(set_attr "type" "vop_sdwa")
    (set_attr "length" "8")])
@@ -1966,10 +1960,18 @@
 (define_insn "*memory_barrier"
   [(set (match_operand:BLK 0)
 	(unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))]
-  ""
-  "{buffer_wbinvl1_vol|buffer_gl0_inv}"
+  "!TARGET_RDNA2_PLUS"
+  "buffer_wbinvl1_vol"
   [(set_attr "type" "mubuf")
    (set_attr "length" "4")])
+
+(define_insn "*memory_barrier"
+  [(set (match_operand:BLK 0)
+	(unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))]
+  "TARGET_RDNA2_PLUS"
+  "buffer_gl1_inv\;buffer_gl0_inv"
+  [(set_attr "type" "mult")
+   (set_attr "length" "8")])
 
 ; FIXME: These patterns have been disabled as they do not seem to work
 ; reliably - they can cause hangs or incorrect results.
@@ -2074,7 +2076,12 @@
 	   (match_operand:SIDI 3 "register_operand" "  v")]
 	  UNSPECV_ATOMIC))]
   ""
-  "ds_cmpst_rtn_b<bitsize> %0, %1, %2, %3\;s_waitcnt\tlgkmcnt(0)"
+  {
+    if (TARGET_RDNA3)
+      return "ds_cmpstore_rtn_b<bitsize> %0, %1, %3, %2\;s_waitcnt\tlgkmcnt(0)";
+    else
+      return "ds_cmpst_rtn_b<bitsize> %0, %1, %2, %3\;s_waitcnt\tlgkmcnt(0)";
+  }
   [(set_attr "type" "ds")
    (set_attr "length" "12")])
 
@@ -2095,9 +2102,13 @@
 	  case 0:
 	    return "s_load%o0\t%0, %A1 glc\;s_waitcnt\tlgkmcnt(0)";
 	  case 1:
-	    return "flat_load%o0\t%0, %A1%O1 glc\;s_waitcnt\t0";
+	    return (TARGET_RDNA2 /* Not GFX11.  */
+		    ? "flat_load%o0\t%0, %A1%O1 glc dlc\;s_waitcnt\t0"
+		    : "flat_load%o0\t%0, %A1%O1 glc\;s_waitcnt\t0");
 	  case 2:
-	    return "global_load%o0\t%0, %A1%O1 glc\;s_waitcnt\tvmcnt(0)";
+	    return (TARGET_RDNA2 /* Not GFX11.  */
+		    ? "global_load%o0\t%0, %A1%O1 glc dlc\;s_waitcnt\tvmcnt(0)"
+		    : "global_load%o0\t%0, %A1%O1 glc\;s_waitcnt\tvmcnt(0)");
 	  }
 	break;
       case MEMMODEL_CONSUME:
@@ -2109,15 +2120,21 @@
 	    return "s_load%o0\t%0, %A1 glc\;s_waitcnt\tlgkmcnt(0)\;"
 		   "s_dcache_wb_vol";
 	  case 1:
-	    return (TARGET_RDNA2_PLUS
+	    return (TARGET_RDNA2
+		    ? "flat_load%o0\t%0, %A1%O1 glc dlc\;s_waitcnt\t0\;"
+		      "buffer_gl1_inv\;buffer_gl0_inv"
+		    : TARGET_RDNA3
 		    ? "flat_load%o0\t%0, %A1%O1 glc\;s_waitcnt\t0\;"
-		      "buffer_gl0_inv"
+		      "buffer_gl1_inv\;buffer_gl0_inv"
 		    : "flat_load%o0\t%0, %A1%O1 glc\;s_waitcnt\t0\;"
 		      "buffer_wbinvl1_vol");
 	  case 2:
-	    return (TARGET_RDNA2_PLUS
+	    return (TARGET_RDNA2
+		    ? "global_load%o0\t%0, %A1%O1 glc dlc\;s_waitcnt\tvmcnt(0)\;"
+		      "buffer_gl1_inv\;buffer_gl0_inv"
+		    : TARGET_RDNA3
 		    ? "global_load%o0\t%0, %A1%O1 glc\;s_waitcnt\tvmcnt(0)\;"
-		      "buffer_gl0_inv"
+		      "buffer_gl1_inv\;buffer_gl0_inv"
 		    : "global_load%o0\t%0, %A1%O1 glc\;s_waitcnt\tvmcnt(0)\;"
 		      "buffer_wbinvl1_vol");
 	  }
@@ -2131,15 +2148,21 @@
 	    return "s_dcache_wb_vol\;s_load%o0\t%0, %A1 glc\;"
 		   "s_waitcnt\tlgkmcnt(0)\;s_dcache_inv_vol";
 	  case 1:
-	    return (TARGET_RDNA2_PLUS
-		    ? "buffer_gl0_inv\;flat_load%o0\t%0, %A1%O1 glc\;"
-		      "s_waitcnt\t0\;buffer_gl0_inv"
+	    return (TARGET_RDNA2
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_load%o0\t%0, %A1%O1 glc dlc\;"
+		      "s_waitcnt\t0\;buffer_gl1_inv\;buffer_gl0_inv"
+		    : TARGET_RDNA3
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_load%o0\t%0, %A1%O1 glc\;"
+		      "s_waitcnt\t0\;buffer_gl1_inv\;buffer_gl0_inv"
 		    : "buffer_wbinvl1_vol\;flat_load%o0\t%0, %A1%O1 glc\;"
 		      "s_waitcnt\t0\;buffer_wbinvl1_vol");
 	  case 2:
-	    return (TARGET_RDNA2_PLUS
-		    ? "buffer_gl0_inv\;global_load%o0\t%0, %A1%O1 glc\;"
-		      "s_waitcnt\tvmcnt(0)\;buffer_gl0_inv"
+	    return (TARGET_RDNA2
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;global_load%o0\t%0, %A1%O1 glc dlc\;"
+		      "s_waitcnt\tvmcnt(0)\;buffer_gl1_inv\;buffer_gl0_inv"
+		    : TARGET_RDNA3
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;global_load%o0\t%0, %A1%O1 glc\;"
+		      "s_waitcnt\tvmcnt(0)\;buffer_gl1_inv\;buffer_gl0_inv"
 		    : "buffer_wbinvl1_vol\;global_load%o0\t%0, %A1%O1 glc\;"
 		      "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol");
 	  }
@@ -2148,7 +2171,7 @@
     gcc_unreachable ();
   }
   [(set_attr "type" "smem,flat,flat")
-   (set_attr "length" "20")
+   (set_attr "length" "28")
    (set_attr "gcn_version" "gcn5,*,gcn5")
    (set_attr "rdna" "no,*,*")])
 
@@ -2181,11 +2204,11 @@
 	    return "s_dcache_wb_vol\;s_store%o1\t%1, %A0 glc";
 	  case 1:
 	    return (TARGET_RDNA2_PLUS
-		    ? "buffer_gl0_inv\;flat_store%o1\t%A0, %1%O0 glc"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_store%o1\t%A0, %1%O0 glc"
 		    : "buffer_wbinvl1_vol\;flat_store%o1\t%A0, %1%O0 glc");
 	  case 2:
 	    return (TARGET_RDNA2_PLUS
-		    ? "buffer_gl0_inv\;global_store%o1\t%A0, %1%O0 glc"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;global_store%o1\t%A0, %1%O0 glc"
 		    : "buffer_wbinvl1_vol\;global_store%o1\t%A0, %1%O0 glc");
 	  }
 	break;
@@ -2199,14 +2222,14 @@
 		   "s_waitcnt\tlgkmcnt(0)\;s_dcache_inv_vol";
 	  case 1:
 	    return (TARGET_RDNA2_PLUS
-		    ? "buffer_gl0_inv\;flat_store%o1\t%A0, %1%O0 glc\;"
-		      "s_waitcnt\t0\;buffer_gl0_inv"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_store%o1\t%A0, %1%O0 glc\;"
+		      "s_waitcnt\t0\;buffer_gl1_inv\;buffer_gl0_inv"
 		    : "buffer_wbinvl1_vol\;flat_store%o1\t%A0, %1%O0 glc\;"
 		      "s_waitcnt\t0\;buffer_wbinvl1_vol");
 	  case 2:
 	    return (TARGET_RDNA2_PLUS
-		    ? "buffer_gl0_inv\;global_store%o1\t%A0, %1%O0 glc\;"
-		      "s_waitcnt\tvmcnt(0)\;buffer_gl0_inv"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;global_store%o1\t%A0, %1%O0 glc\;"
+		      "s_waitcnt\tvmcnt(0)\;buffer_gl1_inv\;buffer_gl0_inv"
 		    : "buffer_wbinvl1_vol\;global_store%o1\t%A0, %1%O0 glc\;"
 		      "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol");
 	  }
@@ -2215,7 +2238,7 @@
     gcc_unreachable ();
   }
   [(set_attr "type" "smem,flat,flat")
-   (set_attr "length" "20")
+   (set_attr "length" "28")
    (set_attr "gcn_version" "gcn5,*,gcn5")
    (set_attr "rdna" "no,*,*")])
 
@@ -2254,13 +2277,13 @@
 	  case 1:
 	    return (TARGET_RDNA2_PLUS
 		    ? "flat_atomic_swap<X>\t%0, %1, %2 glc\;s_waitcnt\t0\;"
-		      "buffer_gl0_inv"
+		      "buffer_gl1_inv\;buffer_gl0_inv"
 		    : "flat_atomic_swap<X>\t%0, %1, %2 glc\;s_waitcnt\t0\;"
 		      "buffer_wbinvl1_vol");
 	  case 2:
 	    return (TARGET_RDNA2_PLUS
 		    ? "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
-		      "s_waitcnt\tvmcnt(0)\;buffer_gl0_inv"
+		      "s_waitcnt\tvmcnt(0)\;buffer_gl1_inv\;buffer_gl0_inv"
 		    : "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
 		      "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol");
 	  }
@@ -2274,13 +2297,13 @@
 		   "s_waitcnt\tlgkmcnt(0)";
 	  case 1:
 	    return (TARGET_RDNA2_PLUS
-		    ? "buffer_gl0_inv\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
 		      "s_waitcnt\t0"
 		    : "buffer_wbinvl1_vol\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
 		      "s_waitcnt\t0");
 	  case 2:
 	    return (TARGET_RDNA2_PLUS
-		    ? "buffer_gl0_inv\;"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;"
 		      "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
 		      "s_waitcnt\tvmcnt(0)"
 		    : "buffer_wbinvl1_vol\;"
@@ -2298,15 +2321,15 @@
 		   "s_waitcnt\tlgkmcnt(0)\;s_dcache_inv_vol";
 	  case 1:
 	    return (TARGET_RDNA2_PLUS
-		    ? "buffer_gl0_inv\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
-		      "s_waitcnt\t0\;buffer_gl0_inv"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
+		      "s_waitcnt\t0\;buffer_gl1_inv\;buffer_gl0_inv"
 		    : "buffer_wbinvl1_vol\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
 		      "s_waitcnt\t0\;buffer_wbinvl1_vol");
 	  case 2:
 	    return (TARGET_RDNA2_PLUS
-		    ? "buffer_gl0_inv\;"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;"
 		      "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
-		      "s_waitcnt\tvmcnt(0)\;buffer_gl0_inv"
+		      "s_waitcnt\tvmcnt(0)\;buffer_gl1_inv\;buffer_gl0_inv"
 		    : "buffer_wbinvl1_vol\;"
 		      "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
 		      "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol");
@@ -2316,7 +2339,7 @@
     gcc_unreachable ();
   }
   [(set_attr "type" "smem,flat,flat")
-   (set_attr "length" "20")
+   (set_attr "length" "28")
    (set_attr "gcn_version" "gcn5,*,gcn5")
    (set_attr "rdna" "no,*,*")])
 

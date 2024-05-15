@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -2436,6 +2436,32 @@ package body Sem_Ch9 is
       if Nkind (Entry_Name) = N_Selected_Component then
          Target_Obj := Prefix (Entry_Name);
          Entry_Name := Selector_Name (Entry_Name);
+      end if;
+
+      --  Ada 2012 (9.5.4(5.6/4): "If the target is a procedure, the name
+      --  shall denote a renaming of an entry or ...". We support this
+      --  language rule replacing the target procedure with the renamed
+      --  entry. Thus, reanalyzing the resulting requeue statement we
+      --  reuse all the Ada 2005 machinery to perform the analysis.
+
+      if Nkind (Entry_Name) in N_Has_Entity then
+         declare
+            Target_E : constant Entity_Id := Entity (Entry_Name);
+
+         begin
+            if Ada_Version >= Ada_2012
+              and then Ekind (Target_E) = E_Procedure
+              and then Convention (Target_E) = Convention_Entry
+              and then Nkind (Original_Node (Parent (Parent (Target_E))))
+                         = N_Subprogram_Renaming_Declaration
+            then
+               Set_Name (N,
+                 New_Copy_Tree
+                   (Name (Original_Node (Parent (Parent (Target_E))))));
+               Analyze_Requeue (N);
+               return;
+            end if;
+         end;
       end if;
 
       --  If an explicit target object is given then we have to check the

@@ -1063,11 +1063,11 @@ any_non_eliding_target_exprs (tree ctor)
    the result.  */
 
 static void
-cp_genericize_init (tree *replace, tree from, tree to)
+cp_genericize_init (tree *replace, tree from, tree to, vec<tree,va_gc>** flags)
 {
   tree init = NULL_TREE;
   if (TREE_CODE (from) == VEC_INIT_EXPR)
-    init = expand_vec_init_expr (to, from, tf_warning_or_error);
+    init = expand_vec_init_expr (to, from, tf_warning_or_error, flags);
   else if (TREE_CODE (from) == CONSTRUCTOR
 	   && TREE_SIDE_EFFECTS (from)
 	   && ((flag_exceptions
@@ -1101,7 +1101,7 @@ cp_genericize_init_expr (tree *stmt_p)
       /* Return gets confused if we clobber its INIT_EXPR this soon.  */
       && TREE_CODE (to) != RESULT_DECL)
     from = TARGET_EXPR_INITIAL (from);
-  cp_genericize_init (stmt_p, from, to);
+  cp_genericize_init (stmt_p, from, to, nullptr);
 }
 
 /* For a TARGET_EXPR, change the TARGET_EXPR_INITIAL.  We will need to use
@@ -1112,9 +1112,19 @@ cp_genericize_target_expr (tree *stmt_p)
 {
   iloc_sentinel ils = EXPR_LOCATION (*stmt_p);
   tree slot = TARGET_EXPR_SLOT (*stmt_p);
+  vec<tree, va_gc> *flags = make_tree_vector ();
   cp_genericize_init (&TARGET_EXPR_INITIAL (*stmt_p),
-		      TARGET_EXPR_INITIAL (*stmt_p), slot);
+		      TARGET_EXPR_INITIAL (*stmt_p), slot, &flags);
   gcc_assert (!DECL_INITIAL (slot));
+  for (tree f : flags)
+    {
+      /* Once initialization is complete TARGET_EXPR_CLEANUP becomes active, so
+	 disable any subobject cleanups.  */
+      tree d = build_disable_temp_cleanup (f);
+      auto &r = TARGET_EXPR_INITIAL (*stmt_p);
+      r = add_stmt_to_compound (r, d);
+    }
+  release_tree_vector (flags);
 }
 
 /* Similar to if (target_expr_needs_replace) replace_decl, but TP is the
@@ -2480,6 +2490,8 @@ cxx_omp_clause_apply_fn (tree fn, tree arg1, tree arg2)
 					   TREE_PURPOSE (parm), fn,
 					   i - is_method, tf_warning_or_error);
       t = build_call_a (fn, i, argarray);
+      if (MAYBE_CLASS_TYPE_P (TREE_TYPE (t)))
+	t = build_cplus_new (TREE_TYPE (t), t, tf_warning_or_error);
       t = fold_convert (void_type_node, t);
       t = fold_build_cleanup_point_expr (TREE_TYPE (t), t);
       append_to_statement_list (t, &ret);
@@ -2513,6 +2525,8 @@ cxx_omp_clause_apply_fn (tree fn, tree arg1, tree arg2)
 					   TREE_PURPOSE (parm), fn,
 					   i - is_method, tf_warning_or_error);
       t = build_call_a (fn, i, argarray);
+      if (MAYBE_CLASS_TYPE_P (TREE_TYPE (t)))
+	t = build_cplus_new (TREE_TYPE (t), t, tf_warning_or_error);
       t = fold_convert (void_type_node, t);
       return fold_build_cleanup_point_expr (TREE_TYPE (t), t);
     }
@@ -3412,9 +3426,15 @@ cp_fold (tree x, fold_flags_t flags)
 	    if (DECL_CONSTRUCTOR_P (callee))
 	      {
 		loc = EXPR_LOCATION (x);
-		tree s = build_fold_indirect_ref_loc (loc,
-						      CALL_EXPR_ARG (x, 0));
+		tree a = CALL_EXPR_ARG (x, 0);
+		bool return_this = targetm.cxx.cdtor_returns_this ();
+		if (return_this)
+		  a = cp_save_expr (a);
+		tree s = build_fold_indirect_ref_loc (loc, a);
 		r = cp_build_init_expr (s, r);
+		if (return_this)
+		  r = build2_loc (loc, COMPOUND_EXPR, TREE_TYPE (x), r,
+				  fold_convert_loc (loc, TREE_TYPE (x), a));
 	      }
 	    x = r;
 	    break;

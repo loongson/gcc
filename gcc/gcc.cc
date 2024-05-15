@@ -1165,7 +1165,7 @@ proper position among the other output files.  */
 	%:include(libgomp.spec)%(link_gomp)}\
     %{fgnu-tm:%:include(libitm.spec)%(link_itm)}\
     " STACK_SPLIT_SPEC "\
-    %{fprofile-arcs|fprofile-generate*|coverage:-lgcov} " SANITIZER_SPEC " \
+    %{fprofile-arcs|fcondition-coverage|fprofile-generate*|coverage:-lgcov} " SANITIZER_SPEC " \
     %{!nostdlib:%{!r:%{!nodefaultlibs:%(link_ssp) %(link_gcc_c_sequence)}}}\
     %{!nostdlib:%{!r:%{!nostartfiles:%E}}} %{T*}  \n%(post_link) }}}}}}"
 #endif
@@ -1288,7 +1288,7 @@ static const char *cc1_options =
  %{!fsyntax-only:%{S:%W{o*}%{!o*:-o %w%b.s}}}\
  %{fsyntax-only:-o %j} %{-param*}\
  %{coverage:-fprofile-arcs -ftest-coverage}\
- %{fprofile-arcs|fprofile-generate*|coverage:\
+ %{fprofile-arcs|fcondition-coverage|fprofile-generate*|coverage:\
    %{!fprofile-update=single:\
      %{pthread:-fprofile-update=prefer-atomic}}}";
 
@@ -2138,6 +2138,10 @@ static int have_E = 0;
 /* Pointer to output file name passed in with -o. */
 static const char *output_file = 0;
 
+/* Pointer to input file name passed in with -truncate.
+   This file should be truncated after linking. */
+static const char *totruncate_file = 0;
+
 /* This is the list of suffixes and codes (%g/%u/%U/%j) and the associated
    temp file.  If the HOST_BIT_BUCKET is used for %j, no entry is made for
    it here.  */
@@ -2410,8 +2414,7 @@ read_specs (const char *filename, bool main_p, bool user_p)
 	      if (*p1++ != '<' || p[-2] != '>')
 		fatal_error (input_location,
 			     "specs %%include syntax malformed after "
-			     "%ld characters",
-			     (long) (p1 - buffer + 1));
+			     "%td characters", p1 - buffer + 1);
 
 	      p[-2] = '\0';
 	      new_filename = find_a_file (&startfile_prefixes, p1, R_OK, true);
@@ -2431,8 +2434,7 @@ read_specs (const char *filename, bool main_p, bool user_p)
 	      if (*p1++ != '<' || p[-2] != '>')
 		fatal_error (input_location,
 			     "specs %%include syntax malformed after "
-			     "%ld characters",
-			     (long) (p1 - buffer + 1));
+			     "%td characters", p1 - buffer + 1);
 
 	      p[-2] = '\0';
 	      new_filename = find_a_file (&startfile_prefixes, p1, R_OK, true);
@@ -2458,8 +2460,7 @@ read_specs (const char *filename, bool main_p, bool user_p)
 	      if (! ISALPHA ((unsigned char) *p1))
 		fatal_error (input_location,
 			     "specs %%rename syntax malformed after "
-			     "%ld characters",
-			     (long) (p1 - buffer));
+			     "%td characters", p1 - buffer);
 
 	      p2 = p1;
 	      while (*p2 && !ISSPACE ((unsigned char) *p2))
@@ -2468,8 +2469,7 @@ read_specs (const char *filename, bool main_p, bool user_p)
 	      if (*p2 != ' ' && *p2 != '\t')
 		fatal_error (input_location,
 			     "specs %%rename syntax malformed after "
-			     "%ld characters",
-			     (long) (p2 - buffer));
+			     "%td characters", p2 - buffer);
 
 	      name_len = p2 - p1;
 	      *p2++ = '\0';
@@ -2479,8 +2479,7 @@ read_specs (const char *filename, bool main_p, bool user_p)
 	      if (! ISALPHA ((unsigned char) *p2))
 		fatal_error (input_location,
 			     "specs %%rename syntax malformed after "
-			     "%ld characters",
-			     (long) (p2 - buffer));
+			     "%td characters", p2 - buffer);
 
 	      /* Get new spec name.  */
 	      p3 = p2;
@@ -2490,8 +2489,7 @@ read_specs (const char *filename, bool main_p, bool user_p)
 	      if (p3 != p - 1)
 		fatal_error (input_location,
 			     "specs %%rename syntax malformed after "
-			     "%ld characters",
-			     (long) (p3 - buffer));
+			     "%td characters", p3 - buffer);
 	      *p3 = '\0';
 
 	      for (sl = specs; sl; sl = sl->next)
@@ -2530,8 +2528,8 @@ read_specs (const char *filename, bool main_p, bool user_p)
 	    }
 	  else
 	    fatal_error (input_location,
-			 "specs unknown %% command after %ld characters",
-			 (long) (p1 - buffer));
+			 "specs unknown %% command after %td characters",
+			 p1 - buffer);
 	}
 
       /* Find the colon that should end the suffix.  */
@@ -2542,8 +2540,8 @@ read_specs (const char *filename, bool main_p, bool user_p)
       /* The colon shouldn't be missing.  */
       if (*p1 != ':')
 	fatal_error (input_location,
-		     "specs file malformed after %ld characters",
-		     (long) (p1 - buffer));
+		     "specs file malformed after %td characters",
+		     p1 - buffer);
 
       /* Skip back over trailing whitespace.  */
       p2 = p1;
@@ -2556,8 +2554,8 @@ read_specs (const char *filename, bool main_p, bool user_p)
       p = skip_whitespace (p1 + 1);
       if (p[1] == 0)
 	fatal_error (input_location,
-		     "specs file malformed after %ld characters",
-		     (long) (p - buffer));
+		     "specs file malformed after %td characters",
+		     p - buffer);
 
       p1 = p;
       /* Find next blank line or end of string.  */
@@ -4541,6 +4539,11 @@ driver_handle_option (struct gcc_options *opts,
       if (report_times_to_file)
 	fclose (report_times_to_file);
       report_times_to_file = fopen (arg, "a");
+      do_save = false;
+      break;
+
+    case OPT_truncate:
+      totruncate_file = arg;
       do_save = false;
       break;
 
@@ -9291,6 +9294,11 @@ driver::final_actions () const
   if (seen_error ())
     delete_failure_queue ();
   delete_temp_files ();
+
+  if (totruncate_file != NULL && !seen_error ())
+    /* Truncate file specified by -truncate.
+       Used by lto-wrapper to reduce temporary disk-space usage. */
+    truncate(totruncate_file, 0);
 
   if (print_help_list)
     {

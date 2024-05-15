@@ -3275,6 +3275,23 @@ check_local_shadow (tree decl)
   if (TREE_CODE (decl) == PARM_DECL && !DECL_CONTEXT (decl))
     return NULL_TREE;
 
+  if (DECL_FUNCTION_SCOPE_P (decl))
+    {
+      tree ctx = DECL_CONTEXT (decl);
+      if (DECL_CLONED_FUNCTION_P (ctx)
+	  || DECL_TEMPLATE_INSTANTIATED (ctx)
+	  || (DECL_LANG_SPECIFIC (ctx)
+	      && DECL_DEFAULTED_FN (ctx))
+	  || (LAMBDA_FUNCTION_P (ctx)
+	      && LAMBDA_EXPR_REGEN_INFO (CLASSTYPE_LAMBDA_EXPR
+					 (DECL_CONTEXT (ctx)))))
+	/* It suffices to check shadowing only when actually parsing.
+	   So punt for clones, instantiations, defaulted functions and
+	   regenerated lambdas.  This optimization helps reduce lazy
+	   loading cascades with modules.  */
+	return NULL_TREE;
+    }
+
   tree old = NULL_TREE;
   cp_binding_level *old_scope = NULL;
   if (cxx_binding *binding = outer_binding (DECL_NAME (decl), NULL, true))
@@ -4114,6 +4131,22 @@ mergeable_namespace_slots (tree ns, tree name, bool is_attached, tree *vec)
   return vslot;
 }
 
+/* Retrieve the bindings for an existing mergeable entity in namespace
+   NS slot NAME.  Returns NULL if no such bindings exists.  */
+
+static tree
+get_mergeable_namespace_binding (tree ns, tree name, bool is_attached)
+{
+  tree *mslot = find_namespace_slot (ns, name, false);
+  if (!mslot || !*mslot || TREE_CODE (*mslot) != BINDING_VECTOR)
+    return NULL_TREE;
+
+  tree *vslot = get_fixed_binding_slot
+    (mslot, name, is_attached ? BINDING_SLOT_PARTITION : BINDING_SLOT_GLOBAL,
+     false);
+  return vslot ? *vslot : NULL_TREE;
+}
+
 /* DECL is a new mergeable namespace-scope decl.  Add it to the
    mergeable entities on GSLOT.  */
 
@@ -4172,7 +4205,7 @@ walk_module_binding (tree binding, bitmap partitions,
 		     void *data)
 {
   // FIXME: We don't quite deal with using decls naming stat hack
-  // type.  Also using decls exporting something from the same scope.
+  // type.
   tree current = binding;
   unsigned count = 0;
 
@@ -4257,19 +4290,19 @@ walk_module_binding (tree binding, bitmap partitions,
 
 			count += callback (btype, flags, data);
 		      }
-		    bool hidden = STAT_DECL_HIDDEN_P (bind);
+		    bool part_hidden = STAT_DECL_HIDDEN_P (bind);
 		    for (ovl_iterator iter (MAYBE_STAT_DECL (STAT_DECL (bind)));
 			 iter; ++iter)
 		      {
 			if (iter.hidden_p ())
-			  hidden = true;
+			  part_hidden = true;
 			gcc_checking_assert
-			  (!(hidden && DECL_IS_UNDECLARED_BUILTIN (*iter)));
+			  (!(part_hidden && DECL_IS_UNDECLARED_BUILTIN (*iter)));
 
 			WMB_Flags flags = WMB_None;
 			if (maybe_dups)
 			  flags = WMB_Flags (flags | WMB_Dups);
-			if (decl_hidden)
+			if (part_hidden)
 			  flags = WMB_Flags (flags | WMB_Hidden);
 			if (iter.using_p ())
 			  {
@@ -4278,7 +4311,7 @@ walk_module_binding (tree binding, bitmap partitions,
 			      flags = WMB_Flags (flags | WMB_Export);
 			  }
 			count += callback (*iter, flags, data);
-			hidden = false;
+			part_hidden = false;
 		      }
 		  }
 	      }
@@ -4436,6 +4469,43 @@ push_local_binding (tree id, tree decl, bool is_using)
   add_decl_to_level (b, decl);
 }
 
+/* Lookup the FRIEND_TMPL within all merged module imports.  Used to dedup
+   instantiations of temploid hidden friends from imported modules.  */
+
+tree
+lookup_imported_hidden_friend (tree friend_tmpl)
+{
+  /* For a class-scope friend class it should have been found by regular
+     name lookup.  Otherwise we're looking in the current namespace.  */
+  gcc_checking_assert (CP_DECL_CONTEXT (friend_tmpl) == current_namespace);
+
+  tree inner = DECL_TEMPLATE_RESULT (friend_tmpl);
+  if (!DECL_LANG_SPECIFIC (inner)
+      || !DECL_MODULE_IMPORT_P (inner))
+    return NULL_TREE;
+
+  /* Imported temploid friends are not considered as attached to this
+     module for merging purposes.  */
+  tree bind = get_mergeable_namespace_binding (current_namespace,
+					       DECL_NAME (inner), false);
+  if (!bind)
+    return NULL_TREE;
+
+  /* We're only interested in declarations coming from the same module
+     of the friend class we're attempting to instantiate.  */
+  int m = get_originating_module (friend_tmpl);
+  gcc_assert (m != 0);
+
+  /* There should be at most one class template from the module we're
+     looking for, return it.  */
+  for (ovl_iterator iter (bind); iter; ++iter)
+    if (DECL_CLASS_TEMPLATE_P (*iter)
+	&& get_originating_module (*iter) == m)
+      return *iter;
+
+  return NULL_TREE;
+}
+
 
 /* true means unconditionally make a BLOCK for the next level pushed.  */
 
@@ -4464,14 +4534,23 @@ cp_binding_level_descriptor (cp_binding_level *scope)
     "try-scope",
     "catch-scope",
     "for-scope",
+    "cond-init-scope",
+    "stmt-expr-scope",
     "function-parameter-scope",
     "class-scope",
+    "enum-scope",
     "namespace-scope",
     "template-parameter-scope",
-    "template-explicit-spec-scope"
+    "template-explicit-spec-scope",
+    "transaction-scope",
+    "openmp-scope"
   };
-  const scope_kind kind = scope->explicit_spec_p
-    ? sk_template_spec : scope->kind;
+  static_assert (ARRAY_SIZE (scope_kind_names) == sk_count,
+		 "must keep names aligned with scope_kind enum");
+
+  scope_kind kind = scope->kind;
+  if (kind == sk_template_parms && scope->explicit_spec_p)
+    kind = sk_template_spec;
 
   return scope_kind_names[kind];
 }
@@ -5212,13 +5291,36 @@ do_nonmember_using_decl (name_lookup &lookup, bool fn_scope_p,
     }
   else if (insert_p)
     {
-      value = lookup.value;
-      if (revealing_p && module_exporting_p ())
-	check_can_export_using_decl (value);
+      if (revealing_p
+	  && module_exporting_p ()
+	  && check_can_export_using_decl (lookup.value)
+	  && lookup.value == value
+	  && !DECL_MODULE_EXPORT_P (value))
+	{
+	  /* We're redeclaring the same value, but this time as
+	     newly exported: make sure to mark it as such.  */
+	  if (TREE_CODE (value) == TEMPLATE_DECL)
+	    {
+	      DECL_MODULE_EXPORT_P (value) = true;
+
+	      tree result = DECL_TEMPLATE_RESULT (value);
+	      retrofit_lang_decl (result);
+	      DECL_MODULE_PURVIEW_P (result) = true;
+	      DECL_MODULE_EXPORT_P (result) = true;
+	    }
+	  else
+	    {
+	      retrofit_lang_decl (value);
+	      DECL_MODULE_PURVIEW_P (value) = true;
+	      DECL_MODULE_EXPORT_P (value) = true;
+	    }
+	}
+      else
+	value = lookup.value;
     }
   
   /* Now the type binding.  */
-  if (lookup.type && lookup.type != type)
+  if (lookup.type)
     {
       if (type && !decls_match (lookup.type, type))
 	{
@@ -5227,9 +5329,20 @@ do_nonmember_using_decl (name_lookup &lookup, bool fn_scope_p,
 	}
       else if (insert_p)
 	{
-	  type = lookup.type;
-	  if (revealing_p && module_exporting_p ())
-	    check_can_export_using_decl (type);
+	  if (revealing_p
+	      && module_exporting_p ()
+	      && check_can_export_using_decl (lookup.type)
+	      && lookup.type == type
+	      && !DECL_MODULE_EXPORT_P (type))
+	    {
+	      /* We're redeclaring the same type, but this time as
+		 newly exported: make sure to mark it as such.  */
+	      retrofit_lang_decl (type);
+	      DECL_MODULE_PURVIEW_P (type) = true;
+	      DECL_MODULE_EXPORT_P (type) = true;
+	    }
+	  else
+	    type = lookup.type;
 	}
     }
 
@@ -8089,9 +8202,19 @@ lookup_elaborated_type (tree name, TAG_how how)
 	    {
 	      /* We're in the global module, perhaps there's a tag
 		 there?  */
-	      // FIXME: This isn't quite right, if we find something
-	      // here, from the language PoV we're not supposed to
-	      // know it?
+
+	      /* FIXME: In general we should probably merge global module
+		 classes in check_module_override rather than here, but for
+		 GCC14 let's just fix lazy declarations of __class_type_info in
+		 build_dynamic_cast_1.  */
+	      if (current_namespace == abi_node)
+		{
+		  tree g = (BINDING_VECTOR_CLUSTER (*slot, 0)
+			    .slots[BINDING_SLOT_GLOBAL]);
+		  for (ovl_iterator iter (g); iter; ++iter)
+		    if (qualify_lookup (*iter, LOOK_want::TYPE))
+		      return *iter;
+		}
 	    }
 	}
     }
@@ -8594,10 +8717,13 @@ maybe_push_to_top_level (tree d)
 {
   /* Push if D isn't function-local, or is a lambda function, for which name
      resolution is already done.  */
-  bool push_to_top
-    = !(current_function_decl
-	&& !LAMBDA_FUNCTION_P (d)
-	&& decl_function_context (d) == current_function_decl);
+  const bool push_to_top
+    = (LAMBDA_FUNCTION_P (d)
+       || (TREE_CODE (d) == TYPE_DECL
+	   && TREE_TYPE (d)
+	   && LAMBDA_TYPE_P (TREE_TYPE (d)))
+       || !current_function_decl
+       || !decl_function_context (d));
 
   if (push_to_top)
     push_to_top_level ();
@@ -9017,8 +9143,14 @@ push_namespace (tree name, bool make_inline)
     {
       /* A public namespace is exported only if explicitly marked, or
 	 it contains exported entities.  */
-      if (TREE_PUBLIC (ns) && module_exporting_p ())
-	DECL_MODULE_EXPORT_P (ns) = true;
+      if (module_exporting_p ())
+	{
+	  if (TREE_PUBLIC (ns))
+	    DECL_MODULE_EXPORT_P (ns) = true;
+	  else if (!header_module_p ())
+	    error_at (input_location,
+		      "exporting namespace with internal linkage");
+	}
       if (module_purview_p ())
 	DECL_MODULE_PURVIEW_P (ns) = true;
 
@@ -9070,7 +9202,6 @@ add_imported_namespace (tree ctx, tree name, location_t loc, unsigned import,
   if (!decl)
     {
       decl = make_namespace (ctx, name, loc, inline_p);
-      DECL_MODULE_IMPORT_P (decl) = true;
       make_namespace_finish (decl, slot, true);
     }
   else if (DECL_NAMESPACE_INLINE_P (decl) != inline_p)

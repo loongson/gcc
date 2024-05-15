@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -541,8 +541,12 @@ package body Exp_Pakd is
 
          if Is_Itype (Typ) then
             Set_Parent (Decl, Associated_Node_For_Itype (Typ));
+            Set_Associated_Node_For_Itype
+              (PAT, Associated_Node_For_Itype (Typ));
          else
             Set_Parent (Decl, Declaration_Node (Typ));
+            Set_Associated_Node_For_Itype
+              (PAT, Declaration_Node (Typ));
          end if;
 
          if Scope (Typ) /= Current_Scope then

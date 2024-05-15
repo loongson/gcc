@@ -1,3 +1,44 @@
+2024-04-30  Jakub Jelinek  <jakub@redhat.com>
+
+	* init.cc (cpp_init_builtins): Change __STDC_VERSION__
+	for C23 from 202000L to 202311L.
+
+2024-04-17  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	PR preprocessor/114748
+	* aclocal.m4: Regenerate.
+	* configure: Regenerate.
+
+2024-03-14  Lewis Hyatt  <lhyatt@gmail.com>
+
+	PR preprocessor/110558
+	* macro.cc (builtin_has_include): Set
+	pfile->state.directive_wants_padding prior to lexing the
+	file name, in case it comes from macro expansion.
+
+2024-03-14  Lewis Hyatt  <lhyatt@gmail.com>
+
+	PR preprocessor/80755
+	* files.cc (search_path_head): Add SUPPRESS_DIAGNOSTIC argument
+	defaulting to false.
+	(_cpp_has_header): Silently return false if the search path has been
+	exhausted, rather than issuing a diagnostic and then hitting an
+	assert.
+
+2024-02-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/114007
+	* include/cpplib.h (COLON_SCOPE): Define to PURE_ZERO.
+	* lex.cc (_cpp_lex_direct): When lexing CPP_COLON with another
+	colon after it, if !CPP_OPTION (pfile, scope) set COLON_SCOPE
+	flag on the first CPP_COLON token.
+
+2024-02-01  Lewis Hyatt  <lhyatt@gmail.com>
+
+	PR preprocessor/105608
+	* pch.cc (cpp_read_state): Set a valid location for restored
+	macros.
+
 2024-01-04  Raiki Tamura  <tamaron1203@gmail.com>
 
 	* charset.cc (cpp_check_xid_property): New.

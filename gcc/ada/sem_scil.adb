@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2009-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2009-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -98,6 +98,7 @@ package body Sem_SCIL is
                --  Interface types are unsupported.
 
                if Is_Interface (Ctrl_Typ)
+                 or else From_Limited_With (Ctrl_Typ)
                  or else Is_RTE (Ctrl_Typ, RE_Interface_Tag)
                  or else (Is_Access_Type (Ctrl_Typ)
                            and then

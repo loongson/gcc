@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1460,10 +1460,47 @@ package body Inline is
     (N    : Node_Id;
      Subp : Entity_Id) return Boolean
    is
+      function Has_Dereference (N : Node_Id) return Boolean;
+      --  Return whether N contains an explicit dereference
+
+      ---------------------
+      -- Has_Dereference --
+      ---------------------
+
+      function Has_Dereference (N : Node_Id) return Boolean is
+
+         function Process (N : Node_Id) return Traverse_Result;
+         --  Process one node in search for dereference
+
+         -------------
+         -- Process --
+         -------------
+
+         function Process (N : Node_Id) return Traverse_Result is
+         begin
+            if Nkind (N) = N_Explicit_Dereference then
+               return Abandon;
+            else
+               return OK;
+            end if;
+         end Process;
+
+         function Traverse is new Traverse_Func (Process);
+         --  Traverse tree to look for dereference
+
+      begin
+         return Traverse (N) = Abandon;
+      end Has_Dereference;
+
+      --  Local variables
+
       F : Entity_Id;
       A : Node_Id;
 
    begin
+      --  Check if inlining may lead to missing a check on type conversion of
+      --  input parameters otherwise.
+
       F := First_Formal (Subp);
       A := First_Actual (N);
       while Present (F) loop
@@ -1472,6 +1509,27 @@ package body Inline is
            and then
              (Is_By_Reference_Type (Etype (A))
                or else Is_Limited_Type (Etype (A)))
+         then
+            return False;
+         end if;
+
+         Next_Formal (F);
+         Next_Actual (A);
+      end loop;
+
+      --  Check if inlining may lead to introducing temporaries of access type,
+      --  which can lead to missing checks for memory leaks. This can only
+      --  come from an (IN-)OUT parameter transformed into a renaming by SPARK
+      --  expansion, whose side-effects are removed, and a dereference in the
+      --  corresponding actual. If the formal itself is of a deep type (it has
+      --  access subcomponents), the subprogram already cannot be inlined in
+      --  GNATprove mode.
+
+      F := First_Formal (Subp);
+      A := First_Actual (N);
+      while Present (F) loop
+         if Ekind (F) /= E_In_Parameter
+           and then Has_Dereference (A)
          then
             return False;
          end if;
@@ -1497,11 +1555,17 @@ package body Inline is
       --  a return type of a deep type: either an access type or a composite
       --  type containing an access type.
 
-      function Has_Formal_With_Discriminant_Dependent_Fields
+      function Has_Formal_With_Per_Object_Constrained_Component
         (Id : Entity_Id) return Boolean;
       --  Returns true if the subprogram has at least one formal parameter of
       --  an unconstrained record type with per-object constraints on component
       --  types.
+
+      function Has_Hide_Unhide_Annotation
+        (Spec_Id, Body_Id : Entity_Id)
+         return Boolean;
+      --  Returns whether the subprogram has an annotation Hide_Info or
+      --  Unhide_Info on its spec or body.
 
       function Has_Skip_Proof_Annotation (Id : Entity_Id) return Boolean;
       --  Returns True if subprogram Id has an annotation Skip_Proof or
@@ -1637,23 +1701,23 @@ package body Inline is
          return False;
       end Has_Formal_Or_Result_Of_Deep_Type;
 
-      ---------------------------------------------------
-      -- Has_Formal_With_Discriminant_Dependent_Fields --
-      ---------------------------------------------------
+      ------------------------------------------------------
+      -- Has_Formal_With_Per_Object_Constrained_Component --
+      ------------------------------------------------------
 
-      function Has_Formal_With_Discriminant_Dependent_Fields
+      function Has_Formal_With_Per_Object_Constrained_Component
         (Id : Entity_Id) return Boolean
       is
-         function Has_Discriminant_Dependent_Component
+         function Has_Per_Object_Constrained_Component
            (Typ : Entity_Id) return Boolean;
          --  Determine whether unconstrained record type Typ has at least one
          --  component that depends on a discriminant.
 
          ------------------------------------------
-         -- Has_Discriminant_Dependent_Component --
+         -- Has_Per_Object_Constrained_Component --
          ------------------------------------------
 
-         function Has_Discriminant_Dependent_Component
+         function Has_Per_Object_Constrained_Component
            (Typ : Entity_Id) return Boolean
          is
             Comp : Entity_Id;
@@ -1664,7 +1728,7 @@ package body Inline is
 
             Comp := First_Component (Typ);
             while Present (Comp) loop
-               if Has_Discriminant_Dependent_Constraint (Comp) then
+               if Has_Per_Object_Constraint (Comp) then
                   return True;
                end if;
 
@@ -1672,7 +1736,7 @@ package body Inline is
             end loop;
 
             return False;
-         end Has_Discriminant_Dependent_Component;
+         end Has_Per_Object_Constrained_Component;
 
          --  Local variables
 
@@ -1681,7 +1745,7 @@ package body Inline is
          Formal_Typ : Entity_Id;
 
       --  Start of processing for
-      --  Has_Formal_With_Discriminant_Dependent_Fields
+      --  Has_Formal_With_Per_Object_Constrained_Component
 
       begin
          --  Inspect all parameters of the subprogram looking for a formal
@@ -1694,7 +1758,7 @@ package body Inline is
 
             if Is_Record_Type (Formal_Typ)
               and then not Is_Constrained (Formal_Typ)
-              and then Has_Discriminant_Dependent_Component (Formal_Typ)
+              and then Has_Per_Object_Constrained_Component (Formal_Typ)
             then
                return True;
             end if;
@@ -1703,7 +1767,80 @@ package body Inline is
          end loop;
 
          return False;
-      end Has_Formal_With_Discriminant_Dependent_Fields;
+      end Has_Formal_With_Per_Object_Constrained_Component;
+
+      --------------------------------
+      -- Has_Hide_Unhide_Annotation --
+      --------------------------------
+
+      function Has_Hide_Unhide_Annotation
+        (Spec_Id, Body_Id : Entity_Id)
+         return Boolean
+      is
+         function Has_Hide_Unhide_Pragma (Prag : Node_Id) return Boolean;
+         --  Return whether a pragma Hide/Unhide is present in the list of
+         --  pragmas starting with Prag.
+
+         ----------------------------
+         -- Has_Hide_Unhide_Pragma --
+         ----------------------------
+
+         function Has_Hide_Unhide_Pragma (Prag : Node_Id) return Boolean is
+            Decl : Node_Id := Prag;
+         begin
+            while Present (Decl)
+              and then Nkind (Decl) = N_Pragma
+            loop
+               if Get_Pragma_Id (Decl) = Pragma_Annotate
+                 and then List_Length (Pragma_Argument_Associations (Decl)) = 4
+               then
+                  declare
+                     Arg1      : constant Node_Id :=
+                       First (Pragma_Argument_Associations (Decl));
+                     Arg2      : constant Node_Id := Next (Arg1);
+                     Arg1_Name : constant Name_Id :=
+                       Chars (Get_Pragma_Arg (Arg1));
+                     Arg2_Name : constant String :=
+                       Get_Name_String (Chars (Get_Pragma_Arg (Arg2)));
+                  begin
+                     if Arg1_Name = Name_Gnatprove
+                       and then Arg2_Name in "hide_info" | "unhide_info"
+                     then
+                        return True;
+                     end if;
+                  end;
+               end if;
+
+               Next (Decl);
+            end loop;
+
+            return False;
+         end Has_Hide_Unhide_Pragma;
+
+      begin
+         if Present (Spec_Id)
+           and then Is_List_Member (Unit_Declaration_Node (Spec_Id))
+           and then Has_Hide_Unhide_Pragma
+             (Next (Unit_Declaration_Node (Spec_Id)))
+         then
+            return True;
+
+         elsif Present (Body_Id) then
+            declare
+               Subp_Body : constant N_Subprogram_Body_Id :=
+                 Unit_Declaration_Node (Body_Id);
+            begin
+               return
+                 (Is_List_Member (Subp_Body)
+                   and then Has_Hide_Unhide_Pragma (Next (Subp_Body)))
+                 or else
+                   Has_Hide_Unhide_Pragma (First (Declarations (Subp_Body)));
+            end;
+
+         else
+            return False;
+         end if;
+      end Has_Hide_Unhide_Annotation;
 
       -------------------------------
       -- Has_Skip_Proof_Annotation --
@@ -1725,12 +1862,12 @@ package body Inline is
                   Arg1      : constant Node_Id :=
                     First (Pragma_Argument_Associations (Decl));
                   Arg2      : constant Node_Id := Next (Arg1);
-                  Arg1_Name : constant String :=
-                    Get_Name_String (Chars (Get_Pragma_Arg (Arg1)));
+                  Arg1_Name : constant Name_Id :=
+                    Chars (Get_Pragma_Arg (Arg1));
                   Arg2_Name : constant String :=
                     Get_Name_String (Chars (Get_Pragma_Arg (Arg2)));
                begin
-                  if Arg1_Name = "gnatprove"
+                  if Arg1_Name = Name_Gnatprove
                     and then Arg2_Name in "skip_proof" | "skip_flow_and_proof"
                   then
                      return True;
@@ -1926,7 +2063,7 @@ package body Inline is
       --  in record component accesses (in particular with records containing
       --  packed arrays).
 
-      elsif Has_Formal_With_Discriminant_Dependent_Fields (Id) then
+      elsif Has_Formal_With_Per_Object_Constrained_Component (Id) then
          return False;
 
       --  Do not inline subprograms with a formal parameter or return type of
@@ -1950,6 +2087,13 @@ package body Inline is
       --  annotation, which should be handled separately.
 
       elsif Has_Skip_Proof_Annotation (Id) then
+         return False;
+
+      --  Do not inline subprograms with the Hide_Info or Unhide_Info
+      --  annotation, since their scope has special visibility on the
+      --  precise definition of some entities.
+
+      elsif Has_Hide_Unhide_Annotation (Spec_Id, Body_Id) then
          return False;
 
       --  Otherwise, this is a subprogram declared inside the private part of a
@@ -1983,9 +2127,9 @@ package body Inline is
       then
          declare
             Len1 : constant Positive :=
-              String (String'("cannot inline"))'Length;
+              String'("cannot inline")'Length;
             Len2 : constant Positive :=
-              String (String'("info: no contextual analysis of"))'Length;
+              String'("info: no contextual analysis of")'Length;
 
             New_Msg : String (1 .. Msg'Length + Len2 - Len1);
 
@@ -2043,17 +2187,6 @@ package body Inline is
          --  Remove last character (question mark) to make this into an error.
 
          Error_Msg_NE (Msg (Msg'First .. Msg'Last - 1), N, Subp);
-
-      --  In GNATprove mode, issue an info message when -gnatd_f is set and
-      --  Suppress_Info is False, and indicate that the subprogram is not
-      --  always inlined by setting flag Is_Inlined_Always to False.
-
-      elsif GNATprove_Mode then
-         Set_Is_Inlined_Always (Subp, False);
-
-         if Debug_Flag_Underscore_F and not Suppress_Info then
-            Error_Msg_NE (Msg, N, Subp);
-         end if;
 
       else
 
@@ -2999,25 +3132,6 @@ package body Inline is
       F := First_Formal (Subp);
       A := First_Actual (N);
       while Present (F) loop
-         if Present (Renamed_Object (F)) then
-
-            --  If expander is active, it is an error to try to inline a
-            --  recursive subprogram. In GNATprove mode, just indicate that the
-            --  inlining will not happen, and mark the subprogram as not always
-            --  inlined.
-
-            if GNATprove_Mode then
-               Cannot_Inline
-                 ("cannot inline call to recursive subprogram?", N, Subp);
-               Set_Is_Inlined_Always (Subp, False);
-            else
-               Error_Msg_N
-                 ("cannot inline call to recursive subprogram", N);
-            end if;
-
-            return;
-         end if;
-
          --  Reset Last_Assignment for any parameters of mode out or in out, to
          --  prevent spurious warnings about overwriting for assignments to the
          --  formal in the inlined code.
@@ -4695,8 +4809,7 @@ package body Inline is
 
       else
          return
-           Present (Declarations (N))
-             and then Present (First (Declarations (N)))
+           Present (First (Declarations (N)))
              and then Nkind (First (Declarations (N))) = N_Object_Declaration
              and then Entity (Expression (Return_Statement)) =
                         Defining_Identifier (First (Declarations (N)));

@@ -52,6 +52,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "explow.h"
 #include "rtl-iter.h"
 #include "gimple-range.h"
+#include "fold-const-call.h"
+#include "tree-ssa-live.h"
+#include "tree-outof-ssa.h"
 
 /* For lang_hooks.types.type_for_mode.  */
 #include "langhooks.h"
@@ -244,6 +247,18 @@ expand_fn_using_insn (gcall *stmt, insn_code icode, unsigned int noutputs,
 	       && SSA_NAME_IS_DEFAULT_DEF (rhs)
 	       && VAR_P (SSA_NAME_VAR (rhs)))
 	create_undefined_input_operand (&ops[opno], TYPE_MODE (rhs_type));
+      else if (VECTOR_BOOLEAN_TYPE_P (rhs_type)
+	       && SCALAR_INT_MODE_P (TYPE_MODE (rhs_type))
+	       && maybe_ne (GET_MODE_PRECISION (TYPE_MODE (rhs_type)),
+			    TYPE_VECTOR_SUBPARTS (rhs_type).to_constant ()))
+	{
+	  /* Ensure that the vector bitmasks do not have excess bits.  */
+	  int nunits = TYPE_VECTOR_SUBPARTS (rhs_type).to_constant ();
+	  rtx tmp = expand_binop (TYPE_MODE (rhs_type), and_optab, rhs_rtx,
+				  GEN_INT ((HOST_WIDE_INT_1U << nunits) - 1),
+				  NULL_RTX, true, OPTAB_WIDEN);
+	  create_input_operand (&ops[opno], tmp, TYPE_MODE (rhs_type));
+	}
       else
 	create_input_operand (&ops[opno], rhs_rtx, TYPE_MODE (rhs_type));
       opno += 1;
@@ -311,6 +326,20 @@ add_mask_and_len_args (expand_operand *ops, unsigned int opno, gcall *stmt)
     {
       tree mask = gimple_call_arg (stmt, mask_index);
       rtx mask_rtx = expand_normal (mask);
+
+      tree mask_type = TREE_TYPE (mask);
+      if (VECTOR_BOOLEAN_TYPE_P (mask_type)
+	  && SCALAR_INT_MODE_P (TYPE_MODE (mask_type))
+	  && maybe_ne (GET_MODE_PRECISION (TYPE_MODE (mask_type)),
+		       TYPE_VECTOR_SUBPARTS (mask_type).to_constant ()))
+	{
+	  /* Ensure that the vector bitmasks do not have excess bits.  */
+	  int nunits = TYPE_VECTOR_SUBPARTS (mask_type).to_constant ();
+	  mask_rtx = expand_binop (TYPE_MODE (mask_type), and_optab, mask_rtx,
+				   GEN_INT ((HOST_WIDE_INT_1U << nunits) - 1),
+				   NULL_RTX, true, OPTAB_WIDEN);
+	}
+
       create_input_operand (&ops[opno++], mask_rtx,
 			    TYPE_MODE (TREE_TYPE (mask)));
     }
@@ -1604,7 +1633,11 @@ expand_mul_overflow (location_t loc, tree lhs, tree arg0, tree arg1,
   rtx target = NULL_RTX;
   signop sign;
   enum insn_code icode;
+  int save_flag_trapv = flag_trapv;
 
+  /* We don't want any __mulv?i3 etc. calls from the expansion of
+     these internal functions, so disable -ftrapv temporarily.  */
+  flag_trapv = 0;
   done_label = gen_label_rtx ();
   do_error = gen_label_rtx ();
 
@@ -2452,6 +2485,7 @@ expand_mul_overflow (location_t loc, tree lhs, tree arg0, tree arg1,
       else
 	expand_arith_overflow_result_store (lhs, target, mode, res);
     }
+  flag_trapv = save_flag_trapv;
 }
 
 /* Expand UBSAN_CHECK_* internal function if it has vector operands.  */
@@ -2472,7 +2506,11 @@ expand_vector_ubsan_overflow (location_t loc, enum tree_code code, tree lhs,
   rtx resvr = NULL_RTX;
   unsigned HOST_WIDE_INT const_cnt = 0;
   bool use_loop_p = (!cnt.is_constant (&const_cnt) || const_cnt > 4);
+  int save_flag_trapv = flag_trapv;
 
+  /* We don't want any __mulv?i3 etc. calls from the expansion of
+     these internal functions, so disable -ftrapv temporarily.  */
+  flag_trapv = 0;
   if (lhs)
     {
       optab op;
@@ -2602,6 +2640,7 @@ expand_vector_ubsan_overflow (location_t loc, enum tree_code code, tree lhs,
     }
   else if (resvr)
     emit_move_insn (lhsr, resvr);
+  flag_trapv = save_flag_trapv;
 }
 
 /* Expand UBSAN_CHECK_ADD call STMT.  */
@@ -2680,7 +2719,11 @@ expand_arith_overflow (enum tree_code code, gimple *stmt)
   prec0 = MIN (prec0, pr);
   pr = get_min_precision (arg1, uns1_p ? UNSIGNED : SIGNED);
   prec1 = MIN (prec1, pr);
+  int save_flag_trapv = flag_trapv;
 
+  /* We don't want any __mulv?i3 etc. calls from the expansion of
+     these internal functions, so disable -ftrapv temporarily.  */
+  flag_trapv = 0;
   /* If uns0_p && uns1_p, precop is minimum needed precision
      of unsigned type to hold the exact result, otherwise
      precop is minimum needed precision of signed type to
@@ -2721,6 +2764,7 @@ expand_arith_overflow (enum tree_code code, gimple *stmt)
 	  ops.location = loc;
 	  rtx tem = expand_expr_real_2 (&ops, NULL_RTX, mode, EXPAND_NORMAL);
 	  expand_arith_overflow_result_store (lhs, target, mode, tem);
+	  flag_trapv = save_flag_trapv;
 	  return;
 	}
 
@@ -2744,16 +2788,19 @@ expand_arith_overflow (enum tree_code code, gimple *stmt)
 	      if (integer_zerop (arg0) && !unsr_p)
 		{
 		  expand_neg_overflow (loc, lhs, arg1, false, NULL);
+		  flag_trapv = save_flag_trapv;
 		  return;
 		}
 	      /* FALLTHRU */
 	    case PLUS_EXPR:
 	      expand_addsub_overflow (loc, code, lhs, arg0, arg1, unsr_p,
 				      unsr_p, unsr_p, false, NULL);
+	      flag_trapv = save_flag_trapv;
 	      return;
 	    case MULT_EXPR:
 	      expand_mul_overflow (loc, lhs, arg0, arg1, unsr_p,
 				   unsr_p, unsr_p, false, NULL);
+	      flag_trapv = save_flag_trapv;
 	      return;
 	    default:
 	      gcc_unreachable ();
@@ -2799,6 +2846,7 @@ expand_arith_overflow (enum tree_code code, gimple *stmt)
 	  else
 	    expand_mul_overflow (loc, lhs, arg0, arg1, unsr_p,
 				 uns0_p, uns1_p, false, NULL);
+	  flag_trapv = save_flag_trapv;
 	  return;
 	}
 
@@ -2918,8 +2966,8 @@ expand_call_mem_ref (tree type, gcall *stmt, int index)
   tree tmp = addr;
   if (TREE_CODE (tmp) == SSA_NAME)
     {
-      gimple *def = SSA_NAME_DEF_STMT (tmp);
-      if (gimple_assign_single_p (def))
+      gimple *def = get_gimple_for_ssa_name (tmp);
+      if (def && gimple_assign_single_p (def))
 	tmp = gimple_assign_rhs1 (def);
     }
 
@@ -5107,9 +5155,63 @@ expand_BITINTTOFLOAT (internal_fn, gcall *stmt)
     emit_move_insn (target, val);
 }
 
+static bool
+expand_bitquery (internal_fn fn, gcall *stmt)
+{
+  tree lhs = gimple_call_lhs (stmt);
+  if (lhs == NULL_TREE)
+    return false;
+  tree arg = gimple_call_arg (stmt, 0);
+  if (TREE_CODE (arg) == INTEGER_CST)
+    {
+      tree ret = fold_const_call (as_combined_fn (fn), TREE_TYPE (arg), arg);
+      gcc_checking_assert (ret && TREE_CODE (ret) == INTEGER_CST);
+      expand_assignment (lhs, ret, false);
+      return false;
+    }
+  return true;
+}
+
+void
+expand_CLRSB (internal_fn fn, gcall *stmt)
+{
+  if (expand_bitquery (fn, stmt))
+    expand_unary_optab_fn (fn, stmt, clrsb_optab);
+}
+
+void
+expand_CLZ (internal_fn fn, gcall *stmt)
+{
+  if (expand_bitquery (fn, stmt))
+    expand_unary_optab_fn (fn, stmt, clz_optab);
+}
+
+void
+expand_CTZ (internal_fn fn, gcall *stmt)
+{
+  if (expand_bitquery (fn, stmt))
+    expand_unary_optab_fn (fn, stmt, ctz_optab);
+}
+
+void
+expand_FFS (internal_fn fn, gcall *stmt)
+{
+  if (expand_bitquery (fn, stmt))
+    expand_unary_optab_fn (fn, stmt, ffs_optab);
+}
+
+void
+expand_PARITY (internal_fn fn, gcall *stmt)
+{
+  if (expand_bitquery (fn, stmt))
+    expand_unary_optab_fn (fn, stmt, parity_optab);
+}
+
 void
 expand_POPCOUNT (internal_fn fn, gcall *stmt)
 {
+  if (!expand_bitquery (fn, stmt))
+    return;
   if (gimple_call_num_args (stmt) == 1)
     {
       expand_unary_optab_fn (fn, stmt, popcount_optab);

@@ -50,18 +50,21 @@ extern const char *riscv_expand_arch (int argc, const char **argv);
 extern const char *riscv_expand_arch_from_cpu (int argc, const char **argv);
 extern const char *riscv_default_mtune (int argc, const char **argv);
 extern const char *riscv_multi_lib_check (int argc, const char **argv);
+extern const char *riscv_arch_help (int argc, const char **argv);
 
 # define EXTRA_SPEC_FUNCTIONS						\
   { "riscv_expand_arch", riscv_expand_arch },				\
   { "riscv_expand_arch_from_cpu", riscv_expand_arch_from_cpu },		\
   { "riscv_default_mtune", riscv_default_mtune },			\
-  { "riscv_multi_lib_check", riscv_multi_lib_check },
+  { "riscv_multi_lib_check", riscv_multi_lib_check },			\
+  { "riscv_arch_help", riscv_arch_help },
 
 /* Support for a compile-time default CPU, et cetera.  The rules are:
    --with-arch is ignored if -march or -mcpu is specified.
    --with-abi is ignored if -mabi is specified.
    --with-tune is ignored if -mtune or -mcpu is specified.
    --with-isa-spec is ignored if -misa-spec is specified.
+   --with-tls is ignored if -mtls-dialect is specified.
 
    But using default -march/-mtune value if -mcpu don't have valid option.  */
 #define OPTION_DEFAULT_SPECS \
@@ -71,8 +74,9 @@ extern const char *riscv_multi_lib_check (int argc, const char **argv);
   {"arch", "%{!march=*:"						\
 	   "  %{!mcpu=*:-march=%(VALUE)}"				\
 	   "  %{mcpu=*:%:riscv_expand_arch_from_cpu(%* %(VALUE))}}" },	\
-  {"abi", "%{!mabi=*:-mabi=%(VALUE)}" }, \
-  {"isa_spec", "%{!misa-spec=*:-misa-spec=%(VALUE)}" }, \
+  {"abi", "%{!mabi=*:-mabi=%(VALUE)}" },				\
+  {"isa_spec", "%{!misa-spec=*:-misa-spec=%(VALUE)}" },			\
+  {"tls", "%{!mtls-dialect=*:-mtls-dialect=%(VALUE)}"},         	\
 
 #ifdef IN_LIBGCC2
 #undef TARGET_64BIT
@@ -109,6 +113,9 @@ ASM_MISA_SPEC
 
 #undef DRIVER_SELF_SPECS
 #define DRIVER_SELF_SPECS					\
+"%{march=help:%:riscv_arch_help()} "				\
+"%{print-supported-extensions:%:riscv_arch_help()} "		\
+"%{-print-supported-extensions:%:riscv_arch_help()} "		\
 "%{march=*:%:riscv_expand_arch(%*)} "				\
 "%{!march=*:%{mcpu=*:%:riscv_expand_arch_from_cpu(%*)}} "
 
@@ -308,7 +315,7 @@ ASM_MISA_SPEC
 	- FRAME_POINTER_REGNUM
    - 1 vl register
    - 1 vtype register
-   - 30 unused registers for future expansion
+   - 28 unused registers for future expansion
    - 32 vector registers  */
 
 #define FIRST_PSEUDO_REGISTER 128
@@ -619,6 +626,21 @@ enum reg_class
   (((VALUE) | ((1UL<<31) - IMM_REACH)) == ((1UL<<31) - IMM_REACH)	\
    || ((VALUE) | ((1UL<<31) - IMM_REACH)) + IMM_REACH == 0)
 
+/* True if a VALUE (constant) can be expressed as sum of two S12 constants
+   (in range -2048 to 2047).
+   Range check logic:
+     from: min S12 + 1 (or -1 depending on what side of zero)
+       to: two times the min S12 value (to max out S12 bits).  */
+
+#define SUM_OF_TWO_S12_N(VALUE)						\
+  (((VALUE) >= (-2048 * 2)) && ((VALUE) <= (-2048 - 1)))
+
+#define SUM_OF_TWO_S12_P(VALUE)						\
+  (((VALUE) >= (2047 + 1)) && ((VALUE) <= (2047 * 2)))
+
+#define SUM_OF_TWO_S12(VALUE)						\
+  (SUM_OF_TWO_S12_N (VALUE) || SUM_OF_TWO_S12_P (VALUE))
+
 /* If this is a single bit mask, then we can load it with bseti.  Special
    handling of SImode 0x80000000 on RV64 is done in riscv_build_integer_1. */
 #define SINGLE_BIT_MASK_OPERAND(VALUE)					\
@@ -633,6 +655,9 @@ enum reg_class
 #define UIMM_EXTRA_BIT_OPERAND(VALUE)					\
   (!SMALL_OPERAND (VALUE)						\
    && SMALL_OPERAND (VALUE & ~(HOST_WIDE_INT_1U << floor_log2 (VALUE))))
+
+/* True if bit BIT is set in VALUE.  */
+#define BITSET_P(VALUE, BIT) (((VALUE) & (1ULL << (BIT))) != 0)
 
 /* Stack layout; function entry, exit and calling.  */
 
@@ -673,6 +698,12 @@ enum reg_class
 
 #define GP_RETURN GP_ARG_FIRST
 #define FP_RETURN (UNITS_PER_FP_ARG == 0 ? GP_RETURN : FP_ARG_FIRST)
+#define V_RETURN  V_REG_FIRST
+
+#define GP_RETURN_FIRST GP_ARG_FIRST
+#define GP_RETURN_LAST  GP_ARG_FIRST + 1
+#define FP_RETURN_FIRST FP_RETURN
+#define FP_RETURN_LAST  FP_RETURN + 1
 
 #define MAX_ARGS_IN_REGISTERS \
   (riscv_abi == ABI_ILP32E || riscv_abi == ABI_LP64E \
@@ -704,8 +735,6 @@ enum reg_class
 #define FUNCTION_VALUE(VALTYPE, FUNC) \
   riscv_function_value (VALTYPE, FUNC, VOIDmode)
 
-#define FUNCTION_VALUE_REGNO_P(N) ((N) == GP_RETURN || (N) == FP_RETURN)
-
 /* 1 if N is a possible register number for function argument passing.
    We have no FP argument registers when soft-float.  */
 
@@ -732,8 +761,6 @@ typedef struct {
 
   /* Number of floating-point registers used so far, likewise.  */
   unsigned int num_fprs;
-
-  int rvv_psabi_warning;
 
   /* Number of mask registers used so far, up to MAX_ARGS_IN_MASK_REGISTERS.  */
   unsigned int num_mrs;
@@ -826,6 +853,10 @@ extern enum riscv_cc get_riscv_cc (const rtx use);
       asm_fprintf ((FILE), "%U%s", (NAME));				\
   } while (0)
 
+#undef ASM_OUTPUT_OPCODE
+#define ASM_OUTPUT_OPCODE(STREAM, PTR)	\
+  (PTR) = riscv_asm_output_opcode(STREAM, PTR)
+
 #define JUMP_TABLES_IN_TEXT_SECTION 0
 #define CASE_VECTOR_MODE SImode
 #define CASE_VECTOR_PC_RELATIVE (riscv_cmodel != CM_MEDLOW)
@@ -891,7 +922,10 @@ extern enum riscv_cc get_riscv_cc (const rtx use);
    SLT[I][U], AND[I], XOR[I], OR[I], LUI, AUIPC, and their compressed
    counterparts, including C.MV and C.LI) can be in the branch shadow.  */
 
-#define TARGET_SFB_ALU (riscv_microarchitecture == sifive_7)
+#define TARGET_SFB_ALU \
+ ((riscv_microarchitecture == sifive_7) \
+  || (riscv_microarchitecture == sifive_p400) \
+  || (riscv_microarchitecture == sifive_p600))
 
 #define LOGICAL_OP_NON_SHORT_CIRCUIT 0
 
@@ -920,7 +954,7 @@ extern enum riscv_cc get_riscv_cc (const rtx use);
   "fs0", "fs1", "fa0", "fa1", "fa2", "fa3", "fa4", "fa5",	\
   "fa6", "fa7", "fs2", "fs3", "fs4", "fs5", "fs6", "fs7",	\
   "fs8", "fs9", "fs10","fs11","ft8", "ft9", "ft10","ft11",	\
-  "arg", "frame", "vl", "vtype", "vxrm", "frm", "N/A", "N/A",   \
+  "arg", "frame", "vl", "vtype", "vxrm", "frm", "vxsat", "N/A", \
   "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A",	\
   "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A",	\
   "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A",	\
@@ -1214,5 +1248,8 @@ extern void riscv_remove_unneeded_save_restore_calls (void);
 
 #define HAVE_POST_MODIFY_DISP TARGET_XTHEADMEMIDX
 #define HAVE_PRE_MODIFY_DISP  TARGET_XTHEADMEMIDX
+
+/* Check TLS Descriptors mechanism is selected.  */
+#define TARGET_TLSDESC (riscv_tls_dialect == TLS_DESCRIPTORS)
 
 #endif /* ! GCC_RISCV_H */

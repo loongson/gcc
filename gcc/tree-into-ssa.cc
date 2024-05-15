@@ -1707,9 +1707,10 @@ debug_tree_ssa (void)
 static void
 htab_statistics (FILE *file, const hash_table<var_info_hasher> &htab)
 {
-  fprintf (file, "size %ld, %ld elements, %f collision/search ratio\n",
-	   (long) htab.size (),
-	   (long) htab.elements (),
+  fprintf (file, "size " HOST_SIZE_T_PRINT_DEC ", " HOST_SIZE_T_PRINT_DEC
+	   " elements, %f collision/search ratio\n",
+	   (fmt_size_t) htab.size (),
+	   (fmt_size_t) htab.elements (),
 	   htab.collisions ());
 }
 
@@ -2499,7 +2500,7 @@ public:
   /* opt_pass methods: */
   bool gate (function *fun) final override
     {
-      /* Do nothing for funcions that was produced already in SSA form.  */
+      /* Do nothing for functions that were produced already in SSA form.  */
       return !(fun->curr_properties & PROP_ssa);
     }
 
@@ -3232,7 +3233,7 @@ insert_updated_phi_nodes_for (tree var, bitmap_head *dfs,
 {
   basic_block entry;
   def_blocks *db;
-  bitmap idf, pruned_idf;
+  bitmap pruned_idf;
   bitmap_iterator bi;
   unsigned i;
 
@@ -3249,8 +3250,7 @@ insert_updated_phi_nodes_for (tree var, bitmap_head *dfs,
     return;
 
   /* Compute the initial iterated dominance frontier.  */
-  idf = compute_idf (db->def_blocks, dfs);
-  pruned_idf = BITMAP_ALLOC (NULL);
+  pruned_idf = compute_idf (db->def_blocks, dfs);
 
   if (TREE_CODE (var) == SSA_NAME)
     {
@@ -3261,27 +3261,32 @@ insert_updated_phi_nodes_for (tree var, bitmap_head *dfs,
 	     common dominator of all the definition blocks.  */
 	  entry = nearest_common_dominator_for_set (CDI_DOMINATORS,
 						    db->def_blocks);
-	  if (entry != ENTRY_BLOCK_PTR_FOR_FN (cfun))
-	    EXECUTE_IF_SET_IN_BITMAP (idf, 0, i, bi)
-	      if (BASIC_BLOCK_FOR_FN (cfun, i) != entry
-		  && dominated_by_p (CDI_DOMINATORS,
-				     BASIC_BLOCK_FOR_FN (cfun, i), entry))
-		bitmap_set_bit (pruned_idf, i);
+	  if (entry != single_succ (ENTRY_BLOCK_PTR_FOR_FN (cfun)))
+	    {
+	      unsigned to_remove = ~0U;
+	      EXECUTE_IF_SET_IN_BITMAP (pruned_idf, 0, i, bi)
+		{
+		  if (to_remove != ~0U)
+		    {
+		      bitmap_clear_bit (pruned_idf, to_remove);
+		      to_remove = ~0U;
+		    }
+		  if (BASIC_BLOCK_FOR_FN (cfun, i) == entry
+		      || !dominated_by_p (CDI_DOMINATORS,
+					  BASIC_BLOCK_FOR_FN (cfun, i), entry))
+		    to_remove = i;
+		}
+	      if (to_remove != ~0U)
+		bitmap_clear_bit (pruned_idf, to_remove);
+	    }
 	}
       else
-	{
-	  /* Otherwise, do not prune the IDF for VAR.  */
-	  gcc_checking_assert (update_flags == TODO_update_ssa_full_phi);
-	  bitmap_copy (pruned_idf, idf);
-	}
+	/* Otherwise, do not prune the IDF for VAR.  */
+	gcc_checking_assert (update_flags == TODO_update_ssa_full_phi);
     }
-  else
-    {
-      /* Otherwise, VAR is a symbol that needs to be put into SSA form
-	 for the first time, so we need to compute the full IDF for
-	 it.  */
-      bitmap_copy (pruned_idf, idf);
-    }
+  /* Otherwise, VAR is a symbol that needs to be put into SSA form
+     for the first time, so we need to compute the full IDF for
+     it.  */
 
   if (!bitmap_empty_p (pruned_idf))
     {
@@ -3300,7 +3305,7 @@ insert_updated_phi_nodes_for (tree var, bitmap_head *dfs,
 
 	  mark_block_for_update (bb);
 	  FOR_EACH_EDGE (e, ei, bb->preds)
-	    if (e->src->index >= 0)
+	    if (e->src->index >= NUM_FIXED_BLOCKS)
 	      mark_block_for_update (e->src);
 	}
 
@@ -3308,7 +3313,6 @@ insert_updated_phi_nodes_for (tree var, bitmap_head *dfs,
     }
 
   BITMAP_FREE (pruned_idf);
-  BITMAP_FREE (idf);
 }
 
 /* Sort symbols_to_rename after their DECL_UID.  */

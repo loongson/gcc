@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1704,16 +1704,16 @@ package body Restrict is
    --------------------------------
 
    procedure Violation_Of_No_Dependence (Unit : Int; N : Node_Id) is
+      Unit_Node : constant Node_Id := No_Dependences.Table (Unit).Unit;
    begin
-      Error_Msg_Node_1 := No_Dependences.Table (Unit).Unit;
-      Error_Msg_Sloc   := Sloc (Error_Msg_Node_1);
+      Error_Msg_Sloc := Sloc (Unit_Node);
 
       if No_Dependences.Table (Unit).Warn then
-         Error_Msg
-           ("?*?violation of restriction `No_Dependence '='> &`#", Sloc (N));
+         Error_Msg_NE ("?*?violation of restriction `No_Dependence '='> &`#",
+           N, Unit_Node);
       else
-         Error_Msg
-           ("|violation of restriction `No_Dependence '='> &`#", Sloc (N));
+         Error_Msg_NE ("|violation of restriction `No_Dependence '='> &`#", N,
+           Unit_Node);
       end if;
    end Violation_Of_No_Dependence;
 

@@ -329,6 +329,20 @@ this pragma serves no purpose but is ignored
 rather than rejected to allow common sets of sources to be used
 in the two situations.
 
+.. _Pragma-Always_Terminates:
+
+Pragma Always_Terminates
+========================
+
+Syntax:
+
+.. code-block:: ada
+
+  pragma Always_Terminates [ (boolean_EXPRESSION) ];
+
+For the semantics of this pragma, see the entry for aspect ``Always_Terminates``
+in the SPARK 2014 Reference Manual, section 7.1.2.
+
 .. _Pragma-Annotate:
 
 Pragma Annotate
@@ -1904,6 +1918,24 @@ for ``pragma Unsuppress``. In particular it can be used as a
 configuration  pragma, or in a declaration sequence where it applies
 till the end of the scope. If an ``Entity`` argument is present,
 the action applies only to that entity.
+
+Pragma Exceptional_Cases
+========================
+.. index:: Exceptional_Cases
+
+Syntax:
+
+
+::
+
+  pragma Exceptional_Cases (EXCEPTIONAL_CASE_LIST);
+
+  EXCEPTIONAL_CASE_LIST ::= EXCEPTIONAL_CASE {, EXCEPTIONAL_CASE}
+  EXCEPTIONAL_CASE      ::= exception_choice {'|' exception_choice} => CONSEQUENCE
+  CONSEQUENCE           ::= Boolean_expression
+
+For the semantics of this aspect, see the SPARK 2014 Reference Manual, section
+6.1.9.
 
 Pragma Export_Function
 ======================

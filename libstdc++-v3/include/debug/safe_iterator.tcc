@@ -86,6 +86,9 @@ namespace __gnu_debug
     _Safe_iterator<_Iterator, _Sequence, _Category>::
     _M_can_advance(difference_type __n, bool __strict) const
     {
+      if (this->_M_value_initialized() && __n == 0)
+	return true;
+
       if (this->_M_singular())
 	return false;
 
@@ -194,6 +197,12 @@ namespace __gnu_debug
 		   std::pair<difference_type, _Distance_precision>& __dist,
 		   bool __check_dereferenceable) const
     {
+      if (_M_value_initialized() && __rhs._M_value_initialized())
+	{
+	  __dist = std::make_pair(0, __dp_exact);
+	  return true;
+	}
+
       if (_M_singular() || __rhs._M_singular() || !_M_can_compare(__rhs))
 	return false;
 
@@ -218,6 +227,12 @@ namespace __gnu_debug
 		   std::pair<difference_type,
 			     _Distance_precision>& __dist) const
     {
+      if (this->_M_value_initialized() && __rhs._M_value_initialized())
+	{
+	  __dist = std::make_pair(0, __dp_exact);
+	  return true;
+	}
+
       if (this->_M_singular() || __rhs._M_singular()
 	  || !this->_M_can_compare(__rhs))
 	return false;
@@ -235,12 +250,28 @@ namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
+#if __cplusplus < 201103L
   template<typename _Ite, typename _Seq>
-    _GLIBCXX20_CONSTEXPR
     _Ite
     __niter_base(const ::__gnu_debug::_Safe_iterator<_Ite, _Seq,
 		 std::random_access_iterator_tag>& __it)
     { return __it.base(); }
+
+  template<typename _Ite, typename _Cont, typename _DbgSeq>
+    _Ite
+    __niter_base(const ::__gnu_debug::_Safe_iterator<
+		 ::__gnu_cxx::__normal_iterator<_Ite, _Cont>, _DbgSeq,
+		 std::random_access_iterator_tag>& __it)
+    { return __it.base().base(); }
+#else
+  template<typename _Ite, typename _Seq>
+    _GLIBCXX20_CONSTEXPR
+    decltype(std::__niter_base(std::declval<_Ite>()))
+    __niter_base(const ::__gnu_debug::_Safe_iterator<_Ite, _Seq,
+		 std::random_access_iterator_tag>& __it)
+    noexcept(std::is_nothrow_copy_constructible<_Ite>::value)
+    { return std::__niter_base(__it.base()); }
+#endif
 
   template<bool _IsMove,
 	   typename _Ite, typename _Seq, typename _Cat, typename _OI>

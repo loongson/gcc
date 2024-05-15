@@ -164,6 +164,7 @@ gfc_free_omp_clauses (gfc_omp_clauses *c)
   gfc_free_expr (c->if_expr);
   for (i = 0; i < OMP_IF_LAST; i++)
     gfc_free_expr (c->if_exprs[i]);
+  gfc_free_expr (c->self_expr);
   gfc_free_expr (c->final_expr);
   gfc_free_expr (c->num_threads);
   gfc_free_expr (c->chunk_size);
@@ -1096,6 +1097,7 @@ enum omp_mask2
   OMP_CLAUSE_DOACROSS, /* OpenMP 5.2 */
   OMP_CLAUSE_ASSUMPTIONS, /* OpenMP 5.1. */
   OMP_CLAUSE_USES_ALLOCATORS, /* OpenMP 5.0  */
+  OMP_CLAUSE_INDIRECT, /* OpenMP 5.1  */
   /* This must come last.  */
   OMP_MASK2_LAST
 };
@@ -1209,7 +1211,7 @@ gfc_match_omp_map_clause (gfc_omp_namelist **list, gfc_omp_map_op map_op,
     {
       gfc_omp_namelist *n;
       for (n = *head; n; n = n->next)
-	n->u.map_op = map_op;
+	n->u.map.op = map_op;
       return true;
     }
 
@@ -1523,7 +1525,7 @@ gfc_match_omp_clause_reduction (char pc, gfc_omp_clauses *c, bool openacc,
 	    gfc_omp_namelist *p = gfc_get_omp_namelist (), **tl;
 	    p->sym = n->sym;
 	    p->where = p->where;
-	    p->u.map_op = OMP_MAP_ALWAYS_TOFROM;
+	    p->u.map.op = OMP_MAP_ALWAYS_TOFROM;
 
 	    tl = &c->lists[OMP_LIST_MAP];
 	    while (*tl)
@@ -2180,11 +2182,25 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 	    {
 	      if (openacc)
 		{
-		  if (gfc_match ("copyin ( ") == MATCH_YES
-		      && gfc_match_omp_map_clause (&c->lists[OMP_LIST_MAP],
-						   OMP_MAP_TO, true,
-						   allow_derived))
-		    continue;
+		  if (gfc_match ("copyin ( ") == MATCH_YES)
+		    {
+		      bool readonly = gfc_match ("readonly : ") == MATCH_YES;
+		      head = NULL;
+		      if (gfc_match_omp_variable_list ("",
+						       &c->lists[OMP_LIST_MAP],
+						       true, NULL, &head, true,
+						       allow_derived)
+			  == MATCH_YES)
+			{
+			  gfc_omp_namelist *n;
+			  for (n = *head; n; n = n->next)
+			    {
+			      n->u.map.op = OMP_MAP_TO;
+			      n->u.map.readonly = readonly;
+			    }
+			  continue;
+			}
+		    }
 		}
 	      else if (gfc_match_omp_variable_list ("copyin (",
 						    &c->lists[OMP_LIST_COPYIN],
@@ -2798,6 +2814,32 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 	      needs_space = true;
 	      continue;
 	    }
+	  if ((mask & OMP_CLAUSE_INDIRECT)
+	      && (m = gfc_match_dupl_check (!c->indirect, "indirect"))
+		  != MATCH_NO)
+	    {
+	      if (m == MATCH_ERROR)
+		goto error;
+	      gfc_expr *indirect_expr = NULL;
+	      m = gfc_match (" ( %e )", &indirect_expr);
+	      if (m == MATCH_YES)
+		{
+		  if (!gfc_resolve_expr (indirect_expr)
+		      || indirect_expr->ts.type != BT_LOGICAL
+		      || indirect_expr->expr_type != EXPR_CONSTANT)
+		    {
+		      gfc_error ("INDIRECT clause at %C requires a constant "
+				 "logical expression");
+		      gfc_free_expr (indirect_expr);
+		      goto error;
+		    }
+		  c->indirect = indirect_expr->value.logical;
+		  gfc_free_expr (indirect_expr);
+		}
+	      else
+		c->indirect = 1;
+	      continue;
+	    }
 	  if ((mask & OMP_CLAUSE_IS_DEVICE_PTR)
 	      && gfc_match_omp_variable_list
 		   ("is_device_ptr (",
@@ -3107,7 +3149,7 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 		{
 		  gfc_omp_namelist *n;
 		  for (n = *head; n; n = n->next)
-		    n->u.map_op = map_op;
+		    n->u.map.op = map_op;
 		  continue;
 		}
 	      gfc_current_locus = old_loc;
@@ -3975,7 +4017,7 @@ gfc_match_oacc_declare (void)
       if (gfc_current_ns->proc_name
 	  && gfc_current_ns->proc_name->attr.flavor == FL_MODULE)
 	{
-	  if (n->u.map_op != OMP_MAP_ALLOC && n->u.map_op != OMP_MAP_TO)
+	  if (n->u.map.op != OMP_MAP_ALLOC && n->u.map.op != OMP_MAP_TO)
 	    {
 	      gfc_error ("Invalid clause in module with !$ACC DECLARE at %L",
 			 &where);
@@ -4009,7 +4051,7 @@ gfc_match_oacc_declare (void)
 	  return MATCH_ERROR;
 	}
 
-      switch (n->u.map_op)
+      switch (n->u.map.op)
 	{
 	  case OMP_MAP_FORCE_ALLOC:
 	  case OMP_MAP_ALLOC:
@@ -4124,21 +4166,36 @@ gfc_match_oacc_wait (void)
 match
 gfc_match_oacc_cache (void)
 {
+  bool readonly = false;
   gfc_omp_clauses *c = gfc_get_omp_clauses ();
   /* The OpenACC cache directive explicitly only allows "array elements or
      subarrays", which we're currently not checking here.  Either check this
      after the call of gfc_match_omp_variable_list, or add something like a
      only_sections variant next to its allow_sections parameter.  */
-  match m = gfc_match_omp_variable_list (" (",
-					 &c->lists[OMP_LIST_CACHE], true,
-					 NULL, NULL, true);
+  match m = gfc_match (" ( ");
   if (m != MATCH_YES)
     {
       gfc_free_omp_clauses(c);
       return m;
     }
 
-  if (gfc_current_state() != COMP_DO 
+  if (gfc_match ("readonly : ") == MATCH_YES)
+    readonly = true;
+
+  gfc_omp_namelist **head = NULL;
+  m = gfc_match_omp_variable_list ("", &c->lists[OMP_LIST_CACHE], true,
+				   NULL, &head, true);
+  if (m != MATCH_YES)
+    {
+      gfc_free_omp_clauses(c);
+      return m;
+    }
+
+  if (readonly)
+    for (gfc_omp_namelist *n = *head; n; n = n->next)
+      n->u.map.readonly = true;
+
+  if (gfc_current_state() != COMP_DO
       && gfc_current_state() != COMP_DO_CONCURRENT)
     {
       gfc_error ("ACC CACHE directive must be inside of loop %C");
@@ -4460,7 +4517,7 @@ cleanup:
   (omp_mask (OMP_CLAUSE_THREADS) | OMP_CLAUSE_SIMD)
 #define OMP_DECLARE_TARGET_CLAUSES \
   (omp_mask (OMP_CLAUSE_ENTER) | OMP_CLAUSE_LINK | OMP_CLAUSE_DEVICE_TYPE \
-   | OMP_CLAUSE_TO)
+   | OMP_CLAUSE_TO | OMP_CLAUSE_INDIRECT)
 #define OMP_ATOMIC_CLAUSES \
   (omp_mask (OMP_CLAUSE_ATOMIC) | OMP_CLAUSE_CAPTURE | OMP_CLAUSE_HINT	\
    | OMP_CLAUSE_MEMORDER | OMP_CLAUSE_COMPARE | OMP_CLAUSE_FAIL 	\
@@ -4741,8 +4798,8 @@ gfc_match_omp_depobj (void)
       if (gfc_match (" ( %v ) ", &destroyobj) == MATCH_YES)
 	{
 	  if (destroyobj->symtree != depobj->symtree)
-	    gfc_warning (0, "The same depend object should be used as DEPOBJ "
-			 "argument at %L and as DESTROY argument at %L",
+	    gfc_warning (OPT_Wopenmp, "The same depend object should be used as"
+			 " DEPOBJ argument at %L and as DESTROY argument at %L",
 			 &depobj->where, &destroyobj->where);
 	  gfc_free_expr (destroyobj);
 	}
@@ -5513,6 +5570,15 @@ gfc_match_omp_declare_target (void)
 			       n->sym->name, &n->where);
 	      n->sym->attr.omp_device_type = c->device_type;
 	    }
+	  if (c->indirect)
+	    {
+	      if (n->sym->attr.omp_device_type != OMP_DEVICE_TYPE_UNSET
+		  && n->sym->attr.omp_device_type != OMP_DEVICE_TYPE_ANY)
+		gfc_error_now ("DEVICE_TYPE must be ANY when used with "
+			       "INDIRECT at %L", &n->where);
+	      n->sym->attr.omp_declare_target_indirect = c->indirect;
+	    }
+
 	  n->sym->mark = 1;
 	}
       else if (n->u.common->omp_declare_target
@@ -5558,15 +5624,23 @@ gfc_match_omp_declare_target (void)
 			       " TARGET directive to a different DEVICE_TYPE",
 			       s->name, &n->where);
 	      s->attr.omp_device_type = c->device_type;
+
+	      if (c->indirect
+		  && s->attr.omp_device_type != OMP_DEVICE_TYPE_UNSET
+		  && s->attr.omp_device_type != OMP_DEVICE_TYPE_ANY)
+		gfc_error_now ("DEVICE_TYPE must be ANY when used with "
+			       "INDIRECT at %L", &n->where);
+	      s->attr.omp_declare_target_indirect = c->indirect;
 	    }
 	}
-  if (c->device_type
+  if ((c->device_type || c->indirect)
       && !c->lists[OMP_LIST_ENTER]
       && !c->lists[OMP_LIST_TO]
       && !c->lists[OMP_LIST_LINK])
     gfc_warning_now (OPT_Wopenmp,
 		     "OMP DECLARE TARGET directive at %L with only "
-		     "DEVICE_TYPE clause is ignored", &old_loc);
+		     "DEVICE_TYPE or INDIRECT clauses is ignored",
+		     &old_loc);
 
   gfc_buffer_error (true);
 
@@ -5790,19 +5864,39 @@ gfc_match_omp_context_selector (gfc_omp_set_selector *oss)
 		}
 	      while (1);
 	      break;
-	    case OMP_TRAIT_PROPERTY_EXPR:
+	    case OMP_TRAIT_PROPERTY_DEV_NUM_EXPR:
+	    case OMP_TRAIT_PROPERTY_BOOL_EXPR:
 	      if (gfc_match_expr (&otp->expr) != MATCH_YES)
 		{
 		  gfc_error ("expected expression at %C");
 		  return MATCH_ERROR;
 		}
 	      if (!gfc_resolve_expr (otp->expr)
-		  || (otp->expr->ts.type != BT_LOGICAL
+		  || (property_kind == OMP_TRAIT_PROPERTY_BOOL_EXPR
+		      && otp->expr->ts.type != BT_LOGICAL)
+		  || (property_kind == OMP_TRAIT_PROPERTY_DEV_NUM_EXPR
 		      && otp->expr->ts.type != BT_INTEGER)
-		  || otp->expr->rank != 0)
+		  || otp->expr->rank != 0
+		  || otp->expr->expr_type != EXPR_CONSTANT)
 		{
-		  gfc_error ("property must be constant integer or logical "
-			     "expression at %C");
+		  if (property_kind == OMP_TRAIT_PROPERTY_BOOL_EXPR)
+		    gfc_error ("property must be a constant logical expression "
+			       "at %C");
+		  else
+		    gfc_error ("property must be a constant integer expression "
+			       "at %C");
+		  return MATCH_ERROR;
+		}
+	      /* Device number must be conforming, which includes
+		 omp_initial_device (-1) and omp_invalid_device (-4).  */
+	      if (property_kind == OMP_TRAIT_PROPERTY_DEV_NUM_EXPR
+		  && otp->expr->expr_type == EXPR_CONSTANT
+		  && mpz_sgn (otp->expr->value.integer) < 0
+		  && mpz_cmp_si (otp->expr->value.integer, -1) != 0
+		  && mpz_cmp_si (otp->expr->value.integer, -4) != 0)
+		{
+		  gfc_error ("property must be a conforming device number "
+			     "at %C");
 		  return MATCH_ERROR;
 		}
 	      break;
@@ -8372,8 +8466,8 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 		  }
 		if (openacc
 		    && list == OMP_LIST_MAP
-		    && (n->u.map_op == OMP_MAP_ATTACH
-			|| n->u.map_op == OMP_MAP_DETACH))
+		    && (n->u.map.op == OMP_MAP_ATTACH
+			|| n->u.map.op == OMP_MAP_DETACH))
 		  {
 		    symbol_attribute attr;
 		    if (n->expr)
@@ -8383,7 +8477,7 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 		    if (!attr.pointer && !attr.allocatable)
 		      gfc_error ("%qs clause argument must be ALLOCATABLE or "
 				 "a POINTER at %L",
-				 (n->u.map_op == OMP_MAP_ATTACH) ? "attach"
+				 (n->u.map.op == OMP_MAP_ATTACH) ? "attach"
 				 : "detach", &n->where);
 		  }
 		if (lastref
@@ -8454,7 +8548,7 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 		else if (openacc)
 		  {
 		    if (list == OMP_LIST_MAP
-			&& n->u.map_op == OMP_MAP_FORCE_DEVICEPTR)
+			&& n->u.map.op == OMP_MAP_FORCE_DEVICEPTR)
 		      resolve_oacc_deviceptr_clause (n->sym, n->where, name);
 		    else
 		      resolve_oacc_data_clauses (n->sym, n->where, name);
@@ -8476,7 +8570,7 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 		    {
 		    case EXEC_OMP_TARGET:
 		    case EXEC_OMP_TARGET_DATA:
-		      switch (n->u.map_op)
+		      switch (n->u.map.op)
 			{
 			case OMP_MAP_TO:
 			case OMP_MAP_ALWAYS_TO:
@@ -8503,7 +8597,7 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 			}
 		      break;
 		    case EXEC_OMP_TARGET_ENTER_DATA:
-		      switch (n->u.map_op)
+		      switch (n->u.map.op)
 			{
 			case OMP_MAP_TO:
 			case OMP_MAP_ALWAYS_TO:
@@ -8513,16 +8607,16 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 			case OMP_MAP_PRESENT_ALLOC:
 			  break;
 			case OMP_MAP_TOFROM:
-			  n->u.map_op = OMP_MAP_TO;
+			  n->u.map.op = OMP_MAP_TO;
 			  break;
 			case OMP_MAP_ALWAYS_TOFROM:
-			  n->u.map_op = OMP_MAP_ALWAYS_TO;
+			  n->u.map.op = OMP_MAP_ALWAYS_TO;
 			  break;
 			case OMP_MAP_PRESENT_TOFROM:
-			  n->u.map_op = OMP_MAP_PRESENT_TO;
+			  n->u.map.op = OMP_MAP_PRESENT_TO;
 			  break;
 			case OMP_MAP_ALWAYS_PRESENT_TOFROM:
-			  n->u.map_op = OMP_MAP_ALWAYS_PRESENT_TO;
+			  n->u.map.op = OMP_MAP_ALWAYS_PRESENT_TO;
 			  break;
 			default:
 			  gfc_error ("TARGET ENTER DATA with map-type other "
@@ -8532,7 +8626,7 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 			}
 		      break;
 		    case EXEC_OMP_TARGET_EXIT_DATA:
-		      switch (n->u.map_op)
+		      switch (n->u.map.op)
 			{
 			case OMP_MAP_FROM:
 			case OMP_MAP_ALWAYS_FROM:
@@ -8542,16 +8636,16 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 			case OMP_MAP_DELETE:
 			  break;
 			case OMP_MAP_TOFROM:
-			  n->u.map_op = OMP_MAP_FROM;
+			  n->u.map.op = OMP_MAP_FROM;
 			  break;
 			case OMP_MAP_ALWAYS_TOFROM:
-			  n->u.map_op = OMP_MAP_ALWAYS_FROM;
+			  n->u.map.op = OMP_MAP_ALWAYS_FROM;
 			  break;
 			case OMP_MAP_PRESENT_TOFROM:
-			  n->u.map_op = OMP_MAP_PRESENT_FROM;
+			  n->u.map.op = OMP_MAP_PRESENT_FROM;
 			  break;
 			case OMP_MAP_ALWAYS_PRESENT_TOFROM:
-			  n->u.map_op = OMP_MAP_ALWAYS_PRESENT_FROM;
+			  n->u.map.op = OMP_MAP_ALWAYS_PRESENT_FROM;
 			  break;
 			default:
 			  gfc_error ("TARGET EXIT DATA with map-type other "

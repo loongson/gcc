@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2004-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1367,9 +1367,7 @@ package body Ada.Directories is
          --  the Filter add it to our search vector.
 
          declare
-            subtype File_Name_String is String (1 .. File_Name_Len);
-
-            File_Name : constant File_Name_String
+            File_Name : constant String (1 .. File_Name_Len)
               with Import, Address => File_Name_Addr;
 
          begin

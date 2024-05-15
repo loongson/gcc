@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2023-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2023-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -48,8 +48,6 @@ package System.Val_Spec with
   Pure,
   Ghost
 is
-   pragma Unevaluated_Use_Of_Old (Allow);
-
    function Only_Space_Ghost (S : String; From, To : Integer) return Boolean is
       (for all J in From .. To => S (J) = ' ')
    with

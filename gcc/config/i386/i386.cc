@@ -86,6 +86,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "intl.h"
 #include "ifcvt.h"
 #include "symbol-summary.h"
+#include "sreal.h"
+#include "ipa-cp.h"
 #include "ipa-prop.h"
 #include "ipa-fnsummary.h"
 #include "wide-int-bitmask.h"
@@ -475,7 +477,9 @@ ix86_conditional_register_usage (void)
      except fixed_regs and registers used for function return value
      since aggregate_value_p checks call_used_regs[regno] on return
      value.  */
-  if (cfun && cfun->machine->no_caller_saved_registers)
+  if (cfun
+      && (cfun->machine->call_saved_registers
+	  == TYPE_NO_CALLER_SAVED_REGISTERS))
     for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
       if (!fixed_regs[i] && !ix86_function_value_regno_p (i))
 	call_used_regs[i] = 0;
@@ -944,7 +948,8 @@ ix86_function_ok_for_sibcall (tree decl, tree exp)
 
   /* Sibling call isn't OK if there are no caller-saved registers
      since all registers must be preserved before return.  */
-  if (cfun->machine->no_caller_saved_registers)
+  if (cfun->machine->call_saved_registers
+      == TYPE_NO_CALLER_SAVED_REGISTERS)
     return false;
 
   /* If we are generating position-independent code, we cannot sibcall
@@ -976,6 +981,15 @@ ix86_function_ok_for_sibcall (tree decl, tree exp)
       type = TREE_TYPE (type);			/* function type */
       decl_or_type = type;
     }
+
+  /* Sibling call isn't OK if callee has no callee-saved registers
+     and the calling function has callee-saved registers.  */
+  if (cfun->machine->call_saved_registers != TYPE_NO_CALLEE_SAVED_REGISTERS
+      && (cfun->machine->call_saved_registers
+	  != TYPE_NO_CALLEE_SAVED_REGISTERS_EXCEPT_BP)
+      && lookup_attribute ("no_callee_saved_registers",
+			   TYPE_ATTRIBUTES (type)))
+    return false;
 
   /* If outgoing reg parm stack space changes, we cannot do sibcall.  */
   if ((OUTGOING_REG_PARM_STACK_SPACE (type)
@@ -1137,6 +1151,12 @@ ix86_comp_type_attributes (const_tree type1, const_tree type2)
     return 0;
   if (ix86_function_regparm (type1, NULL)
       != ix86_function_regparm (type2, NULL))
+    return 0;
+
+  if (lookup_attribute ("no_callee_saved_registers",
+			TYPE_ATTRIBUTES (type1))
+      != lookup_attribute ("no_callee_saved_registers",
+			   TYPE_ATTRIBUTES (type2)))
     return 0;
 
   return 1;
@@ -4623,7 +4643,8 @@ ix86_setup_incoming_varargs (cumulative_args_t cum_v,
   /* For varargs, we do not want to skip the dummy va_dcl argument.
      For stdargs, we do want to skip the last named argument.  */
   next_cum = *cum;
-  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl))
+  if ((!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl))
+       || arg.type != NULL_TREE)
       && stdarg_p (fntype))
     ix86_function_arg_advance (pack_cumulative_args (&next_cum), arg);
 
@@ -5955,12 +5976,10 @@ ix86_setup_frame_addresses (void)
   cfun->machine->accesses_prev_frame = 1;
 }
 
-#ifndef USE_HIDDEN_LINKONCE
-# if defined(HAVE_GAS_HIDDEN) && (SUPPORTS_ONE_ONLY - 0)
-#  define USE_HIDDEN_LINKONCE 1
-# else
-#  define USE_HIDDEN_LINKONCE 0
-# endif
+#if defined(HAVE_GAS_HIDDEN) && (SUPPORTS_ONE_ONLY - 0)
+# define USE_HIDDEN_LINKONCE 1
+#else
+# define USE_HIDDEN_LINKONCE 0
 #endif
 
 /* Label count for call and return thunks.  It is used to make unique
@@ -6569,7 +6588,8 @@ ix86_epilogue_uses (int regno)
      and restoring registers.  Don't explicitly save SP register since
      it is always preserved.  */
   return (epilogue_completed
-	  && cfun->machine->no_caller_saved_registers
+	  && (cfun->machine->call_saved_registers
+	      == TYPE_NO_CALLER_SAVED_REGISTERS)
 	  && !fixed_regs[regno]
 	  && !STACK_REGNO_P (regno)
 	  && !MMX_REGNO_P (regno));
@@ -6585,7 +6605,8 @@ ix86_hard_regno_scratch_ok (unsigned int regno)
      as a scratch register after epilogue and use REGNO as scratch
      register only if it has been used before to avoid saving and
      restoring it.  */
-  return (!cfun->machine->no_caller_saved_registers
+  return ((cfun->machine->call_saved_registers
+	   != TYPE_NO_CALLER_SAVED_REGISTERS)
 	  || (!epilogue_completed
 	      && df_regs_ever_live_p (regno)));
 }
@@ -6595,14 +6616,21 @@ ix86_hard_regno_scratch_ok (unsigned int regno)
 bool
 ix86_save_reg (unsigned int regno, bool maybe_eh_return, bool ignore_outlined)
 {
-  /* If there are no caller-saved registers, we preserve all registers,
-     except for MMX and x87 registers which aren't supported when saving
-     and restoring registers.  Don't explicitly save SP register since
-     it is always preserved.  */
-  if (cfun->machine->no_caller_saved_registers)
+  rtx reg;
+
+  switch (cfun->machine->call_saved_registers)
     {
-      /* Don't preserve registers used for function return value.  */
-      rtx reg = crtl->return_rtx;
+    case TYPE_DEFAULT_CALL_SAVED_REGISTERS:
+      break;
+
+    case TYPE_NO_CALLER_SAVED_REGISTERS:
+      /* If there are no caller-saved registers, we preserve all
+	 registers, except for MMX and x87 registers which aren't
+	 supported when saving and restoring registers.  Don't
+	 explicitly save SP register since it is always preserved.
+
+	 Don't preserve registers used for function return value.  */
+      reg = crtl->return_rtx;
       if (reg)
 	{
 	  unsigned int i = REGNO (reg);
@@ -6618,6 +6646,14 @@ ix86_save_reg (unsigned int regno, bool maybe_eh_return, bool ignore_outlined)
 	      && !MMX_REGNO_P (regno)
 	      && (regno != HARD_FRAME_POINTER_REGNUM
 		  || !frame_pointer_needed));
+
+    case TYPE_NO_CALLEE_SAVED_REGISTERS:
+      return false;
+
+    case TYPE_NO_CALLEE_SAVED_REGISTERS_EXCEPT_BP:
+      if (regno != HARD_FRAME_POINTER_REGNUM)
+	return false;
+      break;
     }
 
   if (regno == REAL_PIC_OFFSET_TABLE_REGNUM
@@ -6773,11 +6809,25 @@ get_probe_interval (void)
 
 #define SPLIT_STACK_AVAILABLE 256
 
+/* Return true if push2/pop2 can be generated.  */
+
+static bool
+ix86_can_use_push2pop2 (void)
+{
+  /* Use push2/pop2 only if the incoming stack is 16-byte aligned.  */
+  unsigned int incoming_stack_boundary
+    = (crtl->parm_stack_boundary > ix86_incoming_stack_boundary
+       ? crtl->parm_stack_boundary : ix86_incoming_stack_boundary);
+  return incoming_stack_boundary % 128 == 0;
+}
+
 /* Helper function to determine whether push2/pop2 can be used in prologue or
    epilogue for register save/restore.  */
 static bool
 ix86_pro_and_epilogue_can_use_push2pop2 (int nregs)
 {
+  if (!ix86_can_use_push2pop2 ())
+    return false;
   int aligned = cfun->machine->fs.sp_offset % 16 == 0;
   return TARGET_APX_PUSH2POP2
 	 && !cfun->machine->frame.save_regs_using_mov
@@ -7366,7 +7416,9 @@ ix86_emit_save_regs (void)
   int regno;
   rtx_insn *insn;
 
-  if (!TARGET_APX_PUSH2POP2 || cfun->machine->func_type != TYPE_NORMAL)
+  if (!TARGET_APX_PUSH2POP2
+      || !ix86_can_use_push2pop2 ()
+      || cfun->machine->func_type != TYPE_NORMAL)
     {
       for (regno = FIRST_PSEUDO_REGISTER - 1; regno >= 0; regno--)
 	if (GENERAL_REGNO_P (regno) && ix86_save_reg (regno, true, true))
@@ -7717,7 +7769,8 @@ find_drap_reg (void)
 	 registers in epilogue, DRAP must not use caller-saved
 	 register in such case.  */
       if (DECL_STATIC_CHAIN (decl)
-	  || cfun->machine->no_caller_saved_registers
+	  || (cfun->machine->call_saved_registers
+	      == TYPE_NO_CALLER_SAVED_REGISTERS)
 	  || crtl->tail_call_emit)
 	return R13_REG;
 
@@ -7730,7 +7783,8 @@ find_drap_reg (void)
 	 registers in epilogue, DRAP must not use caller-saved
 	 register in such case.  */
       if (DECL_STATIC_CHAIN (decl)
-	  || cfun->machine->no_caller_saved_registers
+	  || (cfun->machine->call_saved_registers
+	      == TYPE_NO_CALLER_SAVED_REGISTERS)
 	  || crtl->tail_call_emit
 	  || crtl->calls_eh_return)
 	return DI_REG;
@@ -10002,7 +10056,9 @@ ix86_expand_epilogue (int style)
 				     m->fs.cfa_reg == stack_pointer_rtx);
 	}
 
-      if (TARGET_APX_PUSH2POP2 && m->func_type == TYPE_NORMAL)
+      if (TARGET_APX_PUSH2POP2
+	  && ix86_can_use_push2pop2 ()
+	  && m->func_type == TYPE_NORMAL)
 	ix86_emit_restore_regs_using_pop2 ();
       else
 	ix86_emit_restore_regs_using_pop (TARGET_APX_PPX);
@@ -20299,7 +20355,8 @@ ix86_hardreg_mov_ok (rtx dst, rtx src)
 	   ? standard_sse_constant_p (src, GET_MODE (dst))
 	   : x86_64_immediate_operand (src, GET_MODE (dst)))
       && ix86_class_likely_spilled_p (REGNO_REG_CLASS (REGNO (dst)))
-      && !reload_completed)
+      && !reload_completed
+      && !lra_in_progress)
     return false;
   return true;
 }
@@ -22076,6 +22133,8 @@ ix86_rtx_costs (rtx x, machine_mode mode, int outer_code_i, int opno,
 	*total = cost->fabs;
       else if (FLOAT_MODE_P (mode))
 	*total = ix86_vec_cost (mode, cost->sse_op);
+      else if (GET_MODE_CLASS (mode) == MODE_VECTOR_INT)
+	*total = cost->sse_op;
       return false;
 
     case SQRT:
@@ -22179,7 +22238,7 @@ ix86_rtx_costs (rtx x, machine_mode mode, int outer_code_i, int opno,
 	{
 	  /* cmov.  */
 	  *total = COSTS_N_INSNS (1);
-	  if (!REG_P (XEXP (x, 0)))
+	  if (!COMPARISON_P (XEXP (x, 0)) && !REG_P (XEXP (x, 0)))
 	    *total += rtx_cost (XEXP (x, 0), mode, code, 0, speed);
 	  if (!REG_P (XEXP (x, 1)))
 	    *total += rtx_cost (XEXP (x, 1), mode, code, 1, speed);
@@ -22718,6 +22777,48 @@ current_fentry_section (const char **name)
   return true;
 }
 
+/* Return a caller-saved register which isn't live or a callee-saved
+   register which has been saved on stack in the prologue at entry for
+   profile.  */
+
+static int
+x86_64_select_profile_regnum (bool r11_ok ATTRIBUTE_UNUSED)
+{
+  /* Use %r10 if the profiler is emitted before the prologue or it isn't
+     used by DRAP.  */
+  if (ix86_profile_before_prologue ()
+      || !crtl->drap_reg
+      || REGNO (crtl->drap_reg) != R10_REG)
+    return R10_REG;
+
+  /* The profiler is emitted after the prologue.  If there is a
+     caller-saved register which isn't live or a callee-saved
+     register saved on stack in the prologue, use it.  */
+
+  bitmap reg_live = df_get_live_out (ENTRY_BLOCK_PTR_FOR_FN (cfun));
+
+  int i;
+  for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
+    if (GENERAL_REGNO_P (i)
+	&& i != R10_REG
+#ifdef NO_PROFILE_COUNTERS
+	&& (r11_ok || i != R11_REG)
+#else
+	&& i != R11_REG
+#endif
+	&& TEST_HARD_REG_BIT (accessible_reg_set, i)
+	&& (ix86_save_reg (i, true, true)
+	    || (call_used_regs[i]
+		&& !fixed_regs[i]
+		&& !REGNO_REG_SET_P (reg_live, i))))
+      return i;
+
+  sorry ("no register available for profiling %<-mcmodel=large%s%>",
+	 ix86_cmodel == CM_LARGE_PIC ? " -fPIC" : "");
+
+  return R10_REG;
+}
+
 /* Output assembler code to FILE to increment profiler label # LABELNO
    for profiling a function entry.  */
 void
@@ -22746,28 +22847,67 @@ x86_function_profiler (FILE *file, int labelno ATTRIBUTE_UNUSED)
   if (TARGET_64BIT)
     {
 #ifndef NO_PROFILE_COUNTERS
-      fprintf (file, "\tleaq\t%sP%d(%%rip),%%r11\n", LPREFIX, labelno);
+      if (ASSEMBLER_DIALECT == ASM_INTEL)
+	fprintf (file, "\tlea\tr11, %sP%d[rip]\n", LPREFIX, labelno);
+      else
+	fprintf (file, "\tleaq\t%sP%d(%%rip), %%r11\n", LPREFIX, labelno);
 #endif
+
+      int scratch;
+      const char *reg;
+      char legacy_reg[4] = { 0 };
 
       if (!TARGET_PECOFF)
 	{
 	  switch (ix86_cmodel)
 	    {
 	    case CM_LARGE:
-	      /* NB: R10 is caller-saved.  Although it can be used as a
-		 static chain register, it is preserved when calling
-		 mcount for nested functions.  */
-	      fprintf (file, "1:\tmovabsq\t$%s, %%r10\n\tcall\t*%%r10\n",
-		       mcount_name);
+	      scratch = x86_64_select_profile_regnum (true);
+	      reg = hi_reg_name[scratch];
+	      if (LEGACY_INT_REGNO_P (scratch))
+		{
+		  legacy_reg[0] = 'r';
+		  legacy_reg[1] = reg[0];
+		  legacy_reg[2] = reg[1];
+		  reg = legacy_reg;
+		}
+	      if (ASSEMBLER_DIALECT == ASM_INTEL)
+		fprintf (file, "1:\tmovabs\t%s, OFFSET FLAT:%s\n"
+			       "\tcall\t%s\n", reg, mcount_name, reg);
+	      else
+		fprintf (file, "1:\tmovabsq\t$%s, %%%s\n\tcall\t*%%%s\n",
+			 mcount_name, reg, reg);
 	      break;
 	    case CM_LARGE_PIC:
 #ifdef NO_PROFILE_COUNTERS
-	      fprintf (file, "1:\tmovabsq\t$_GLOBAL_OFFSET_TABLE_-1b, %%r11\n");
-	      fprintf (file, "\tleaq\t1b(%%rip), %%r10\n");
-	      fprintf (file, "\taddq\t%%r11, %%r10\n");
+	      scratch = x86_64_select_profile_regnum (false);
+	      reg = hi_reg_name[scratch];
+	      if (LEGACY_INT_REGNO_P (scratch))
+		{
+		  legacy_reg[0] = 'r';
+		  legacy_reg[1] = reg[0];
+		  legacy_reg[2] = reg[1];
+		  reg = legacy_reg;
+		}
+	      if (ASSEMBLER_DIALECT == ASM_INTEL)
+		{
+		  fprintf (file, "1:movabs\tr11, "
+				 "OFFSET FLAT:_GLOBAL_OFFSET_TABLE_-1b\n");
+		  fprintf (file, "\tlea\t%s, 1b[rip]\n", reg);
+		  fprintf (file, "\tadd\t%s, r11\n", reg);
+		  fprintf (file, "\tmovabs\tr11, OFFSET FLAT:%s@PLTOFF\n",
+			   mcount_name);
+		  fprintf (file, "\tadd\t%s, r11\n", reg);
+		  fprintf (file, "\tcall\t%s\n", reg);
+		  break;
+		}
+	      fprintf (file,
+		       "1:\tmovabsq\t$_GLOBAL_OFFSET_TABLE_-1b, %%r11\n");
+	      fprintf (file, "\tleaq\t1b(%%rip), %%%s\n", reg);
+	      fprintf (file, "\taddq\t%%r11, %%%s\n", reg);
 	      fprintf (file, "\tmovabsq\t$%s@PLTOFF, %%r11\n", mcount_name);
-	      fprintf (file, "\taddq\t%%r11, %%r10\n");
-	      fprintf (file, "\tcall\t*%%r10\n");
+	      fprintf (file, "\taddq\t%%r11, %%%s\n", reg);
+	      fprintf (file, "\tcall\t*%%%s\n", reg);
 #else
 	      sorry ("profiling %<-mcmodel=large%> with PIC is not supported");
 #endif
@@ -22776,7 +22916,12 @@ x86_function_profiler (FILE *file, int labelno ATTRIBUTE_UNUSED)
 	    case CM_MEDIUM_PIC:
 	      if (!ix86_direct_extern_access)
 		{
-		  fprintf (file, "1:\tcall\t*%s@GOTPCREL(%%rip)\n", mcount_name);
+		  if (ASSEMBLER_DIALECT == ASM_INTEL)
+		    fprintf (file, "1:\tcall\t[QWORD PTR %s@GOTPCREL[rip]]\n",
+			     mcount_name);
+		  else
+		    fprintf (file, "1:\tcall\t*%s@GOTPCREL(%%rip)\n",
+			     mcount_name);
 		  break;
 		}
 	      /* fall through */
@@ -22791,23 +22936,37 @@ x86_function_profiler (FILE *file, int labelno ATTRIBUTE_UNUSED)
   else if (flag_pic)
     {
 #ifndef NO_PROFILE_COUNTERS
-      fprintf (file, "\tleal\t%sP%d@GOTOFF(%%ebx),%%" PROFILE_COUNT_REGISTER "\n",
-	       LPREFIX, labelno);
+      if (ASSEMBLER_DIALECT == ASM_INTEL)
+	fprintf (file,
+		 "\tlea\t" PROFILE_COUNT_REGISTER ", %sP%d@GOTOFF[ebx]\n",
+		 LPREFIX, labelno);
+      else
+	fprintf (file,
+		 "\tleal\t%sP%d@GOTOFF(%%ebx), %%" PROFILE_COUNT_REGISTER "\n",
+		 LPREFIX, labelno);
 #endif
-      fprintf (file, "1:\tcall\t*%s@GOT(%%ebx)\n", mcount_name);
+      if (ASSEMBLER_DIALECT == ASM_INTEL)
+	fprintf (file, "1:\tcall\t[DWORD PTR %s@GOT[ebx]]\n", mcount_name);
+      else
+	fprintf (file, "1:\tcall\t*%s@GOT(%%ebx)\n", mcount_name);
     }
   else
     {
 #ifndef NO_PROFILE_COUNTERS
-      fprintf (file, "\tmovl\t$%sP%d,%%" PROFILE_COUNT_REGISTER "\n",
-	       LPREFIX, labelno);
+      if (ASSEMBLER_DIALECT == ASM_INTEL)
+	fprintf (file,
+		 "\tmov\t" PROFILE_COUNT_REGISTER ", OFFSET FLAT:%sP%d\n",
+		 LPREFIX, labelno);
+      else
+	fprintf (file, "\tmovl\t$%sP%d, %%" PROFILE_COUNT_REGISTER "\n",
+		 LPREFIX, labelno);
 #endif
       x86_print_call_or_nop (file, mcount_name);
     }
 
   if (flag_record_mcount
-	|| lookup_attribute ("fentry_section",
-                                DECL_ATTRIBUTES (current_function_decl)))
+      || lookup_attribute ("fentry_section",
+			   DECL_ATTRIBUTES (current_function_decl)))
     {
       const char *sname = "__mcount_loc";
 
@@ -23333,31 +23492,6 @@ x86_evex_reg_mentioned_p (rtx operands[], int nops)
     if (EXT_REX_SSE_REG_P (operands[i])
 	|| x86_extended_rex2reg_mentioned_p (operands[i]))
       return true;
-  return false;
-}
-
-/* Return true when rtx operand does not contain any UNSPEC_*POFF related
-   constant to avoid APX_NDD instructions excceed encoding length limit.  */
-bool
-x86_poff_operand_p (rtx operand)
-{
-  if (GET_CODE (operand) == CONST)
-    {
-      rtx op = XEXP (operand, 0);
-      if (GET_CODE (op) == PLUS)
-	op = XEXP (op, 0);
-	
-      if (GET_CODE (op) == UNSPEC)
-	{
-	  int unspec = XINT (op, 1);
-	  return (unspec == UNSPEC_NTPOFF
-		  || unspec == UNSPEC_TPOFF
-		  || unspec == UNSPEC_DTPOFF
-		  || unspec == UNSPEC_GOTTPOFF
-		  || unspec == UNSPEC_GOTNTPOFF
-		  || unspec == UNSPEC_INDNTPOFF);
-	}
-    }
   return false;
 }
 
@@ -24336,7 +24470,8 @@ ix86_reassociation_width (unsigned int op, machine_mode mode)
       /* Integer vector instructions execute in FP unit
 	 and can execute 3 additions and one multiplication per cycle.  */
       if ((ix86_tune == PROCESSOR_ZNVER1 || ix86_tune == PROCESSOR_ZNVER2
-	   || ix86_tune == PROCESSOR_ZNVER3 || ix86_tune == PROCESSOR_ZNVER4)
+	   || ix86_tune == PROCESSOR_ZNVER3 || ix86_tune == PROCESSOR_ZNVER4
+	   || ix86_tune == PROCESSOR_ZNVER5)
    	  && INTEGRAL_MODE_P (mode) && op != PLUS && op != MINUS)
 	return 1;
 
@@ -25651,13 +25786,11 @@ ix86_get_excess_precision (enum excess_precision_type type)
 bool
 ix86_bitint_type_info (int n, struct bitint_info *info)
 {
-  if (!TARGET_64BIT)
-    return false;
   if (n <= 8)
     info->limb_mode = QImode;
   else if (n <= 16)
     info->limb_mode = HImode;
-  else if (n <= 32)
+  else if (n <= 32 || (!TARGET_64BIT && n > 64))
     info->limb_mode = SImode;
   else
     info->limb_mode = DImode;
@@ -25665,6 +25798,20 @@ ix86_bitint_type_info (int n, struct bitint_info *info)
   info->big_endian = false;
   info->extended = false;
   return true;
+}
+
+/* Returns modified FUNCTION_TYPE for cdtor callabi.  */
+tree
+ix86_cxx_adjust_cdtor_callabi_fntype (tree fntype)
+{
+  if (TARGET_64BIT
+      || TARGET_RTD
+      || ix86_function_type_abi (fntype) != MS_ABI)
+    return fntype;
+  /* For 32-bit MS ABI add thiscall attribute.  */
+  tree attribs = tree_cons (get_identifier ("thiscall"), NULL_TREE,
+			    TYPE_ATTRIBUTES (fntype));
+  return build_type_attribute_variant (fntype, attribs);
 }
 
 /* Implement PUSH_ROUNDING.  On 386, we have pushw instruction that
@@ -26278,6 +26425,8 @@ static const scoped_attribute_specs *const ix86_attribute_table[] =
 #define TARGET_C_EXCESS_PRECISION ix86_get_excess_precision
 #undef TARGET_C_BITINT_TYPE_INFO
 #define TARGET_C_BITINT_TYPE_INFO ix86_bitint_type_info
+#undef TARGET_CXX_ADJUST_CDTOR_CALLABI_FNTYPE
+#define TARGET_CXX_ADJUST_CDTOR_CALLABI_FNTYPE ix86_cxx_adjust_cdtor_callabi_fntype
 #undef TARGET_PROMOTE_PROTOTYPES
 #define TARGET_PROMOTE_PROTOTYPES hook_bool_const_tree_true
 #undef TARGET_PUSH_ARGUMENT

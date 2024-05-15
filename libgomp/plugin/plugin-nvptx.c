@@ -126,7 +126,7 @@ init_cuda_lib (void)
 # define CUDA_ONE_CALL_1(call, allow_null)		\
   cuda_lib.call = dlsym (h, #call);	\
   if (!allow_null && cuda_lib.call == NULL)		\
-    return false;
+    GOMP_PLUGIN_fatal ("'%s' is missing '%s'", cuda_runtime_lib, #call);
 #include "cuda-lib.def"
 # undef CUDA_ONE_CALL
 # undef CUDA_ONE_CALL_1
@@ -604,15 +604,17 @@ nvptx_get_num_devices (void)
       CUresult r = CUDA_CALL_NOCHECK (cuInit, 0);
       /* This is not an error: e.g. we may have CUDA libraries installed but
          no devices available.  */
-      if (r != CUDA_SUCCESS)
+      if (r == CUDA_ERROR_NO_DEVICE)
 	{
 	  GOMP_PLUGIN_debug (0, "Disabling nvptx offloading; cuInit: %s\n",
 			     cuda_error (r));
 	  return 0;
 	}
+      else if (r != CUDA_SUCCESS)
+	GOMP_PLUGIN_fatal ("cuInit error: %s", cuda_error (r));
     }
 
-  CUDA_CALL_ERET (-1, cuDeviceGetCount, &n);
+  CUDA_CALL_ASSERT (cuDeviceGetCount, &n);
   return n;
 }
 

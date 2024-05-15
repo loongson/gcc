@@ -23,13 +23,16 @@ OPTSTR_ARCH	      arch
 OPTSTR_TUNE	      tune
 
 STR_CPU_NATIVE	      native
-STR_CPU_ABI_DEFAULT   abi-default
+STR_ARCH_ABI_DEFAULT  abi-default
+STR_TUNE_GENERIC      generic
 STR_CPU_LOONGARCH64   loongarch64
 STR_CPU_LA464	      la464
 STR_CPU_LA664	      la664
+STR_ARCH_LA64V1_0     la64v1.0
+STR_ARCH_LA64V1_1     la64v1.1
 
 # Base architecture
-STR_ISA_BASE_LA64V100 la64
+STR_ISA_BASE_LA64 la64
 
 # -mfpu
 OPTSTR_ISA_EXT_FPU    fpu
@@ -64,9 +67,3 @@ STR_CMODEL_TS	      tiny-static
 STR_CMODEL_MEDIUM     medium
 STR_CMODEL_LARGE      large
 STR_CMODEL_EXTREME    extreme
-
-# -mexplicit-relocs
-OPTSTR_EXPLICIT_RELOCS		explicit-relocs
-STR_EXPLICIT_RELOCS_AUTO	auto
-STR_EXPLICIT_RELOCS_NONE	none
-STR_EXPLICIT_RELOCS_ALWAYS	always

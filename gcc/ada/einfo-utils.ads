@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---           Copyright (C) 2020-2023, Free Software Foundation, Inc.        --
+--           Copyright (C) 2020-2024, Free Software Foundation, Inc.        --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -201,7 +201,6 @@ package Einfo.Utils is
    function Is_Protected_Component (Id : E) return B with Inline;
    function Is_Protected_Interface (Id : E) return B;
    function Is_Protected_Record_Type (Id : E) return B with Inline;
-   function Is_Relaxed_Initialization_State (Id : E) return B;
    function Is_Standard_Character_Type (Id : E) return B;
    function Is_Standard_String_Type (Id : E) return B;
    function Is_String_Type (Id : E) return B with Inline;

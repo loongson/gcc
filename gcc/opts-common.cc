@@ -468,6 +468,28 @@ static const struct option_map option_map[] =
     { "--no-", NULL, "-f", false, true }
   };
 
+/* Given buffer P of size SZ, look for a prefix within OPTION_MAP;
+   if found, return the prefix and write the new prefix to *OUT_NEW_PREFIX.
+   Otherwise return nullptr.  */
+
+const char *
+get_option_prefix_remapping (const char *p, size_t sz,
+			     const char **out_new_prefix)
+{
+  for (unsigned i = 0; i < ARRAY_SIZE (option_map); i++)
+    {
+      const char * const old_prefix = option_map[i].opt0;
+      const size_t old_prefix_len = strlen (old_prefix);
+      if (old_prefix_len <= sz
+	  && !memcmp (p, old_prefix, old_prefix_len))
+	{
+	  *out_new_prefix = option_map[i].new_prefix;
+	  return old_prefix;
+	}
+    }
+  return nullptr;
+}
+
 /* Helper function for gcc.cc's driver::suggest_option, for populating the
    vec of suggestions for misspelled options.
 
@@ -1130,6 +1152,7 @@ prune_options (struct cl_decoded_option **decoded_options,
   unsigned int options_to_prepend = 0;
   unsigned int Wcomplain_wrong_lang_idx = 0;
   unsigned int fdiagnostics_color_idx = 0;
+  unsigned int fdiagnostics_urls_idx = 0;
 
   /* Remove arguments which are negated by others after them.  */
   new_decoded_options_count = 0;
@@ -1162,6 +1185,12 @@ prune_options (struct cl_decoded_option **decoded_options,
 	  if (fdiagnostics_color_idx == 0)
 	    ++options_to_prepend;
 	  fdiagnostics_color_idx = i;
+	  continue;
+	case OPT_fdiagnostics_urls_:
+	  gcc_checking_assert (i != 0);
+	  if (fdiagnostics_urls_idx == 0)
+	    ++options_to_prepend;
+	  fdiagnostics_urls_idx = i;
 	  continue;
 
 	default:
@@ -1224,6 +1253,12 @@ keep:
 	{
 	  new_decoded_options[argv_0 + options_prepended++]
 	    = old_decoded_options[fdiagnostics_color_idx];
+	  new_decoded_options_count++;
+	}
+      if (fdiagnostics_urls_idx != 0)
+	{
+	  new_decoded_options[argv_0 + options_prepended++]
+	    = old_decoded_options[fdiagnostics_urls_idx];
 	  new_decoded_options_count++;
 	}
       gcc_checking_assert (options_to_prepend == options_prepended);

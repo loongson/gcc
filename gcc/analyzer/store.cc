@@ -290,7 +290,10 @@ bit_range::intersects_p (const bit_range &other,
       bit_offset_t overlap_next
 	= MIN (get_next_bit_offset (),
 	       other.get_next_bit_offset ());
-      gcc_assert (overlap_next > overlap_start);
+      if (overlap_next <= overlap_start)
+	/* If this has happened, some kind of overflow has happened in
+	   our arithmetic.  For now, reject such cases.  */
+	return false;
       bit_range abs_overlap_bits (overlap_start, overlap_next - overlap_start);
       *out_this = abs_overlap_bits - get_start_bit_offset ();
       *out_other = abs_overlap_bits - other.get_start_bit_offset ();
@@ -316,7 +319,10 @@ bit_range::intersects_p (const bit_range &other,
 					 other.get_start_bit_offset ());
       bit_offset_t overlap_next = MIN (get_next_bit_offset (),
 					other.get_next_bit_offset ());
-      gcc_assert (overlap_next > overlap_start);
+      if (overlap_next <= overlap_start)
+	/* If this has happened, some kind of overflow has happened in
+	   our arithmetic.  For now, reject such cases.  */
+	return false;
       *out_num_overlap_bits = overlap_next - overlap_start;
       return true;
     }
@@ -339,7 +345,10 @@ bit_range::exceeds_p (const bit_range &other,
       bit_offset_t start = MAX (get_start_bit_offset (),
 				 other.get_next_bit_offset ());
       bit_offset_t size = get_next_bit_offset () - start;
-      gcc_assert (size > 0);
+      if (size <= 0)
+	/* If this has happened, some kind of overflow has happened in
+	   our arithmetic.  For now, reject such cases.  */
+	return false;
       out_overhanging_bit_range->m_start_bit_offset = start;
       out_overhanging_bit_range->m_size_in_bits = size;
       return true;
@@ -362,7 +371,10 @@ bit_range::falls_short_of_p (bit_offset_t offset,
       /* THIS falls short of OFFSET.  */
       bit_offset_t start = get_start_bit_offset ();
       bit_offset_t size = MIN (offset, get_next_bit_offset ()) - start;
-      gcc_assert (size > 0);
+      if (size <= 0)
+	/* If this has happened, some kind of overflow has happened in
+	   our arithmetic.  For now, reject such cases.  */
+	return false;
       out_fall_short_bits->m_start_bit_offset = start;
       out_fall_short_bits->m_size_in_bits = size;
       return true;
@@ -1759,7 +1771,16 @@ binding_cluster::maybe_get_compound_binding (store_manager *mgr,
   else
     default_sval = sval_mgr->get_or_create_initial_value (reg);
   const binding_key *default_key = binding_key::make (mgr, reg);
-  default_map.put (default_key, default_sval);
+
+  /* Express the bit-range of the default key for REG relative to REG,
+     rather than to the base region.  */
+  const concrete_binding *concrete_default_key
+    = default_key->dyn_cast_concrete_binding ();
+  if (!concrete_default_key)
+    return nullptr;
+  const concrete_binding *default_key_relative_to_reg
+     = mgr->get_concrete_binding (0, concrete_default_key->get_size_in_bits ());
+  default_map.put (default_key_relative_to_reg, default_sval);
 
   for (map_t::iterator iter = m_map.begin (); iter != m_map.end (); ++iter)
     {

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -426,15 +426,14 @@ package Einfo is
 --       definition clause with an (obsolescent) mod clause is converted
 --       into an attribute definition clause for this purpose.
 
---    Anonymous_Designated_Type
---       Defined in variables which represent anonymous finalization masters.
---       Contains the designated type which is being serviced by the master.
-
---    Anonymous_Masters
+--    Anonymous_Collections
 --       Defined in packages, subprograms, and subprogram bodies. Contains a
---       list of anonymous finalization masters declared within the related
---       unit. The list acts as a mapping between a master and a designated
---       type.
+--       list of anonymous finalization collections declared in this unit.
+--       The list acts as a mapping between collections and designated types.
+
+--    Anonymous_Designated_Type
+--       Defined in entities that represent anonymous finalization collections.
+--       Contains the designated type that is being serviced by the collection.
 
 --    Anonymous_Object
 --       Present in protected and task type entities. Contains the entity of
@@ -1298,12 +1297,21 @@ package Einfo is
 --       families. Returns first extra formal of the subprogram or entry.
 --       Returns Empty if there are no extra formals.
 
---    Finalization_Master [root type only]
+--    Finalization_Collection [root type only]
 --       Defined in access-to-controlled or access-to-class-wide types. The
---       field contains the entity of the finalization master which handles
---       dynamically allocated controlled objects referenced by the access
---       type. Empty for access-to-subprogram types. Empty for access types
---       whose designated type does not need finalization actions.
+--       field contains the entity of the finalization collection of a type,
+--       which is the set of objects created by allocators of the type, or
+--       of types derived from the type. Empty for access-to-object types
+--       whose designated type does not need finalization actions as well
+--       as for access-to-subprogram types.
+
+--    Finalization_Master_Node
+--       Defined in variables and constants that require finalization actions.
+--       The field contains the entity of an object (called a Master_Node) that
+--       contains the address of the finalizable object, along with an access
+--       value denoting the finalizable object's finalization procedure. The
+--       Master_Node may be attached to a finalization list associated with
+--       either the global scope or some dynamic scope (block or subprogram).
 
 --    Finalize_Storage_Only [base type only]
 --       Defined in all types. Set on direct controlled types to which a
@@ -3211,10 +3219,6 @@ package Einfo is
 --       Applies to all entities, true for record types and subtypes,
 --       includes class-wide types and subtypes (which are also records).
 
---    Is_Relaxed_Initialization_State (synthesized)
---       Applies to all entities, true for abstract states that are subject to
---       option Relaxed_Initialization.
-
 --    Is_Remote_Call_Interface
 --       Defined in all entities. Set in E_Package and E_Generic_Package
 --       entities to which a pragma Remote_Call_Interface is applied, and
@@ -4004,17 +4008,6 @@ package Einfo is
 --       has unknown discriminants. A default initialization of an object of
 --       the type does not require an invariant check (AI12-0133).
 
---    Pending_Access_Types
---       Defined in all types. Set for incomplete, private, Taft-amendment
---       types, and their corresponding full views. This list contains all
---       access types, both named and anonymous, declared between the partial
---       and the full view. The list is used by the finalization machinery to
---       ensure that the finalization masters of all pending access types are
---       fully initialized when the full view is frozen.
-
---    Postconditions_Proc
---       Obsolete field which can be removed once CodePeer is fixed ???
-
 --    Predicate_Function (synthesized)
 --       Defined in all types. Set for types for which (Has_Predicates is True)
 --       and for which a predicate procedure has been built that tests that the
@@ -4513,15 +4506,6 @@ package Einfo is
 --       from another predicate but does not add a predicate of its own, the
 --       expression may consist of the above xxxPredicate call on its own.
 
---    Status_Flag_Or_Transient_Decl
---       Defined in constant, loop, and variable entities. Applies to objects
---       that require special treatment by the finalization machinery, such as
---       extended return objects, conditional expression results, and objects
---       inside N_Expression_With_Actions nodes. The attribute contains the
---       entity of a flag which specifies a particular behavior over a region
---       of the extended return for the return objects, or the declaration of a
---       hook object for conditional expressions and N_Expression_With_Actions.
-
 --    Storage_Size_Variable [implementation base type only]
 --       Defined in access types and task type entities. This flag is set
 --       if a valid and effective pragma Storage_Size applies to the base
@@ -5003,7 +4987,6 @@ package Einfo is
    --    Esize
    --    RM_Size
    --    Alignment
-   --    Pending_Access_Types
    --    Related_Expression
    --    Current_Use_Clause
    --    Subprograms_For_Type
@@ -5130,7 +5113,6 @@ package Einfo is
    --    Has_Null_Visible_Refinement         (synth)
    --    Is_External_State                   (synth)
    --    Is_Null_State                       (synth)
-   --    Is_Relaxed_Initialization_State     (synth)
    --    Is_Synchronized_State               (synth)
    --    Partial_Refinement_Constituents     (synth)
 
@@ -5157,8 +5139,8 @@ package Einfo is
    --    Direct_Primitive_Operations $$$ type
    --    Master_Id
    --    Directly_Designated_Type
-   --    Associated_Storage_Pool               (base type only)
-   --    Finalization_Master                   (base type only)
+   --    Associated_Storage_Pool               (root type only)
+   --    Finalization_Collection               (root type only)
    --    Storage_Size_Variable                 (base type only)
    --    Has_Pragma_Controlled                 (base type only)
    --    Has_Storage_Size_Clause               (base type only)
@@ -5191,7 +5173,7 @@ package Einfo is
 
    --  E_Anonymous_Access_Type
    --    Directly_Designated_Type
-   --    Finalization_Master
+   --    Finalization_Collection
    --    Storage_Size_Variable                 is this needed ???
    --    Associated_Storage_Pool $$$
    --    (plus type attributes)
@@ -5294,7 +5276,6 @@ package Einfo is
    --    Esize
    --    Extra_Accessibility                   (constants only)
    --    Alignment
-   --    Status_Flag_Or_Transient_Decl
    --    Actual_Subtype
    --    Renamed_Object
    --    Renamed_Entity $$$
@@ -5304,6 +5285,7 @@ package Einfo is
    --    Related_Type                          (constants only)
    --    Initialization_Statements
    --    BIP_Initialization_Call
+   --    Finalization_Master_Node
    --    Last_Aggregate_Assignment
    --    Activation_Record_Component
    --    Encapsulating_State                   (constants only)
@@ -5518,7 +5500,7 @@ package Einfo is
    --    Overridden_Operation
    --    Wrapped_Entity                       (non-generic case only)
    --    Extra_Formals
-   --    Anonymous_Masters                    (non-generic case only)
+   --    Anonymous_Collections                (non-generic case only)
    --    Corresponding_Equality               (implicit /= only)
    --    Thunk_Entity                         (thunk case only)
    --    Corresponding_Procedure              (generate C code only)
@@ -5603,7 +5585,7 @@ package Einfo is
    --    Master_Id
    --    Directly_Designated_Type
    --    Associated_Storage_Pool              (root type only)
-   --    Finalization_Master                  (root type only)
+   --    Finalization_Collection              (root type only)
    --    Storage_Size_Variable                (base type only)
    --    (plus type attributes)
 
@@ -5782,7 +5764,7 @@ package Einfo is
    --    Package_Instantiation
    --    Current_Use_Clause
    --    Finalizer                            (non-generic case only)
-   --    Anonymous_Masters                    (non-generic case only)
+   --    Anonymous_Collections                (non-generic case only)
    --    Contract
    --    SPARK_Pragma
    --    SPARK_Aux_Pragma
@@ -5879,7 +5861,7 @@ package Einfo is
    --    Overridden_Operation                 (never for init proc)
    --    Wrapped_Entity                       (non-generic case only)
    --    Extra_Formals
-   --    Anonymous_Masters                    (non-generic case only)
+   --    Anonymous_Collections                (non-generic case only)
    --    Static_Initialization                (init_proc only)
    --    Thunk_Entity                         (thunk case only)
    --    Corresponding_Function               (generate C code only)
@@ -6103,7 +6085,7 @@ package Einfo is
    --    Last_Entity
    --    Scope_Depth_Value
    --    Extra_Formals
-   --    Anonymous_Masters
+   --    Anonymous_Collections
    --    Contract
    --    SPARK_Pragma
    --    Contains_Ignored_Ghost_Code
@@ -6174,7 +6156,6 @@ package Einfo is
    --    Esize
    --    Extra_Accessibility
    --    Alignment
-   --    Status_Flag_Or_Transient_Decl        (transient object only)
    --    Unset_Reference
    --    Actual_Subtype
    --    Renamed_Object
@@ -6191,6 +6172,7 @@ package Einfo is
    --    Related_Type
    --    Initialization_Statements
    --    BIP_Initialization_Call
+   --    Finalization_Master_Node
    --    Last_Aggregate_Assignment
    --    Activation_Record_Component
    --    Encapsulating_State

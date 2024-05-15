@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2015-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2015-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -512,7 +512,6 @@ package body Contracts is
                if Present (It) then
                   Validate_Iterable_Aspect (E, It);
                end if;
-
                if Present (I_Lit) then
                   Validate_Literal_Aspect (E, I_Lit);
                end if;
@@ -1115,7 +1114,7 @@ package body Contracts is
       if Comes_From_Source (Obj_Id) and then Is_Ghost_Entity (Obj_Id) then
 
          --  A Ghost object cannot be of a type that yields a synchronized
-         --  object (SPARK RM 6.9(19)).
+         --  object (SPARK RM 6.9(21)).
 
          if Yields_Synchronized_Object (Obj_Typ) then
             Error_Msg_N ("ghost object & cannot be synchronized", Obj_Id);
@@ -2529,17 +2528,9 @@ package body Contracts is
                 Pragma_Argument_Associations => Args,
                 Class_Present                => Class_Present);
 
-            Subp_Decl : Node_Id := Subp_Id;
+            Subp_Decl : constant Node_Id := Enclosing_Declaration (Subp_Id);
+            pragma Assert (Is_Declaration (Subp_Decl));
          begin
-            --  Enclosing_Declaration may return, for example,
-            --  a N_Procedure_Specification node. Cope with this.
-            loop
-               Subp_Decl := Enclosing_Declaration (Subp_Decl);
-               exit when Is_Declaration (Subp_Decl);
-               Subp_Decl := Parent (Subp_Decl);
-               pragma Assert (Present (Subp_Decl));
-            end loop;
-
             Insert_After_And_Analyze (Subp_Decl, Prag);
          end Insert_Stable_Property_Check;
 
@@ -2722,22 +2713,7 @@ package body Contracts is
          --  Otherwise, add the item
 
          else
-            if No (List) then
-               List := New_List;
-            end if;
-
-            --  If the pragma is a conjunct in a composite postcondition, it
-            --  has been processed in reverse order. In the postcondition body
-            --  it must appear before the others.
-
-            if Nkind (Item) = N_Pragma
-              and then From_Aspect_Specification (Item)
-              and then Split_PPC (Item)
-            then
-               Prepend (Item, List);
-            else
-               Append (Item, List);
-            end if;
+            Append_New (Item, List);
          end if;
       end Append_Enabled_Item;
 
@@ -3628,7 +3604,7 @@ package body Contracts is
          end if;
       end Inherit_Pragma;
 
-   --   Start of processing for Inherit_Subprogram_Contract
+   --  Start of processing for Inherit_Subprogram_Contract
 
    begin
       --  Inheritance is carried out only when both entities are subprograms
@@ -4184,13 +4160,13 @@ package body Contracts is
          Helper_Decl := Build_Call_Helper_Decl;
          Mutate_Ekind (Helper_Id, Ekind (Subp_Id));
 
-         --  Add the helper to the freezing actions of the tagged type
+         --  Add the helper to the freezing actions of the class-wide type
 
-         Append_Freeze_Action (Tagged_Type, Helper_Decl);
+         Append_Freeze_Action (Class_Wide_Type (Tagged_Type), Helper_Decl);
          Analyze (Helper_Decl);
 
          Helper_Body := Build_Call_Helper_Body;
-         Append_Freeze_Action (Tagged_Type, Helper_Body);
+         Append_Freeze_Action (Class_Wide_Type (Tagged_Type), Helper_Body);
 
          --  If this helper is built as part of building the DTW at the
          --  freezing point of its tagged type then we cannot defer
@@ -5003,9 +4979,7 @@ package body Contracts is
 
       Push_Scope (Gen_Id);
 
-      if Permits_Aspect_Specifications (Templ)
-        and then Has_Aspects (Templ)
-      then
+      if Permits_Aspect_Specifications (Templ) then
          Save_Global_References_In_Aspects (Templ);
       end if;
 

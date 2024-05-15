@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1715,18 +1715,10 @@ package Sinfo is
    --    nodes which emulate the barrier function of a protected entry body.
    --    The flag is used when checking for incorrect use of Current_Task.
 
-   --  Is_Enum_Array_Aggregate
-   --    A flag set on an aggregate created internally while building the
-   --    images tables for enumerations.
-
    --  Is_Expanded_Build_In_Place_Call
    --    This flag is set in an N_Function_Call node to indicate that the extra
    --    actuals to support a build-in-place style of call have been added to
    --    the call.
-
-   --  Is_Expanded_Contract
-   --    Present in N_Contract nodes. Set if the contract has already undergone
-   --    expansion activities.
 
    --  Is_Generic_Contract_Pragma
    --    This flag is present in N_Pragma nodes. It is set when the pragma is
@@ -2322,14 +2314,6 @@ package Sinfo is
    --    source type entity for the unchecked conversion instantiation
    --    which gigi must do size validation for.
 
-   --  Split_PPC
-   --    When a Pre or Post aspect specification is processed, it is broken
-   --    into AND THEN sections. The leftmost section has Split_PPC set to
-   --    False, indicating that it is the original specification (e.g. for
-   --    posting errors). For other sections, Split_PPC is set to True.
-   --    This flag is set in both the N_Aspect_Specification node itself,
-   --    and in the pragma which is generated from this node.
-
    --  Storage_Pool
    --    Present in N_Allocator, N_Free_Statement, N_Simple_Return_Statement,
    --    and N_Extended_Return_Statement nodes. References the entity for the
@@ -2732,7 +2716,6 @@ package Sinfo is
       --  Is_Delayed_Aspect
       --  Is_Disabled
       --  Import_Interface_Present
-      --  Split_PPC set if corresponding aspect had Split_PPC set
       --  Uneval_Old_Warn
 
       --  Note: we should have a section on what pragmas are passed on to
@@ -4091,7 +4074,6 @@ package Sinfo is
       --  Compile_Time_Known_Aggregate
       --  Expansion_Delayed
       --  Has_Self_Reference
-      --  Is_Enum_Array_Aggregate
       --  Is_Homogeneous_Aggregate
       --  Is_Parenthesis_Aggregate
       --  plus fields for expression
@@ -4277,7 +4259,7 @@ package Sinfo is
       --  Etype
 
       ---------------------------------
-      --  3.4.5 Container_Aggregates --
+      --  4.3.5 Container_Aggregates --
       ---------------------------------
 
       --  ITERATED_ELEMENT_ASSOCIATION ::=
@@ -7603,7 +7585,6 @@ package Sinfo is
       --  Is_Delayed_Aspect
       --  Is_Disabled
       --  Is_Boolean_Aspect
-      --  Split_PPC Set if split pre/post attribute
       --  Aspect_On_Partial_View
 
       --  Note: Aspect_Specification is an Ada 2012 feature
@@ -7617,11 +7598,6 @@ package Sinfo is
 
       --  In the case of aspects of the form xxx'Class, the aspect identifier
       --  is for xxx, and Class_Present is set to True.
-
-      --  Note: When a Pre or Post aspect specification is processed, it is
-      --  broken into AND THEN sections. The left most section has Split_PPC
-      --  set to False, indicating that it is the original specification (e.g.
-      --  for posting errors). For the other sections, Split_PPC is set True.
 
       ---------------------------------------------
       -- 13.4  Enumeration representation clause --
@@ -7964,7 +7940,6 @@ package Sinfo is
       --  Pre_Post_Conditions (set to Empty if none)
       --  Contract_Test_Cases (set to Empty if none)
       --  Classifications (set to Empty if none)
-      --  Is_Expanded_Contract
 
       --  Pre_Post_Conditions contains a collection of pragmas that correspond
       --  to pre- and postconditions associated with an entry or a subprogram
@@ -7979,9 +7954,7 @@ package Sinfo is
       --  The ordering in the list is in LIFO fashion.
 
       --  Note that there might be multiple preconditions or postconditions
-      --  in this list, either because they come from separate pragmas in the
-      --  source, or because a Pre (resp. Post) aspect specification has been
-      --  broken into AND THEN sections. See Split_PPC for details.
+      --  in this list, because they come from separate pragmas in the source.
 
       --  In GNATprove mode, the inherited classwide pre- and postconditions
       --  (suitably specialized for the specific type of the overriding

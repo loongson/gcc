@@ -167,7 +167,7 @@ check_for_binary_op_overflow (range_query *query,
   return true;
 }
 
-/* Set INIT, STEP, and DIRECTION the the corresponding values of NAME
+/* Set INIT, STEP, and DIRECTION to the corresponding values of NAME
    within LOOP, and return TRUE.  Otherwise return FALSE, and set R to
    the conservative range of NAME within the loop.  */
 
@@ -310,7 +310,8 @@ tree
 simplify_using_ranges::fold_cond_with_ops (enum tree_code code,
 					   tree op0, tree op1, gimple *s)
 {
-  int_range_max r0, r1;
+  Value_Range r0 (TREE_TYPE (op0));
+  Value_Range r1 (TREE_TYPE (op1));
   if (!query->range_of_expr (r0, op0, s)
       || !query->range_of_expr (r1, op1, s))
     return NULL_TREE;
@@ -320,9 +321,9 @@ simplify_using_ranges::fold_cond_with_ops (enum tree_code code,
   range_op_handler handler (code);
   if (handler && handler.fold_range (res, type, r0, r1))
     {
-      if (res == range_true (type))
+      if (res == range_true ())
 	return boolean_true_node;
-      if (res == range_false (type))
+      if (res == range_false ())
 	return boolean_false_node;
     }
   return NULL;

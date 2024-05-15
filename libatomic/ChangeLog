@@ -1,3 +1,98 @@
+2024-05-07  Zac Walker  <zacwalker@microsoft.com>
+
+	* configure.tgt: Add aarch64-w64-mingw32 target.
+
+2024-05-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.am [LIBAT_BUILD_VERSIONED_SHLIB_SUN]
+	(libatomic.map-sun): Pass $(libatomic_la_OBJECTS),
+	$(libatomic_la_LIBADD) to make_sunver.pl unmodified.
+	* Makefile.in: Regenerate.
+
+2024-04-26  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	* config/linux/aarch64/atomic_16.S: Add __libat_ prefix in the
+	LSE2/LSE128/CORE macros, remove elsewhere.  Add ATOMIC macro.
+
+2024-04-05  Jakub Jelinek  <jakub@redhat.com>
+
+	* configure: Regenerate.
+
+2024-04-04  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	PR target/113986
+	* Makefile.in: Regenerated.
+	* Makefile.am: Make atomic_16.S not depend on HAVE_IFUNC.
+	Remove predefine of HAVE_FEAT_LSE128.
+	* acinclude.m4: Remove ARCH_AARCH64_HAVE_LSE128.
+	* configure: Regenerated.
+	* config/linux/aarch64/atomic_16.S: Add __atomic_ alias if !HAVE_IFUNC.
+	* config/linux/aarch64/host-config.h: Correctly handle !HAVE_IFUNC.
+	Add defines for HWCAP_ATOMICS and HWCAP_CPUID.
+
+2024-02-14  Roger Sayle  <roger@nextmovesoftware.com>
+	    Victor Do Nascimento  <victor.donascimento@arm.com>
+
+	PR other/113336
+	* Makefile.am: Build tas_1_2_.o on ARCH_ARM_LINUX
+	* Makefile.in: Regenerate.
+
+2024-02-03  John David Anglin  <danglin@gcc.gnu.org>
+
+	PR target/59778
+	* configure.tgt (hppa*): Set ARCH.
+	* config/pa/fenv.c: New file.
+
+2024-01-28  Victor Do Nascimento  <victor.donascimento@arm.com>
+
+	* config/linux/aarch64/host-config.h (has_lse2): Add test for LSE.
+	(has_lse128): Add test for LSE2.
+
+2024-01-28  Victor Do Nascimento  <victor.donascimento@arm.com>
+
+	* Makefile.am (AM_CPPFLAGS): add conditional setting of
+	-DHAVE_FEAT_LSE128.
+	* acinclude.m4 (LIBAT_TEST_FEAT_AARCH64_LSE128): New.
+	* config/linux/aarch64/atomic_16.S (LSE128): New macro
+	definition.
+	(libat_exchange_16): New LSE128 variant.
+	(libat_fetch_or_16): Likewise.
+	(libat_or_fetch_16): Likewise.
+	(libat_fetch_and_16): Likewise.
+	(libat_and_fetch_16): Likewise.
+	* config/linux/aarch64/host-config.h (IFUNC_COND_2): New.
+	(IFUNC_NCOND): Add operand size checking.
+	(has_lse2): Renamed from `ifunc1`.
+	(has_lse128): New.
+	(HWCAP2_LSE128): Likewise.
+	* configure.ac: Add call to
+	LIBAT_TEST_FEAT_AARCH64_LSE128.
+	* configure (ac_subst_vars): Regenerated via autoreconf.
+	* Makefile.in: Likewise.
+	* auto-config.h.in: Likewise.
+
+2024-01-28  Victor Do Nascimento  <victor.donascimento@arm.com>
+
+	* config/linux/aarch64/host-config.h (__ifunc_arg_t):
+	Conditionally-defined if `sys/ifunc.h' not found.
+	(_IFUNC_ARG_HWCAP): Likewise.
+	(IFUNC_COND_1): Pass __ifunc_arg_t argument to ifunc.
+	(ifunc1): Modify function signature to accept __ifunc_arg_t
+	argument.
+	* configure.tgt: Add second `const __ifunc_arg_t *features'
+	argument to IFUNC_RESOLVER_ARGS.
+
+2024-01-28  Victor Do Nascimento  <victor.donascimento@arm.com>
+
+	* config/linux/aarch64/atomic_16.S (CORE): New macro.
+	(LSE2): Likewise.
+	(ENTRY_FEAT): Likewise.
+	(ENTRY_FEAT1): Likewise.
+	(END_FEAT): Likewise.
+	(END_FEAT1): Likewise.
+	(ALIAS): Modify macro to take in `arch' arguments.
+	(ALIAS1): New.
+
 2023-12-15  Wilco Dijkstra  <wilco.dijkstra@arm.com>
 
 	* config/linux/aarch64/atomic_16.S: Implement lock-free ARMv8.0 atomics.

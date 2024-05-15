@@ -65,6 +65,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "symbol-summary.h"
 #include "symtab-thunks.h"
 #include "symtab-clones.h"
+#include "asan.h"
 
 /* I'm not real happy about this, but we need to handle gimple and
    non-gimple trees.  */
@@ -370,7 +371,7 @@ remap_decl (tree decl, copy_body_data *id)
 	 need this decl for TYPE_STUB_DECL.  */
       insert_decl_map (id, decl, t);
 
-      if (!DECL_P (t))
+      if (!DECL_P (t) || t == decl)
 	return t;
 
       /* Remap types, if necessary.  */
@@ -765,7 +766,7 @@ remap_decls (tree decls, vec<tree, va_gc> **nonlocalized_list,
 	 TREE_CHAIN.  If we remapped this variable to the return slot, it's
 	 already declared somewhere else, so don't declare it here.  */
 
-      if (new_var == id->retvar)
+      if (new_var == old_var || new_var == id->retvar)
 	;
       else if (!new_var)
         {
@@ -2049,6 +2050,17 @@ copy_bb (copy_body_data *id, basic_block bb,
 
   copy_gsi = gsi_start_bb (copy_basic_block);
 
+  unsigned min_cond_uid = 0;
+  if (id->src_cfun->cond_uids)
+    {
+      if (!cfun->cond_uids)
+	cfun->cond_uids = new hash_map <gcond*, unsigned> ();
+
+      for (auto itr : *id->src_cfun->cond_uids)
+	if (itr.second >= min_cond_uid)
+	  min_cond_uid = itr.second + 1;
+    }
+
   for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
     {
       gimple_seq stmts;
@@ -2075,6 +2087,18 @@ copy_bb (copy_body_data *id, basic_block bb,
 
 	  if (gimple_nop_p (stmt))
 	      continue;
+
+	  /* If -fcondition-coverage is used, register the inlined conditions
+	     in the cond->expression mapping of the caller.  The expression tag
+	     is shifted conditions from the two bodies are not mixed.  */
+	  if (id->src_cfun->cond_uids && is_a <gcond*> (stmt))
+	    {
+	      gcond *orig_cond = as_a <gcond*> (orig_stmt);
+	      gcond *cond = as_a <gcond*> (stmt);
+	      unsigned *v = id->src_cfun->cond_uids->get (orig_cond);
+	      if (v)
+		cfun->cond_uids->put (cond, *v + min_cond_uid);
+	    }
 
 	  gimple_duplicate_stmt_histograms (cfun, stmt, id->src_cfun,
 					    orig_stmt);
@@ -2203,13 +2227,26 @@ copy_bb (copy_body_data *id, basic_block bb,
 	    }
 	  else if (call_stmt
 		   && id->call_stmt
-		   && gimple_call_internal_p (stmt)
-		   && gimple_call_internal_fn (stmt) == IFN_TSAN_FUNC_EXIT)
-	    {
-	      /* Drop TSAN_FUNC_EXIT () internal calls during inlining.  */
-	      gsi_remove (&copy_gsi, false);
-	      continue;
-	    }
+		   && gimple_call_internal_p (stmt))
+	    switch (gimple_call_internal_fn (stmt))
+	      {
+	      case IFN_TSAN_FUNC_EXIT:
+		/* Drop .TSAN_FUNC_EXIT () internal calls during inlining.  */
+		gsi_remove (&copy_gsi, false);
+		continue;
+	      case IFN_ASAN_MARK:
+		/* Drop .ASAN_MARK internal calls during inlining into
+		   no_sanitize functions.  */
+		if (!sanitize_flags_p (SANITIZE_ADDRESS, id->dst_fn)
+		    && !sanitize_flags_p (SANITIZE_HWADDRESS, id->dst_fn))
+		  {
+		    gsi_remove (&copy_gsi, false);
+		    continue;
+		  }
+		break;
+	      default:
+		break;
+	      }
 
 	  /* Statements produced by inlining can be unfolded, especially
 	     when we constant propagated some operands.  We can't fold
@@ -2984,24 +3021,13 @@ redirect_all_calls (copy_body_data * id, basic_block bb)
       gimple *stmt = gsi_stmt (si);
       if (is_gimple_call (stmt))
 	{
-	  tree old_lhs = gimple_call_lhs (stmt);
 	  struct cgraph_edge *edge = id->dst_node->get_edge (stmt);
 	  if (edge)
 	    {
-	      gimple *new_stmt
-		= cgraph_edge::redirect_call_stmt_to_callee (edge);
-	      /* If IPA-SRA transformation, run as part of edge redirection,
-		 removed the LHS because it is unused, save it to
-		 killed_new_ssa_names so that we can prune it from debug
-		 statements.  */
-	      if (old_lhs
-		  && TREE_CODE (old_lhs) == SSA_NAME
-		  && !gimple_call_lhs (new_stmt))
-		{
-		  if (!id->killed_new_ssa_names)
-		    id->killed_new_ssa_names = new hash_set<tree> (16);
-		  id->killed_new_ssa_names->add (old_lhs);
-		}
+	      if (!id->killed_new_ssa_names)
+		id->killed_new_ssa_names = new hash_set<tree> (16);
+	      cgraph_edge::redirect_call_stmt_to_callee (edge,
+		id->killed_new_ssa_names);
 
 	      if (stmt == last && id->call_stmt && maybe_clean_eh_stmt (stmt))
 		gimple_purge_dead_eh_edges (bb);
@@ -3328,8 +3354,12 @@ copy_body (copy_body_data *id,
   body = copy_cfg_body (id, entry_block_map, exit_block_map,
 			new_entry);
   copy_debug_stmts (id);
-  delete id->killed_new_ssa_names;
-  id->killed_new_ssa_names = NULL;
+  if (id->killed_new_ssa_names)
+    {
+      ipa_release_ssas_in_hash (id->killed_new_ssa_names);
+      delete id->killed_new_ssa_names;
+      id->killed_new_ssa_names = NULL;
+    }
 
   return body;
 }
@@ -3680,6 +3710,10 @@ initialize_inlined_parameters (copy_body_data *id, gimple *stmt,
 
       setup_one_parameter (id, p, static_chain, fn, bb, &vars);
     }
+
+  /* Reverse so the variables appear in the correct order in DWARF
+     debug info.  */
+  vars = nreverse (vars);
 
   declare_inline_vars (id->block, vars);
 }
@@ -4774,6 +4808,7 @@ expand_call_inline (basic_block bb, gimple *stmt, copy_body_data *id,
   use_operand_p use;
   gimple *simtenter_stmt = NULL;
   vec<tree> *simtvars_save;
+  tree save_stack = NULL_TREE;
 
   /* The gimplifier uses input_location in too many places, such as
      internal_get_tmp_var ().  */
@@ -5022,6 +5057,28 @@ expand_call_inline (basic_block bb, gimple *stmt, copy_body_data *id,
 			GSI_NEW_STMT);
     }
 
+  /* If function to be inlined calls alloca, wrap the inlined function
+     in between save_stack = __builtin_stack_save (); and
+     __builtin_stack_restore (save_stack); calls.  */
+  if (id->src_cfun->calls_alloca && !gimple_call_noreturn_p (stmt))
+    /* Don't do this for VLA allocations though, just for user alloca
+       calls.  */
+    for (struct cgraph_edge *e = id->src_node->callees; e; e = e->next_callee)
+      if (gimple_maybe_alloca_call_p (e->call_stmt)
+	  && !gimple_call_alloca_for_var_p (e->call_stmt))
+	{
+	  tree fn = builtin_decl_implicit (BUILT_IN_STACK_SAVE);
+	  gcall *call = gimple_build_call (fn, 0);
+	  save_stack = make_ssa_name (ptr_type_node);
+	  gimple_call_set_lhs (call, save_stack);
+	  gimple_stmt_iterator si = gsi_last_bb (bb);
+	  gsi_insert_after (&si, call, GSI_NEW_STMT);
+	  struct cgraph_node *dest = cgraph_node::get_create (fn);
+	  id->dst_node->create_edge (dest, call, bb->count)->inline_failed
+	    = CIF_BODY_NOT_AVAILABLE;
+	  break;
+	}
+
   if (DECL_INITIAL (fn))
     {
       if (gimple_block (stmt))
@@ -5144,6 +5201,17 @@ expand_call_inline (basic_block bb, gimple *stmt, copy_body_data *id,
 	      gsi_insert_before (&stmt_gsi, clobber_stmt, GSI_SAME_STMT);
 	    }
 	}
+
+  if (save_stack)
+    {
+      tree fn = builtin_decl_implicit (BUILT_IN_STACK_RESTORE);
+      gcall *call = gimple_build_call (fn, 1, save_stack);
+      gsi_insert_before (&stmt_gsi, call, GSI_SAME_STMT);
+      struct cgraph_node *dest = cgraph_node::get_create (fn);
+      id->dst_node->create_edge (dest, call,
+				 return_block->count)->inline_failed
+	= CIF_BODY_NOT_AVAILABLE;
+    }
 
   /* Reset the escaped solution.  */
   if (cfun->gimple_df)
@@ -6603,7 +6671,15 @@ copy_fn (tree fn, tree& parms, tree& result)
   id.src_cfun = DECL_STRUCT_FUNCTION (fn);
   id.decl_map = &decl_map;
 
-  id.copy_decl = copy_decl_no_change;
+  id.copy_decl = [] (tree decl, copy_body_data *id)
+    {
+      if (TREE_CODE (decl) == TYPE_DECL || TREE_CODE (decl) == CONST_DECL)
+	/* Don't make copies of local types or injected enumerators,
+	   the C++ constexpr evaluator doesn't need them and they
+	   confuse modules streaming.  */
+	return decl;
+      return copy_decl_no_change (decl, id);
+    };
   id.transform_call_graph_edges = CB_CGE_DUPLICATE;
   id.transform_new_cfg = false;
   id.transform_return_to_modify = false;

@@ -384,13 +384,17 @@ struct gcn_image_desc
    See https://llvm.org/docs/AMDGPUUsage.html#amdgpu-ef-amdgpu-mach-table */
 
 typedef enum {
+  EF_AMDGPU_MACH_UNSUPPORTED = -1,
   EF_AMDGPU_MACH_AMDGCN_GFX803 = 0x02a,
   EF_AMDGPU_MACH_AMDGCN_GFX900 = 0x02c,
   EF_AMDGPU_MACH_AMDGCN_GFX906 = 0x02f,
   EF_AMDGPU_MACH_AMDGCN_GFX908 = 0x030,
   EF_AMDGPU_MACH_AMDGCN_GFX90a = 0x03f,
+  EF_AMDGPU_MACH_AMDGCN_GFX90c = 0x032,
   EF_AMDGPU_MACH_AMDGCN_GFX1030 = 0x036,
-  EF_AMDGPU_MACH_AMDGCN_GFX1100 = 0x041
+  EF_AMDGPU_MACH_AMDGCN_GFX1036 = 0x045,
+  EF_AMDGPU_MACH_AMDGCN_GFX1100 = 0x041,
+  EF_AMDGPU_MACH_AMDGCN_GFX1103 = 0x044
 } EF_AMDGPU_MACH;
 
 const static int EF_AMDGPU_MACH_MASK = 0x000000ff;
@@ -1381,9 +1385,10 @@ init_hsa_runtime_functions (void)
 #define DLSYM_FN(function) \
   hsa_fns.function##_fn = dlsym (handle, #function); \
   if (hsa_fns.function##_fn == NULL) \
-    return false;
+    GOMP_PLUGIN_fatal ("'%s' is missing '%s'", hsa_runtime_lib, #function);
 #define DLSYM_OPT_FN(function) \
   hsa_fns.function##_fn = dlsym (handle, #function);
+
   void *handle = dlopen (hsa_runtime_lib, RTLD_LAZY);
   if (handle == NULL)
     return false;
@@ -1426,6 +1431,8 @@ init_hsa_runtime_functions (void)
 #undef DLSYM_FN
 }
 
+static gcn_isa isa_code (const char *isa);
+
 /* Return true if the agent is a GPU and can accept of concurrent submissions
    from different threads.  */
 
@@ -1442,6 +1449,18 @@ suitable_hsa_agent_p (hsa_agent_t agent)
   switch (device_type)
     {
     case HSA_DEVICE_TYPE_GPU:
+      {
+	char name[64];
+	hsa_status_t status
+	  = hsa_fns.hsa_agent_get_info_fn (agent, HSA_AGENT_INFO_NAME, name);
+	if (status != HSA_STATUS_SUCCESS
+	    || isa_code (name) == EF_AMDGPU_MACH_UNSUPPORTED)
+	  {
+	    GCN_DEBUG ("Ignoring unsupported agent '%s'\n",
+		       status == HSA_STATUS_SUCCESS ? name : "invalid");
+	    return false;
+	  }
+      }
       break;
     case HSA_DEVICE_TYPE_CPU:
       if (!support_cpu_devices)
@@ -1495,10 +1514,12 @@ assign_agent_ids (hsa_agent_t agent, void *data)
 }
 
 /* Initialize hsa_context if it has not already been done.
-   Return TRUE on success.  */
+   If !PROBE: returns TRUE on success.
+   If PROBE: returns TRUE on success or if the plugin/device shall be silently
+   ignored, and otherwise emits an error and returns FALSE.  */
 
 static bool
-init_hsa_context (void)
+init_hsa_context (bool probe)
 {
   hsa_status_t status;
   int agent_index = 0;
@@ -1508,10 +1529,12 @@ init_hsa_context (void)
   init_environment_variables ();
   if (!init_hsa_runtime_functions ())
     {
-      GCN_WARNING ("Run-time could not be dynamically opened\n");
+      const char *msg = "Run-time could not be dynamically opened";
       if (suppress_host_fallback)
-	GOMP_PLUGIN_fatal ("GCN host fallback has been suppressed");
-      return false;
+	GOMP_PLUGIN_fatal ("%s\n", msg);
+      else
+	GCN_WARNING ("%s\n", msg);
+      return probe ? true : false;
     }
   status = hsa_fns.hsa_init_fn ();
   if (status != HSA_STATUS_SUCCESS)
@@ -1657,8 +1680,11 @@ const static char *gcn_gfx900_s = "gfx900";
 const static char *gcn_gfx906_s = "gfx906";
 const static char *gcn_gfx908_s = "gfx908";
 const static char *gcn_gfx90a_s = "gfx90a";
+const static char *gcn_gfx90c_s = "gfx90c";
 const static char *gcn_gfx1030_s = "gfx1030";
+const static char *gcn_gfx1036_s = "gfx1036";
 const static char *gcn_gfx1100_s = "gfx1100";
+const static char *gcn_gfx1103_s = "gfx1103";
 const static int gcn_isa_name_len = 7;
 
 /* Returns the name that the HSA runtime uses for the ISA or NULL if we do not
@@ -1678,10 +1704,16 @@ isa_hsa_name (int isa) {
       return gcn_gfx908_s;
     case EF_AMDGPU_MACH_AMDGCN_GFX90a:
       return gcn_gfx90a_s;
+    case EF_AMDGPU_MACH_AMDGCN_GFX90c:
+      return gcn_gfx90c_s;
     case EF_AMDGPU_MACH_AMDGCN_GFX1030:
       return gcn_gfx1030_s;
+    case EF_AMDGPU_MACH_AMDGCN_GFX1036:
+      return gcn_gfx1036_s;
     case EF_AMDGPU_MACH_AMDGCN_GFX1100:
       return gcn_gfx1100_s;
+    case EF_AMDGPU_MACH_AMDGCN_GFX1103:
+      return gcn_gfx1103_s;
     }
   return NULL;
 }
@@ -1721,13 +1753,22 @@ isa_code(const char *isa) {
   if (!strncmp (isa, gcn_gfx90a_s, gcn_isa_name_len))
     return EF_AMDGPU_MACH_AMDGCN_GFX90a;
 
+  if (!strncmp (isa, gcn_gfx90c_s, gcn_isa_name_len))
+    return EF_AMDGPU_MACH_AMDGCN_GFX90c;
+
   if (!strncmp (isa, gcn_gfx1030_s, gcn_isa_name_len))
     return EF_AMDGPU_MACH_AMDGCN_GFX1030;
+
+  if (!strncmp (isa, gcn_gfx1036_s, gcn_isa_name_len))
+    return EF_AMDGPU_MACH_AMDGCN_GFX1036;
 
   if (!strncmp (isa, gcn_gfx1100_s, gcn_isa_name_len))
     return EF_AMDGPU_MACH_AMDGCN_GFX1100;
 
-  return -1;
+  if (!strncmp (isa, gcn_gfx1103_s, gcn_isa_name_len))
+    return EF_AMDGPU_MACH_AMDGCN_GFX1103;
+
+  return EF_AMDGPU_MACH_UNSUPPORTED;
 }
 
 /* CDNA2 devices have twice as many VGPRs compared to older devices.  */
@@ -1741,11 +1782,17 @@ max_isa_vgprs (int isa)
     case EF_AMDGPU_MACH_AMDGCN_GFX900:
     case EF_AMDGPU_MACH_AMDGCN_GFX906:
     case EF_AMDGPU_MACH_AMDGCN_GFX908:
-    case EF_AMDGPU_MACH_AMDGCN_GFX1030:
-    case EF_AMDGPU_MACH_AMDGCN_GFX1100:
       return 256;
     case EF_AMDGPU_MACH_AMDGCN_GFX90a:
       return 512;
+    case EF_AMDGPU_MACH_AMDGCN_GFX90c:
+      return 256;
+    case EF_AMDGPU_MACH_AMDGCN_GFX1030:
+    case EF_AMDGPU_MACH_AMDGCN_GFX1036:
+      return 512;  /* 512 SIMD32 = 256 wavefrontsize64.  */
+    case EF_AMDGPU_MACH_AMDGCN_GFX1100:
+    case EF_AMDGPU_MACH_AMDGCN_GFX1103:
+      return 1536; /* 1536 SIMD32 = 768 wavefrontsize64.  */
     }
   GOMP_PLUGIN_fatal ("unhandled ISA in max_isa_vgprs");
 }
@@ -3301,8 +3348,8 @@ GOMP_OFFLOAD_version (void)
 int
 GOMP_OFFLOAD_get_num_devices (unsigned int omp_requires_mask)
 {
-  if (!init_hsa_context ())
-    return 0;
+  if (!init_hsa_context (true))
+    exit (EXIT_FAILURE);
   /* Return -1 if no omp_requires_mask cannot be fulfilled but
      devices were present.  */
   if (hsa_context.agent_count > 0
@@ -3319,7 +3366,7 @@ GOMP_OFFLOAD_get_num_devices (unsigned int omp_requires_mask)
 bool
 GOMP_OFFLOAD_init_device (int n)
 {
-  if (!init_hsa_context ())
+  if (!init_hsa_context (false))
     return false;
   if (n >= hsa_context.agent_count)
     {
@@ -3372,7 +3419,7 @@ GOMP_OFFLOAD_init_device (int n)
     return hsa_error ("Error querying the name of the agent", status);
 
   agent->device_isa = isa_code (agent->name);
-  if (agent->device_isa < 0)
+  if (agent->device_isa == EF_AMDGPU_MACH_UNSUPPORTED)
     return hsa_error ("Unknown GCN agent architecture", HSA_STATUS_ERROR);
 
   status = hsa_fns.hsa_agent_get_info_fn (agent->id, HSA_AGENT_INFO_VENDOR_NAME,
@@ -3837,15 +3884,9 @@ GOMP_OFFLOAD_can_run (void *fn_ptr)
 
   init_kernel (kernel);
   if (kernel->initialization_failed)
-    goto failure;
+    GOMP_PLUGIN_fatal ("kernel initialization failed");
 
   return true;
-
-failure:
-  if (suppress_host_fallback)
-    GOMP_PLUGIN_fatal ("GCN host fallback has been suppressed");
-  GCN_WARNING ("GCN target cannot be launched, doing a host fallback\n");
-  return false;
 }
 
 /* Allocate memory on device N.  */

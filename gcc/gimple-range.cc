@@ -102,7 +102,15 @@ gimple_ranger::range_of_expr (vrange &r, tree expr, gimple *stmt)
   if (!stmt)
     {
       Value_Range tmp (TREE_TYPE (expr));
-      m_cache.get_global_range (r, expr);
+      // If there is no global range for EXPR yet, try to evaluate it.
+      // This call sets R to a global range regardless.
+      if (!m_cache.get_global_range (r, expr))
+	{
+	  gimple *s = SSA_NAME_DEF_STMT (expr);
+	  // Calculate a range for S if it is safe to do so.
+	  if (s && gimple_bb (s) && gimple_get_lhs (s) == expr)
+	    return range_of_stmt (r, s);
+	}
       // Pick up implied context information from the on-entry cache
       // if current_bb is set.  Do not attempt any new calculations.
       if (current_bb && m_cache.block_range (tmp, current_bb, expr, false))
@@ -144,11 +152,13 @@ gimple_ranger::range_of_expr (vrange &r, tree expr, gimple *stmt)
 
 // Return the range of NAME on entry to block BB in R.
 
-void
+bool
 gimple_ranger::range_on_entry (vrange &r, basic_block bb, tree name)
 {
+  if (!gimple_range_ssa_p (name))
+    return get_tree_range (r, name, NULL, bb, NULL);
+
   Value_Range entry_range (TREE_TYPE (name));
-  gcc_checking_assert (gimple_range_ssa_p (name));
 
   unsigned idx;
   if ((idx = tracer.header ("range_on_entry (")))
@@ -166,16 +176,17 @@ gimple_ranger::range_on_entry (vrange &r, basic_block bb, tree name)
 
   if (idx)
     tracer.trailer (idx, "range_on_entry", true, name, r);
+  return true;
 }
 
 // Calculate the range for NAME at the end of block BB and return it in R.
 // Return false if no range can be calculated.
 
-void
+bool
 gimple_ranger::range_on_exit (vrange &r, basic_block bb, tree name)
 {
-  // on-exit from the exit block?
-  gcc_checking_assert (gimple_range_ssa_p (name));
+  if (!gimple_range_ssa_p (name))
+    return get_tree_range (r, name, NULL, NULL, bb);
 
   unsigned idx;
   if ((idx = tracer.header ("range_on_exit (")))
@@ -200,6 +211,7 @@ gimple_ranger::range_on_exit (vrange &r, basic_block bb, tree name)
   
   if (idx)
     tracer.trailer (idx, "range_on_exit", true, name, r);
+  return true;
 }
 
 // Calculate a range for NAME on edge E and return it in R.
@@ -689,6 +701,8 @@ enable_ranger (struct function *fun, bool use_imm_uses)
 {
   gimple_ranger *r;
 
+  bitmap_obstack_initialize (NULL);
+
   gcc_checking_assert (!fun->x_range_query);
   r = new gimple_ranger (use_imm_uses);
   fun->x_range_query = r;
@@ -705,6 +719,8 @@ disable_ranger (struct function *fun)
   gcc_checking_assert (fun->x_range_query);
   delete fun->x_range_query;
   fun->x_range_query = NULL;
+
+  bitmap_obstack_release (NULL);
 }
 
 // ------------------------------------------------------------------------

@@ -40,6 +40,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "digraph.h"
 #include "stringpool.h"
 #include "attribs.h"
+#include "fold-const.h"
 #include "analyzer/supergraph.h"
 #include "analyzer/call-string.h"
 #include "analyzer/program-point.h"
@@ -49,6 +50,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/program-state.h"
 #include "analyzer/pending-diagnostic.h"
 #include "analyzer/constraint-manager.h"
+#include "diagnostic-format-sarif.h"
 
 #if ENABLE_ANALYZER
 
@@ -70,6 +72,22 @@ enum bounds
   BOUNDS_LOWER
 };
 
+static const char *
+bounds_to_str (enum bounds b)
+{
+  switch (b)
+    {
+    default:
+      gcc_unreachable ();
+    case BOUNDS_NONE:
+      return "BOUNDS_NONE";
+    case BOUNDS_UPPER:
+      return "BOUNDS_UPPER";
+    case BOUNDS_LOWER:
+      return "BOUNDS_LOWER";
+    }
+}
+
 /* An experimental state machine, for tracking "taint": unsanitized uses
    of data potentially under an attacker's control.  */
 
@@ -84,6 +102,12 @@ public:
 				   const svalue *sval,
 				   const extrinsic_state &ext_state)
     const final override;
+
+  bool
+  has_alt_get_inherited_state_p () const final override
+  {
+    return true;
+  }
 
   bool on_stmt (sm_context *sm_ctxt,
 		const supernode *node,
@@ -184,6 +208,17 @@ public:
       return diagnostic_event::meaning (diagnostic_event::VERB_acquire,
 					diagnostic_event::NOUN_taint);
     return diagnostic_event::meaning ();
+  }
+
+  void maybe_add_sarif_properties (sarif_object &result_obj)
+    const override
+  {
+    sarif_property_bag &props = result_obj.get_or_create_properties ();
+#define PROPERTY_PREFIX "gcc/analyzer/taint_diagnostic/"
+    props.set (PROPERTY_PREFIX "arg", tree_to_json (m_arg));
+    props.set_string (PROPERTY_PREFIX "has_bounds",
+		      bounds_to_str (m_has_bounds));
+#undef PROPERTY_PREFIX
   }
 
 protected:
@@ -308,8 +343,10 @@ class tainted_offset : public taint_diagnostic
 {
 public:
   tainted_offset (const taint_state_machine &sm, tree arg,
-		       enum bounds has_bounds)
-  : taint_diagnostic (sm, arg, has_bounds)
+		  enum bounds has_bounds,
+		  const svalue *offset)
+  : taint_diagnostic (sm, arg, has_bounds),
+    m_offset (offset)
   {}
 
   const char *get_kind () const final override { return "tainted_offset"; }
@@ -402,6 +439,19 @@ public:
 				     " checking");
 	}
   }
+
+  void maybe_add_sarif_properties (sarif_object &result_obj)
+    const final override
+  {
+    taint_diagnostic::maybe_add_sarif_properties (result_obj);
+    sarif_property_bag &props = result_obj.get_or_create_properties ();
+#define PROPERTY_PREFIX "gcc/analyzer/tainted_offset/"
+    props.set (PROPERTY_PREFIX "offset", m_offset->to_json ());
+#undef PROPERTY_PREFIX
+  }
+
+private:
+  const svalue *m_offset;
 };
 
 /* Concrete taint_diagnostic subclass for reporting attacker-controlled
@@ -595,8 +645,10 @@ class tainted_allocation_size : public taint_diagnostic
 {
 public:
   tainted_allocation_size (const taint_state_machine &sm, tree arg,
+			   const svalue *size_in_bytes,
 			   enum bounds has_bounds, enum memory_space mem_space)
   : taint_diagnostic (sm, arg, has_bounds),
+    m_size_in_bytes (size_in_bytes),
     m_mem_space (mem_space)
   {
   }
@@ -731,7 +783,18 @@ public:
 	}
   }
 
+  void maybe_add_sarif_properties (sarif_object &result_obj)
+    const final override
+  {
+    taint_diagnostic::maybe_add_sarif_properties (result_obj);
+    sarif_property_bag &props = result_obj.get_or_create_properties ();
+#define PROPERTY_PREFIX "gcc/analyzer/tainted_allocation_size/"
+    props.set (PROPERTY_PREFIX "size_in_bytes", m_size_in_bytes->to_json ());
+#undef PROPERTY_PREFIX
+  }
+
 private:
+  const svalue *m_size_in_bytes;
   enum memory_space m_mem_space;
 };
 
@@ -1059,6 +1122,14 @@ taint_state_machine::on_condition (sm_context *sm_ctxt,
       return;
     }
 
+  /* Strip away casts before considering LHS and RHS, to increase the
+     chance of detecting places where sanitization of a value may have
+     happened.  */
+  if (const svalue *inner = lhs->maybe_undo_cast ())
+    lhs = inner;
+  if (const svalue *inner = rhs->maybe_undo_cast ())
+    rhs = inner;
+
   // TODO
   switch (op)
     {
@@ -1198,6 +1269,9 @@ taint_state_machine::on_bounded_ranges (sm_context *sm_ctxt,
 bool
 taint_state_machine::can_purge_p (state_t s ATTRIBUTE_UNUSED) const
 {
+  if (s == m_has_lb || s == m_has_ub)
+    return false;
+
   return true;
 }
 
@@ -1369,6 +1443,104 @@ make_taint_state_machine (logger *logger)
   return new taint_state_machine (logger);
 }
 
+/* A closed concrete range.  */
+
+class concrete_range
+{
+public:
+  /* Return true iff THIS is fully within OTHER
+     i.e.
+     - m_min must be >= OTHER.m_min
+     - m_max must be <= OTHER.m_max.  */
+  bool within_p (const concrete_range &other) const
+  {
+    if (compare_constants (m_min, GE_EXPR, other.m_min).is_true ())
+      if (compare_constants (m_max, LE_EXPR, other.m_max).is_true ())
+	return true;
+    return false;
+  }
+
+  tree m_min;
+  tree m_max;
+};
+
+/* Attempt to get a closed concrete range for SVAL based on types.
+   If found, write to *OUT and return true.
+   Otherwise return false.  */
+
+static bool
+get_possible_range (const svalue *sval, concrete_range *out)
+{
+  if (const svalue *inner = sval->maybe_undo_cast ())
+    {
+      concrete_range inner_range;
+      if (!get_possible_range (inner, &inner_range))
+	return false;
+
+      if (sval->get_type ()
+	  && inner->get_type ()
+	  && INTEGRAL_TYPE_P (sval->get_type ())
+	  && INTEGRAL_TYPE_P (inner->get_type ())
+	  && TYPE_UNSIGNED (inner->get_type ())
+	  && (TYPE_PRECISION (sval->get_type ())
+	      > TYPE_PRECISION (inner->get_type ())))
+	{
+	  /* We have a cast from an unsigned type to a wider integral type.
+	     Assuming this is zero-extension, we can inherit the range from
+	     the inner type.  */
+	  enum tree_code op = ((const unaryop_svalue *)sval)->get_op ();
+	  out->m_min = fold_unary (op, sval->get_type (), inner_range.m_min);
+	  out->m_max = fold_unary (op, sval->get_type (), inner_range.m_max);
+	  return true;
+	}
+    }
+
+  if (sval->get_type ()
+      && INTEGRAL_TYPE_P (sval->get_type ()))
+    {
+      out->m_min = TYPE_MIN_VALUE (sval->get_type ());
+      out->m_max = TYPE_MAX_VALUE (sval->get_type ());
+      return true;
+    }
+
+  return false;
+}
+
+/* Determine if it's possible for tainted array access ELEMENT_REG to
+   actually be a problem.
+
+   Check here for index being from e.g. unsigned char when the array
+   contains >= 255 elements.
+
+   Return true if out-of-bounds is possible, false if it's impossible
+   (for suppressing false positives).  */
+
+static bool
+index_can_be_out_of_bounds_p (const element_region *element_reg)
+{
+  const svalue *index = element_reg->get_index ();
+  const region *array_reg = element_reg->get_parent_region ();
+
+  if (array_reg->get_type ()
+      && TREE_CODE (array_reg->get_type ()) == ARRAY_TYPE
+      && TYPE_DOMAIN (array_reg->get_type ())
+      && INTEGRAL_TYPE_P (TYPE_DOMAIN (array_reg->get_type ())))
+    {
+      concrete_range valid_index_range;
+      valid_index_range.m_min
+	= TYPE_MIN_VALUE (TYPE_DOMAIN (array_reg->get_type ()));
+      valid_index_range.m_max
+	= TYPE_MAX_VALUE (TYPE_DOMAIN (array_reg->get_type ()));
+
+      concrete_range possible_index_range;
+      if (get_possible_range (index, &possible_index_range))
+	if (possible_index_range.within_p (valid_index_range))
+	  return false;
+    }
+
+  return true;
+}
+
 /* Complain to CTXT if accessing REG leads could lead to arbitrary
    memory access under an attacker's control (due to taint).  */
 
@@ -1415,10 +1587,17 @@ region_model::check_region_for_taint (const region *reg,
 	    gcc_assert (state);
 	    enum bounds b;
 	    if (taint_sm.get_taint (state, index->get_type (), &b))
-	    {
-	      tree arg = get_representative_tree (index);
-	      ctxt->warn (make_unique<tainted_array_index> (taint_sm, arg, b));
-	    }
+	      {
+		if (index_can_be_out_of_bounds_p (element_reg))
+		  {
+		    tree arg = get_representative_tree (index);
+		    ctxt->warn (make_unique<tainted_array_index> (taint_sm,
+								  arg, b));
+		  }
+		else if (ctxt->get_logger ())
+		  ctxt->get_logger ()->log ("rejecting tainted_array_index as"
+					    " out of bounds is not possible");
+	      }
 	  }
 	  break;
 
@@ -1439,7 +1618,8 @@ region_model::check_region_for_taint (const region *reg,
 	    if (taint_sm.get_taint (state, effective_type, &b))
 	      {
 		tree arg = get_representative_tree (offset);
-		ctxt->warn (make_unique<tainted_offset> (taint_sm, arg, b));
+		ctxt->warn (make_unique<tainted_offset> (taint_sm, arg, b,
+							 offset));
 	      }
 	  }
 	  break;
@@ -1511,7 +1691,7 @@ region_model::check_dynamic_size_for_taint (enum memory_space mem_space,
     {
       tree arg = get_representative_tree (size_in_bytes);
       ctxt->warn (make_unique<tainted_allocation_size>
-		    (taint_sm, arg, b, mem_space));
+		    (taint_sm, arg, size_in_bytes, b, mem_space));
     }
 }
 

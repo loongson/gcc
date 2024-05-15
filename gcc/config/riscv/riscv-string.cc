@@ -153,7 +153,7 @@ emit_strcmp_scalar_compare_subword (rtx data1, rtx data2, rtx orc1,
   rtx imask = gen_rtx_CONST_INT (Xmode, im);
   rtx m_reg = gen_reg_rtx (Xmode);
   emit_insn (gen_rtx_SET (m_reg, imask));
-  do_rotr3 (m_reg, m_reg, GEN_INT (64 - cmp_bytes * BITS_PER_UNIT));
+  do_rotr3 (m_reg, m_reg, GEN_INT (BITS_PER_WORD - cmp_bytes * BITS_PER_UNIT));
   do_and3 (data1, m_reg, data1);
   do_and3 (data2, m_reg, data2);
   if (TARGET_ZBB)
@@ -497,6 +497,13 @@ riscv_expand_strcmp (rtx result, rtx src1, rtx src2,
 	return false;
       nbytes = UINTVAL (bytes_rtx);
 
+      /* If NBYTES is zero the result of strncmp will always be zero,
+	 but that would require special casing in the caller.  So for
+	 now just don't do an inline expansion.  This probably rarely
+	 happens in practice, but it is tested by the testsuite.  */
+      if (nbytes == 0)
+	return false;
+
       /* We don't emit parts of a strncmp() call.  */
       if (nbytes > compare_max)
 	return false;
@@ -773,7 +780,8 @@ riscv_expand_block_move_scalar (rtx dest, rtx src, rtx length)
 bool
 riscv_expand_block_move (rtx dest, rtx src, rtx length)
 {
-  if (TARGET_VECTOR && stringop_strategy & STRATEGY_VECTOR)
+  if ((TARGET_VECTOR && !TARGET_XTHEADVECTOR)
+      && stringop_strategy & STRATEGY_VECTOR)
     {
       bool ok = riscv_vector::expand_block_move (dest, src, length);
       if (ok)
@@ -784,6 +792,65 @@ riscv_expand_block_move (rtx dest, rtx src, rtx length)
     return riscv_expand_block_move_scalar (dest, src, length);
 
   return false;
+}
+
+/* Expand a block-clear instruction via cbo.zero instructions.  */
+
+static bool
+riscv_expand_block_clear_zicboz_zic64b (rtx dest, rtx length)
+{
+  unsigned HOST_WIDE_INT hwi_length;
+  unsigned HOST_WIDE_INT align;
+  const unsigned HOST_WIDE_INT cbo_bytes = 64;
+
+  gcc_assert (TARGET_ZICBOZ && TARGET_ZIC64B);
+
+  if (!CONST_INT_P (length))
+    return false;
+
+  hwi_length = UINTVAL (length);
+  if (hwi_length < cbo_bytes)
+    return false;
+
+  align = MEM_ALIGN (dest) / BITS_PER_UNIT;
+  if (align < cbo_bytes)
+    return false;
+
+  /* We don't emit loops.  Instead apply move-bytes limitation.  */
+  unsigned HOST_WIDE_INT max_bytes = RISCV_MAX_MOVE_BYTES_STRAIGHT /
+	  UNITS_PER_WORD * cbo_bytes;
+  if (hwi_length > max_bytes)
+    return false;
+
+  unsigned HOST_WIDE_INT offset = 0;
+  while (offset + cbo_bytes <= hwi_length)
+    {
+      rtx mem = adjust_address (dest, BLKmode, offset);
+      rtx addr = force_reg (Pmode, XEXP (mem, 0));
+      emit_insn (gen_riscv_zero_di (addr));
+      offset += cbo_bytes;
+    }
+
+  if (offset < hwi_length)
+    {
+      rtx mem = adjust_address (dest, BLKmode, offset);
+      clear_by_pieces (mem, hwi_length - offset, align);
+    }
+
+  return true;
+}
+
+bool
+riscv_expand_block_clear (rtx dest, rtx length)
+{
+  /* Only use setmem-zero expansion for Zicboz + Zic64b.  */
+  if (!TARGET_ZICBOZ || !TARGET_ZIC64B)
+    return false;
+
+  if (optimize_function_for_size_p (cfun))
+    return false;
+
+  return riscv_expand_block_clear_zicboz_zic64b (dest, length);
 }
 
 /* --- Vector expanders --- */

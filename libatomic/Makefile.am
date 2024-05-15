@@ -55,9 +55,7 @@ libatomic.map-sun : $(top_srcdir)/libatomic.map \
 		$(libatomic_la_OBJECTS) $(libatomic_la_LIBADD)
 	perl $(top_srcdir)/../contrib/make_sunver.pl \
 	  $(top_srcdir)/libatomic.map \
-	  $(libatomic_la_OBJECTS:%.lo=.libs/%.o) \
-	 `echo $(libatomic_la_LIBADD) | \
-	    sed 's,\([^/ 	]*\)\.l\([ao]\),.libs/\1.\2,g'` \
+	  $(libatomic_la_OBJECTS) $(libatomic_la_LIBADD) \
 	 > $@ || (rm -f $@ ; exit 1)
 endif
 else
@@ -132,13 +130,13 @@ if HAVE_IFUNC
 if ARCH_AARCH64_LINUX
 IFUNC_OPTIONS	     = -march=armv8-a+lse
 libatomic_la_LIBADD += $(foreach s,$(SIZES),$(addsuffix _$(s)_1_.lo,$(SIZEOBJS)))
-libatomic_la_SOURCES += atomic_16.S
 
 endif
 if ARCH_ARM_LINUX
 IFUNC_OPTIONS	     = -march=armv7-a+fp -DHAVE_KERNEL64
 libatomic_la_LIBADD += $(foreach s,$(SIZES),$(addsuffix _$(s)_1_.lo,$(SIZEOBJS)))
 libatomic_la_LIBADD += $(addsuffix _8_2_.lo,$(SIZEOBJS))
+libatomic_la_LIBADD += tas_1_2_.lo
 endif
 if ARCH_I386
 IFUNC_OPTIONS	     = -march=i586
@@ -149,6 +147,10 @@ IFUNC_OPTIONS	     = -mcx16 -mcx16
 libatomic_la_LIBADD += $(addsuffix _16_1_.lo,$(SIZEOBJS)) \
 		       $(addsuffix _16_2_.lo,$(SIZEOBJS))
 endif
+endif
+
+if ARCH_AARCH64_LINUX
+libatomic_la_SOURCES += atomic_16.S
 endif
 
 libatomic_convenience_la_SOURCES = $(libatomic_la_SOURCES)

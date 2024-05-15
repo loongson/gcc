@@ -49,6 +49,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-ssa-ccp.h"
 #include "range-op-mixed.h"
 
+// Set to 1 to trap on range-op entries that cannot handle the pointer
+// combination being requested.  This is a temporary sanity check to
+// aid in debugging, and will be removed later in the release cycle.
+#define TRAP_ON_UNHANDLED_POINTER_OPERATORS 0
+
 // Instantiate the operators which apply to multiple types here.
 
 operator_equal op_equal;
@@ -181,6 +186,12 @@ const unsigned RO_IFF = dispatch_trio (VR_IRANGE, VR_FRANGE, VR_FRANGE);
 const unsigned RO_FFF = dispatch_trio (VR_FRANGE, VR_FRANGE, VR_FRANGE);
 const unsigned RO_FIF = dispatch_trio (VR_FRANGE, VR_IRANGE, VR_FRANGE);
 const unsigned RO_FII = dispatch_trio (VR_FRANGE, VR_IRANGE, VR_IRANGE);
+const unsigned RO_PPP = dispatch_trio (VR_PRANGE, VR_PRANGE, VR_PRANGE);
+const unsigned RO_PPI = dispatch_trio (VR_PRANGE, VR_PRANGE, VR_IRANGE);
+const unsigned RO_IPP = dispatch_trio (VR_IRANGE, VR_PRANGE, VR_PRANGE);
+const unsigned RO_IPI = dispatch_trio (VR_IRANGE, VR_PRANGE, VR_IRANGE);
+const unsigned RO_PIP = dispatch_trio (VR_PRANGE, VR_IRANGE, VR_PRANGE);
+const unsigned RO_PII = dispatch_trio (VR_PRANGE, VR_IRANGE, VR_IRANGE);
 
 // Return a dispatch value for parameter types LHS, OP1 and OP2.
 
@@ -190,6 +201,29 @@ range_op_handler::dispatch_kind (const vrange &lhs, const vrange &op1,
 {
   return dispatch_trio (lhs.m_discriminator, op1.m_discriminator,
 			op2.m_discriminator);
+}
+
+void
+range_op_handler::discriminator_fail (const vrange &r1,
+				      const vrange &r2,
+				      const vrange &r3) const
+{
+  const char name[] = "IPF";
+  gcc_checking_assert (r1.m_discriminator < sizeof (name) - 1);
+  gcc_checking_assert (r2.m_discriminator < sizeof (name) - 1);
+  gcc_checking_assert (r3.m_discriminator < sizeof (name) - 1);
+  fprintf (stderr,
+	   "Unsupported operand combination in dispatch: RO_%c%c%c\n",
+	   name[r1.m_discriminator],
+	   name[r2.m_discriminator],
+	   name[r3.m_discriminator]);
+  gcc_unreachable ();
+}
+
+static inline bool
+has_pointer_operand_p (const vrange &r1, const vrange &r2, const vrange &r3)
+{
+  return is_a <prange> (r1) || is_a <prange> (r2) || is_a <prange> (r3);
 }
 
 // Dispatch a call to fold_range based on the types of R, LH and RH.
@@ -204,6 +238,11 @@ range_op_handler::fold_range (vrange &r, tree type,
 #if CHECKING_P
   if (!lh.undefined_p () && !rh.undefined_p ())
     gcc_assert (m_operator->operand_check_p (type, lh.type (), rh.type ()));
+  if (TRAP_ON_UNHANDLED_POINTER_OPERATORS
+      && has_pointer_operand_p (r, lh, rh)
+      && !m_operator->pointers_handled_p (DISPATCH_FOLD_RANGE,
+					  dispatch_kind (r, lh, rh)))
+    discriminator_fail (r, lh, rh);
 #endif
   switch (dispatch_kind (r, lh, rh))
     {
@@ -227,6 +266,26 @@ range_op_handler::fold_range (vrange &r, tree type,
 	return m_operator->fold_range (as_a <frange> (r), type,
 				       as_a <irange> (lh),
 				       as_a <irange> (rh), rel);
+      case RO_PPP:
+	return m_operator->fold_range (as_a <prange> (r), type,
+				       as_a <prange> (lh),
+				       as_a <prange> (rh), rel);
+      case RO_PPI:
+	return m_operator->fold_range (as_a <prange> (r), type,
+				       as_a <prange> (lh),
+				       as_a <irange> (rh), rel);
+      case RO_IPP:
+	return m_operator->fold_range (as_a <irange> (r), type,
+				       as_a <prange> (lh),
+				       as_a <prange> (rh), rel);
+      case RO_PIP:
+	return m_operator->fold_range (as_a <prange> (r), type,
+				       as_a <irange> (lh),
+				       as_a <prange> (rh), rel);
+      case RO_IPI:
+	return m_operator->fold_range (as_a <irange> (r), type,
+				       as_a <prange> (lh),
+				       as_a <irange> (rh), rel);
       default:
 	return false;
     }
@@ -246,12 +305,33 @@ range_op_handler::op1_range (vrange &r, tree type,
 #if CHECKING_P
   if (!op2.undefined_p ())
     gcc_assert (m_operator->operand_check_p (lhs.type (), type, op2.type ()));
+  if (TRAP_ON_UNHANDLED_POINTER_OPERATORS
+      && has_pointer_operand_p (r, lhs, op2)
+      && !m_operator->pointers_handled_p (DISPATCH_OP1_RANGE,
+					  dispatch_kind (r, lhs, op2)))
+    discriminator_fail (r, lhs, op2);
 #endif
   switch (dispatch_kind (r, lhs, op2))
     {
       case RO_III:
 	return m_operator->op1_range (as_a <irange> (r), type,
 				      as_a <irange> (lhs),
+				      as_a <irange> (op2), rel);
+      case RO_PPP:
+	return m_operator->op1_range (as_a <prange> (r), type,
+				      as_a <prange> (lhs),
+				      as_a <prange> (op2), rel);
+      case RO_PIP:
+	return m_operator->op1_range (as_a <prange> (r), type,
+				      as_a <irange> (lhs),
+				      as_a <prange> (op2), rel);
+      case RO_PPI:
+	return m_operator->op1_range (as_a <prange> (r), type,
+				      as_a <prange> (lhs),
+				      as_a <irange> (op2), rel);
+      case RO_IPI:
+	return m_operator->op1_range (as_a <irange> (r), type,
+				      as_a <prange> (lhs),
 				      as_a <irange> (op2), rel);
       case RO_FIF:
 	return m_operator->op1_range (as_a <frange> (r), type,
@@ -280,6 +360,11 @@ range_op_handler::op2_range (vrange &r, tree type,
 #if CHECKING_P
   if (!op1.undefined_p ())
     gcc_assert (m_operator->operand_check_p (lhs.type (), op1.type (), type));
+  if (TRAP_ON_UNHANDLED_POINTER_OPERATORS
+      && has_pointer_operand_p (r, lhs, op1)
+      && !m_operator->pointers_handled_p (DISPATCH_OP2_RANGE,
+					  dispatch_kind (r, lhs, op1)))
+    discriminator_fail (r, lhs, op1);
 #endif
   switch (dispatch_kind (r, lhs, op1))
     {
@@ -287,6 +372,14 @@ range_op_handler::op2_range (vrange &r, tree type,
 	return m_operator->op2_range (as_a <irange> (r), type,
 				      as_a <irange> (lhs),
 				      as_a <irange> (op1), rel);
+      case RO_PIP:
+	return m_operator->op2_range (as_a <prange> (r), type,
+				      as_a <irange> (lhs),
+				      as_a <prange> (op1), rel);
+      case RO_IPP:
+	return m_operator->op2_range (as_a <irange> (r), type,
+				      as_a <prange> (lhs),
+				      as_a <prange> (op1), rel);
       case RO_FIF:
 	return m_operator->op2_range (as_a <frange> (r), type,
 				      as_a <irange> (lhs),
@@ -309,11 +402,30 @@ range_op_handler::lhs_op1_relation (const vrange &lhs,
 				    relation_kind rel) const
 {
   gcc_checking_assert (m_operator);
+#if CHECKING_P
+  if (TRAP_ON_UNHANDLED_POINTER_OPERATORS
+      && has_pointer_operand_p (lhs, op1, op2)
+      && !m_operator->pointers_handled_p (DISPATCH_LHS_OP1_RELATION,
+					  dispatch_kind (lhs, op1, op2)))
+    discriminator_fail (lhs, op1, op2);
+#endif
 
   switch (dispatch_kind (lhs, op1, op2))
     {
       case RO_III:
 	return m_operator->lhs_op1_relation (as_a <irange> (lhs),
+					     as_a <irange> (op1),
+					     as_a <irange> (op2), rel);
+      case RO_PPP:
+	return m_operator->lhs_op1_relation (as_a <prange> (lhs),
+					     as_a <prange> (op1),
+					     as_a <prange> (op2), rel);
+      case RO_IPP:
+	return m_operator->lhs_op1_relation (as_a <irange> (lhs),
+					     as_a <prange> (op1),
+					     as_a <prange> (op2), rel);
+      case RO_PII:
+	return m_operator->lhs_op1_relation (as_a <prange> (lhs),
 					     as_a <irange> (op1),
 					     as_a <irange> (op2), rel);
       case RO_IFF:
@@ -338,6 +450,13 @@ range_op_handler::lhs_op2_relation (const vrange &lhs,
 				    relation_kind rel) const
 {
   gcc_checking_assert (m_operator);
+#if CHECKING_P
+  if (TRAP_ON_UNHANDLED_POINTER_OPERATORS
+      && has_pointer_operand_p (lhs, op1, op2)
+      && !m_operator->pointers_handled_p (DISPATCH_LHS_OP2_RELATION,
+					  dispatch_kind (lhs, op1, op2)))
+    discriminator_fail (lhs, op1, op2);
+#endif
   switch (dispatch_kind (lhs, op1, op2))
     {
       case RO_III:
@@ -365,12 +484,24 @@ range_op_handler::op1_op2_relation (const vrange &lhs,
 				    const vrange &op2) const
 {
   gcc_checking_assert (m_operator);
+#if CHECKING_P
+  if (TRAP_ON_UNHANDLED_POINTER_OPERATORS
+      && has_pointer_operand_p (lhs, op1, op2)
+      && !m_operator->pointers_handled_p (DISPATCH_OP1_OP2_RELATION,
+					  dispatch_kind (lhs, op1, op2)))
+    discriminator_fail (lhs, op1, op2);
+#endif
   switch (dispatch_kind (lhs, op1, op2))
     {
       case RO_III:
 	return m_operator->op1_op2_relation (as_a <irange> (lhs),
 					     as_a <irange> (op1),
 					     as_a <irange> (op2));
+
+      case RO_IPP:
+	return m_operator->op1_op2_relation (as_a <irange> (lhs),
+					     as_a <prange> (op1),
+					     as_a <prange> (op2));
 
       case RO_IFF:
 	return m_operator->op1_op2_relation (as_a <irange> (lhs),
@@ -415,8 +546,8 @@ range_op_handler::operand_check_p (tree t1, tree t2, tree t3) const
 // LH and RH.
 
 void
-update_known_bitmask (irange &r, tree_code code,
-		      const irange &lh, const irange &rh)
+update_known_bitmask (vrange &r, tree_code code,
+		      const vrange &lh, const vrange &rh)
 {
   if (r.undefined_p () || lh.undefined_p () || rh.undefined_p ()
       || r.singleton_p ())
@@ -435,8 +566,10 @@ update_known_bitmask (irange &r, tree_code code,
       bit_value_unop (code, sign, prec, &widest_value, &widest_mask,
 		      TYPE_SIGN (lh.type ()),
 		      TYPE_PRECISION (lh.type ()),
-		      widest_int::from (lh_bits.value (), sign),
-		      widest_int::from (lh_bits.mask (), sign));
+		      widest_int::from (lh_bits.value (),
+					TYPE_SIGN (lh.type ())),
+		      widest_int::from (lh_bits.mask (),
+					TYPE_SIGN (lh.type ())));
       break;
     case GIMPLE_BINARY_RHS:
       bit_value_binop (code, sign, prec, &widest_value, &widest_mask,
@@ -1655,7 +1788,7 @@ operator_plus::lhs_op1_relation (const irange &lhs,
     }
 
   // If op2 does not contain 0, then LHS and OP1 can never be equal.
-  if (!range_includes_zero_p (&op2))
+  if (!range_includes_zero_p (op2))
     return VREL_NE;
 
   return VREL_VARYING;
@@ -2325,6 +2458,7 @@ operator_widen_mult_unsigned::wi_fold (irange &r, tree type,
 
 class operator_div : public cross_product_operator
 {
+  using range_operator::update_bitmask;
 public:
   operator_div (tree_code div_kind) { m_code = div_kind; }
   virtual void wi_fold (irange &r, tree type,
@@ -2472,6 +2606,7 @@ class operator_lshift : public cross_product_operator
 {
   using range_operator::fold_range;
   using range_operator::op1_range;
+  using range_operator::update_bitmask;
 public:
   virtual bool op1_range (irange &r, tree type, const irange &lhs,
 			  const irange &op2, relation_trio rel = TRIO_VARYING)
@@ -2501,6 +2636,7 @@ class operator_rshift : public cross_product_operator
   using range_operator::fold_range;
   using range_operator::op1_range;
   using range_operator::lhs_op1_relation;
+  using range_operator::update_bitmask;
 public:
   virtual bool fold_range (irange &r, tree type, const irange &op1,
 			   const irange &op2, relation_trio rel = TRIO_VARYING)
@@ -3881,6 +4017,7 @@ class operator_trunc_mod : public range_operator
 {
   using range_operator::op1_range;
   using range_operator::op2_range;
+  using range_operator::update_bitmask;
 public:
   virtual void wi_fold (irange &r, tree type,
 		        const wide_int &lh_lb,
@@ -4303,6 +4440,7 @@ operator_abs::update_bitmask (irange &r, const irange &lh,
 
 class operator_absu : public range_operator
 {
+  using range_operator::update_bitmask;
  public:
   virtual void wi_fold (irange &r, tree type,
 			const wide_int &lh_lb, const wide_int &lh_ub,
@@ -4362,9 +4500,11 @@ operator_negate::fold_range (irange &r, tree type,
 {
   if (empty_range_varying (r, type, lh, rh))
     return true;
-  // -X is simply 0 - X.
-  return range_op_handler (MINUS_EXPR).fold_range (r, type,
-						   range_zero (type), lh);
+
+// -X is simply 0 - X.
+  int_range<1> zero;
+  zero.set_zero (type);
+  return range_op_handler (MINUS_EXPR).fold_range (r, type, zero, lh);
 }
 
 bool
@@ -4389,7 +4529,7 @@ operator_addr_expr::fold_range (irange &r, tree type,
 
   // Return a non-null pointer of the LHS type (passed in op2).
   if (lh.zero_p ())
-    r = range_zero (type);
+    r.set_zero (type);
   else if (lh.undefined_p () || contains_zero_p (lh))
     r.set_varying (type);
   else
@@ -4673,7 +4813,7 @@ range_op_cast_tests ()
   if (TYPE_PRECISION (integer_type_node)
       > TYPE_PRECISION (short_integer_type_node))
     {
-      r0 = range_nonzero (integer_type_node);
+      r0.set_nonzero (integer_type_node);
       range_cast (r0, short_integer_type_node);
       r1 = int_range<1> (short_integer_type_node,
 			 min_limit (short_integer_type_node),
@@ -4685,7 +4825,7 @@ range_op_cast_tests ()
   //
   // NONZERO signed 16-bits is [-MIN_16,-1][1, +MAX_16].
   // Converting this to 32-bits signed is [-MIN_16,-1][1, +MAX_16].
-  r0 = range_nonzero (short_integer_type_node);
+  r0.set_nonzero (short_integer_type_node);
   range_cast (r0, integer_type_node);
   r1 = int_range<1> (integer_type_node, INT (-32768), INT (-1));
   r2 = int_range<1> (integer_type_node, INT (1), INT (32767));

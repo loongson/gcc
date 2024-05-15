@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -159,8 +159,7 @@ package body Exp_Imgv is
                    Make_Component_Definition (Loc,
                      Aliased_Present    => False,
                      Subtype_Indication => New_Occurrence_Of (Ctyp, Loc))),
-             Expression          => Make_Aggregate (Loc, Expressions => V,
-                                      Is_Enum_Array_Aggregate => True)));
+             Expression          => Make_Aggregate (Loc, Expressions => V)));
       end Append_Table_To;
 
    --  Start of Build_Enumeration_Image_Tables

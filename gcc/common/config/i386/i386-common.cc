@@ -2166,7 +2166,8 @@ const char *const processor_names[] =
   "znver1",
   "znver2",
   "znver3",
-  "znver4"
+  "znver4",
+  "znver5"
 };
 
 /* Guarantee that the array is aligned with enum processor_type.  */
@@ -2301,7 +2302,7 @@ const pta processor_alias_table[] =
   {"gracemont", PROCESSOR_ALDERLAKE, CPU_HASWELL, PTA_ALDERLAKE,
    M_CPU_SUBTYPE (INTEL_COREI7_ALDERLAKE), P_PROC_AVX2},
   {"sierraforest", PROCESSOR_SIERRAFOREST, CPU_HASWELL, PTA_SIERRAFOREST,
-    M_CPU_SUBTYPE (INTEL_SIERRAFOREST), P_PROC_AVX2},
+    M_CPU_TYPE (INTEL_SIERRAFOREST), P_PROC_AVX2},
   {"grandridge", PROCESSOR_GRANDRIDGE, CPU_HASWELL, PTA_GRANDRIDGE,
     M_CPU_TYPE (INTEL_GRANDRIDGE), P_PROC_AVX2},
   {"clearwaterforest", PROCESSOR_CLEARWATERFOREST, CPU_HASWELL,
@@ -2435,6 +2436,9 @@ const pta processor_alias_table[] =
   {"znver4", PROCESSOR_ZNVER4, CPU_ZNVER4,
     PTA_ZNVER4,
     M_CPU_SUBTYPE (AMDFAM19H_ZNVER4), P_PROC_AVX512F},
+  {"znver5", PROCESSOR_ZNVER5, CPU_ZNVER5,
+    PTA_ZNVER5,
+    M_CPU_SUBTYPE (AMDFAM1AH_ZNVER5), P_PROC_AVX512F},
   {"btver1", PROCESSOR_BTVER1, CPU_GENERIC,
     PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3
       | PTA_SSSE3 | PTA_SSE4A | PTA_ABM | PTA_CX16 | PTA_PRFCHW

@@ -1,6 +1,7 @@
 /* { dg-do run } */
 /* { dg-options "-O2" } */
 /* { dg-require-effective-target size20plus } */
+/* { dg-additional-options "-DSKIP_STRNDUP" { target { ! strndup } } } */
 
 #include "builtin-object-size-common.h"
 
@@ -566,6 +567,7 @@ test_strdup (const char *in)
   return sz;
 }
 
+#ifndef SKIP_STRNDUP
 size_t
 __attribute__ ((noinline))
 test_strndup (const char *in, size_t bound)
@@ -576,6 +578,7 @@ test_strndup (const char *in, size_t bound)
   __builtin_free (res);
   return sz;
 }
+#endif
 
 size_t
 __attribute__ ((noinline))
@@ -588,6 +591,7 @@ test_strdup_min (const char *in)
   return sz;
 }
 
+#ifndef SKIP_STRNDUP
 size_t
 __attribute__ ((noinline))
 test_strndup_min (const char *in, size_t bound)
@@ -598,6 +602,7 @@ test_strndup_min (const char *in, size_t bound)
   __builtin_free (res);
   return sz;
 }
+#endif
 
 /* Other tests.  */
 
@@ -787,12 +792,16 @@ main (int argc, char **argv)
   const char *str = "hello world";
   if (test_strdup (str) != __builtin_strlen (str) + 1)
     FAIL ();
+#ifndef SKIP_STRNDUP
   if (test_strndup (str, 4) != 5)
     FAIL ();
+#endif
   if (test_strdup_min (str) != __builtin_strlen (str) + 1)
     FAIL ();
+#ifndef SKIP_STRNDUP
   if (test_strndup_min (str, 4) != 1)
     FAIL ();
+#endif
 
   DONE ();
 }

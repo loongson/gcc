@@ -4384,6 +4384,9 @@ gfc_check_null (gfc_expr *mold)
   if (mold == NULL)
     return true;
 
+  if (mold->expr_type == EXPR_NULL)
+    return true;
+
   if (!variable_check (mold, 0, true))
     return false;
 
@@ -5216,7 +5219,7 @@ is_c_interoperable (gfc_expr *expr, const char **msg, bool c_loc, bool c_f_ptr)
 {
   *msg = NULL;
 
-  if (expr->expr_type == EXPR_NULL)
+  if (expr->expr_type == EXPR_NULL && expr->ts.type == BT_UNKNOWN)
     {
       *msg = "NULL() is not interoperable";
       return false;
@@ -5296,18 +5299,14 @@ is_c_interoperable (gfc_expr *expr, const char **msg, bool c_loc, bool c_f_ptr)
       return false;
     }
 
-  if (!c_loc && expr->rank > 0 && expr->expr_type != EXPR_ARRAY)
+  /* Checks for C_SIZEOF need to take into account edits to 18-007r1, see
+     https://j3-fortran.org/doc/year/22/22-101r1.txt .  */
+  if (!c_loc && !c_f_ptr && expr->rank > 0 && expr->expr_type == EXPR_VARIABLE)
     {
       gfc_array_ref *ar = gfc_find_array_ref (expr);
-      if (ar->type != AR_FULL)
+      if (ar->type == AR_FULL && ar->as->type == AS_ASSUMED_SIZE)
 	{
-	  *msg = "Only whole-arrays are interoperable";
-	  return false;
-	}
-      if (!c_f_ptr && ar->as->type != AS_EXPLICIT
-	  && ar->as->type != AS_ASSUMED_SIZE)
-	{
-	  *msg = "Only explicit-size and assumed-size arrays are interoperable";
+	  *msg = "Assumed-size arrays are not interoperable";
 	  return false;
 	}
     }
@@ -5472,9 +5471,17 @@ gfc_check_c_f_pointer (gfc_expr *cptr, gfc_expr *fptr, gfc_expr *shape)
       return false;
     }
 
+  if (fptr->ts.type == BT_PROCEDURE && attr.function)
+    {
+      gfc_error ("FPTR argument to C_F_POINTER at %L is a function "
+		 "returning a pointer", &fptr->where);
+      return false;
+    }
+
   if (fptr->rank > 0 && !is_c_interoperable (fptr, &msg, false, true))
-    return gfc_notify_std (GFC_STD_F2018, "Noninteroperable array FPTR "
-			   "at %L to C_F_POINTER: %s", &fptr->where, msg);
+    return gfc_notify_std (GFC_STD_F2018,
+			   "Noninteroperable array FPTR argument to "
+			   "C_F_POINTER at %L: %s", &fptr->where, msg);
 
   return true;
 }
@@ -6298,8 +6305,8 @@ gfc_check_transfer (gfc_expr *source, gfc_expr *mold, gfc_expr *size)
   if (source_size < result_size)
     gfc_warning (OPT_Wsurprising,
 		 "Intrinsic TRANSFER at %L has partly undefined result: "
-		 "source size %ld < result size %ld", &source->where,
-		 (long) source_size, (long) result_size);
+		 "source size %zd < result size %zd", &source->where,
+		 source_size, result_size);
 
   return true;
 }

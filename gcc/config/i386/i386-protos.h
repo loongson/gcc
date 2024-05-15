@@ -66,7 +66,6 @@ extern bool x86_extended_QIreg_mentioned_p (rtx_insn *);
 extern bool x86_extended_reg_mentioned_p (rtx);
 extern bool x86_extended_rex2reg_mentioned_p (rtx);
 extern bool x86_evex_reg_mentioned_p (rtx [], int);
-extern bool x86_poff_operand_p (rtx);
 extern bool x86_maybe_negate_const_int (rtx *, machine_mode);
 extern machine_mode ix86_cc_mode (enum rtx_code, rtx, rtx);
 
@@ -296,16 +295,16 @@ extern void ix86_target_macros (void);
 extern void ix86_register_pragmas (void);
 
 /* In winnt.cc  */
-extern void i386_pe_unique_section (tree, int);
-extern void i386_pe_declare_function_type (FILE *, const char *, int);
+extern void mingw_pe_unique_section (tree, int);
+extern void mingw_pe_declare_function_type (FILE *, const char *, int);
 extern void i386_pe_record_external_function (tree, const char *);
-extern void i386_pe_maybe_record_exported_symbol (tree, const char *, int);
-extern void i386_pe_encode_section_info (tree, rtx, int);
+extern void mingw_pe_maybe_record_exported_symbol (tree, const char *, int);
+extern void mingw_pe_encode_section_info (tree, rtx, int);
 extern bool i386_pe_binds_local_p (const_tree);
 extern const char *i386_pe_strip_name_encoding_full (const char *);
 extern bool i386_pe_valid_dllimport_attribute_p (const_tree);
-extern unsigned int i386_pe_section_type_flags (tree, const char *, int);
-extern void i386_pe_asm_named_section (const char *, unsigned int, tree);
+extern unsigned int mingw_pe_section_type_flags (tree, const char *, int);
+extern void mingw_pe_asm_named_section (const char *, unsigned int, tree);
 extern void i386_pe_asm_output_aligned_decl_common (FILE *, tree,
 						    const char *,
 						    HOST_WIDE_INT,

@@ -2552,12 +2552,48 @@ is_widening_mult_rhs_p (tree type, tree rhs, tree *type_out,
 
   if (TREE_CODE (rhs) == SSA_NAME)
     {
+      /* Use tree_non_zero_bits to see if this operand is zero_extended
+	 for unsigned widening multiplications or non-negative for
+	 signed widening multiplications.  */
+      if (TREE_CODE (type) == INTEGER_TYPE
+	  && (TYPE_PRECISION (type) & 1) == 0
+	  && int_mode_for_size (TYPE_PRECISION (type) / 2, 1).exists ())
+	{
+	  unsigned int prec = TYPE_PRECISION (type);
+	  unsigned int hprec = prec / 2;
+	  wide_int bits = wide_int::from (tree_nonzero_bits (rhs), prec,
+					  TYPE_SIGN (TREE_TYPE (rhs)));
+	  if (TYPE_UNSIGNED (type)
+	      && wi::bit_and (bits, wi::mask (hprec, true, prec)) == 0)
+	    {
+	      *type_out = build_nonstandard_integer_type (hprec, true);
+	      /* X & MODE_MASK can be simplified to (T)X.  */
+	      stmt = SSA_NAME_DEF_STMT (rhs);
+	      if (is_gimple_assign (stmt)
+		  && gimple_assign_rhs_code (stmt) == BIT_AND_EXPR
+		  && TREE_CODE (gimple_assign_rhs2 (stmt)) == INTEGER_CST
+		  && wide_int::from (wi::to_wide (gimple_assign_rhs2 (stmt)),
+				     prec, TYPE_SIGN (TREE_TYPE (rhs)))
+		     == wi::mask (hprec, false, prec))
+		*new_rhs_out = gimple_assign_rhs1 (stmt);
+	      else
+		*new_rhs_out = rhs;
+	      return true;
+	    }
+	  else if (!TYPE_UNSIGNED (type)
+		   && wi::bit_and (bits, wi::mask (hprec - 1, true, prec)) == 0)
+	    {
+	      *type_out = build_nonstandard_integer_type (hprec, false);
+	      *new_rhs_out = rhs;
+	      return true;
+	    }
+	}
+
       stmt = SSA_NAME_DEF_STMT (rhs);
       if (is_gimple_assign (stmt))
 	{
-	  if (! widening_mult_conversion_strippable_p (type, stmt))
-	    rhs1 = rhs;
-	  else
+
+	  if (widening_mult_conversion_strippable_p (type, stmt))
 	    {
 	      rhs1 = gimple_assign_rhs1 (stmt);
 
@@ -2568,6 +2604,8 @@ is_widening_mult_rhs_p (tree type, tree rhs, tree *type_out,
 		  return true;
 		}
 	    }
+	  else
+	    rhs1 = rhs;
 	}
       else
 	rhs1 = rhs;
@@ -2828,20 +2866,24 @@ convert_mult_to_widen (gimple *stmt, gimple_stmt_iterator *gsi)
     return false;
   if (actual_precision != TYPE_PRECISION (type1)
       || from_unsigned1 != TYPE_UNSIGNED (type1))
-    rhs1 = build_and_insert_cast (gsi, loc,
-				  build_nonstandard_integer_type
-				    (actual_precision, from_unsigned1), rhs1);
+    type1 = build_nonstandard_integer_type (actual_precision, from_unsigned1);
+  if (!useless_type_conversion_p (type1, TREE_TYPE (rhs1)))
+    {
+      if (TREE_CODE (rhs1) == INTEGER_CST)
+	rhs1 = fold_convert (type1, rhs1);
+      else
+	rhs1 = build_and_insert_cast (gsi, loc, type1, rhs1);
+    }
   if (actual_precision != TYPE_PRECISION (type2)
       || from_unsigned2 != TYPE_UNSIGNED (type2))
-    rhs2 = build_and_insert_cast (gsi, loc,
-				  build_nonstandard_integer_type
-				    (actual_precision, from_unsigned2), rhs2);
-
-  /* Handle constants.  */
-  if (TREE_CODE (rhs1) == INTEGER_CST)
-    rhs1 = fold_convert (type1, rhs1);
-  if (TREE_CODE (rhs2) == INTEGER_CST)
-    rhs2 = fold_convert (type2, rhs2);
+    type2 = build_nonstandard_integer_type (actual_precision, from_unsigned2);
+  if (!useless_type_conversion_p (type2, TREE_TYPE (rhs2)))
+    {
+      if (TREE_CODE (rhs2) == INTEGER_CST)
+	rhs2 = fold_convert (type2, rhs2);
+      else
+	rhs2 = build_and_insert_cast (gsi, loc, type2, rhs2);
+    }
 
   gimple_assign_set_rhs1 (stmt, rhs1);
   gimple_assign_set_rhs2 (stmt, rhs2);
@@ -2876,8 +2918,9 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple *stmt,
 
   lhs = gimple_assign_lhs (stmt);
   type = TREE_TYPE (lhs);
-  if (TREE_CODE (type) != INTEGER_TYPE
-      && TREE_CODE (type) != FIXED_POINT_TYPE)
+  if ((TREE_CODE (type) != INTEGER_TYPE
+       && TREE_CODE (type) != FIXED_POINT_TYPE)
+      || !type_has_mode_precision_p (type))
     return false;
 
   if (code == MINUS_EXPR)
@@ -3044,25 +3087,27 @@ convert_plusminus_to_widen (gimple_stmt_iterator *gsi, gimple *stmt,
   actual_precision = GET_MODE_PRECISION (actual_mode);
   if (actual_precision != TYPE_PRECISION (type1)
       || from_unsigned1 != TYPE_UNSIGNED (type1))
-    mult_rhs1 = build_and_insert_cast (gsi, loc,
-				       build_nonstandard_integer_type
-				         (actual_precision, from_unsigned1),
-				       mult_rhs1);
+    type1 = build_nonstandard_integer_type (actual_precision, from_unsigned1);
+  if (!useless_type_conversion_p (type1, TREE_TYPE (mult_rhs1)))
+    {
+      if (TREE_CODE (mult_rhs1) == INTEGER_CST)
+	mult_rhs1 = fold_convert (type1, mult_rhs1);
+      else
+	mult_rhs1 = build_and_insert_cast (gsi, loc, type1, mult_rhs1);
+    }
   if (actual_precision != TYPE_PRECISION (type2)
       || from_unsigned2 != TYPE_UNSIGNED (type2))
-    mult_rhs2 = build_and_insert_cast (gsi, loc,
-				       build_nonstandard_integer_type
-					 (actual_precision, from_unsigned2),
-				       mult_rhs2);
+    type2 = build_nonstandard_integer_type (actual_precision, from_unsigned2);
+  if (!useless_type_conversion_p (type2, TREE_TYPE (mult_rhs2)))
+    {
+      if (TREE_CODE (mult_rhs2) == INTEGER_CST)
+	mult_rhs2 = fold_convert (type2, mult_rhs2);
+      else
+	mult_rhs2 = build_and_insert_cast (gsi, loc, type2, mult_rhs2);
+    }
 
   if (!useless_type_conversion_p (type, TREE_TYPE (add_rhs)))
     add_rhs = build_and_insert_cast (gsi, loc, type, add_rhs);
-
-  /* Handle constants.  */
-  if (TREE_CODE (mult_rhs1) == INTEGER_CST)
-    mult_rhs1 = fold_convert (type1, mult_rhs1);
-  if (TREE_CODE (mult_rhs2) == INTEGER_CST)
-    mult_rhs2 = fold_convert (type2, mult_rhs2);
 
   gimple_assign_set_rhs_with_ops (gsi, wmult_code, mult_rhs1, mult_rhs2,
 				  add_rhs);
@@ -3902,6 +3947,66 @@ arith_overflow_check_p (gimple *stmt, gimple *cast_stmt, gimple *&use_stmt,
   else
     return 0;
 
+  if (maxval
+      && ccode == RSHIFT_EXPR
+      && crhs1 == lhs
+      && TREE_CODE (crhs2) == INTEGER_CST
+      && wi::to_widest (crhs2) == TYPE_PRECISION (TREE_TYPE (maxval)))
+    {
+      tree shiftlhs = gimple_assign_lhs (use_stmt);
+      if (!shiftlhs)
+	return 0;
+      use_operand_p use;
+      if (!single_imm_use (shiftlhs, &use, &cur_use_stmt))
+	return 0;
+      if (gimple_code (cur_use_stmt) == GIMPLE_COND)
+	{
+	  ccode = gimple_cond_code (cur_use_stmt);
+	  crhs1 = gimple_cond_lhs (cur_use_stmt);
+	  crhs2 = gimple_cond_rhs (cur_use_stmt);
+	}
+      else if (is_gimple_assign (cur_use_stmt))
+	{
+	  if (gimple_assign_rhs_class (cur_use_stmt) == GIMPLE_BINARY_RHS)
+	    {
+	      ccode = gimple_assign_rhs_code (cur_use_stmt);
+	      crhs1 = gimple_assign_rhs1 (cur_use_stmt);
+	      crhs2 = gimple_assign_rhs2 (cur_use_stmt);
+	    }
+	  else if (gimple_assign_rhs_code (cur_use_stmt) == COND_EXPR)
+	    {
+	      tree cond = gimple_assign_rhs1 (cur_use_stmt);
+	      if (COMPARISON_CLASS_P (cond))
+		{
+		  ccode = TREE_CODE (cond);
+		  crhs1 = TREE_OPERAND (cond, 0);
+		  crhs2 = TREE_OPERAND (cond, 1);
+		}
+	      else
+		return 0;
+	    }
+	  else
+	    {
+	      enum tree_code sc = gimple_assign_rhs_code (cur_use_stmt);
+	      tree castlhs = gimple_assign_lhs (cur_use_stmt);
+	      if (!CONVERT_EXPR_CODE_P (sc)
+		  || !castlhs
+		  || !INTEGRAL_TYPE_P (TREE_TYPE (castlhs))
+		  || (TYPE_PRECISION (TREE_TYPE (castlhs))
+		      > TYPE_PRECISION (TREE_TYPE (maxval))))
+		return 0;
+	      return 1;
+	    }
+	}
+      else
+	return 0;
+      if ((ccode != EQ_EXPR && ccode != NE_EXPR)
+	  || crhs1 != shiftlhs
+	  || !integer_zerop (crhs2))
+	return 0;
+      return 1;
+    }
+
   if (TREE_CODE_CLASS (ccode) != tcc_comparison)
     return 0;
 
@@ -4004,6 +4109,7 @@ arith_overflow_check_p (gimple *stmt, gimple *cast_stmt, gimple *&use_stmt,
    _8 = IMAGPART_EXPR <_7>;
    if (_8)
    and replace (utype) x with _9.
+   Or with x >> popcount (max) instead of x > max.
 
    Also recognize:
    x = ~z;
@@ -4436,10 +4542,62 @@ match_arith_overflow (gimple_stmt_iterator *gsi, gimple *stmt,
 	  gcc_checking_assert (is_gimple_assign (use_stmt));
 	  if (gimple_assign_rhs_class (use_stmt) == GIMPLE_BINARY_RHS)
 	    {
-	      gimple_assign_set_rhs1 (use_stmt, ovf);
-	      gimple_assign_set_rhs2 (use_stmt, build_int_cst (type, 0));
-	      gimple_assign_set_rhs_code (use_stmt,
-					  ovf_use == 1 ? NE_EXPR : EQ_EXPR);
+	      if (gimple_assign_rhs_code (use_stmt) == RSHIFT_EXPR)
+		{
+		  g2 = gimple_build_assign (make_ssa_name (boolean_type_node),
+					    ovf_use == 1 ? NE_EXPR : EQ_EXPR,
+					    ovf, build_int_cst (type, 0));
+		  gimple_stmt_iterator gsiu = gsi_for_stmt (use_stmt);
+		  gsi_insert_before (&gsiu, g2, GSI_SAME_STMT);
+		  gimple_assign_set_rhs_with_ops (&gsiu, NOP_EXPR,
+						  gimple_assign_lhs (g2));
+		  update_stmt (use_stmt);
+		  use_operand_p use;
+		  single_imm_use (gimple_assign_lhs (use_stmt), &use,
+				  &use_stmt);
+		  if (gimple_code (use_stmt) == GIMPLE_COND)
+		    {
+		      gcond *cond_stmt = as_a <gcond *> (use_stmt);
+		      gimple_cond_set_lhs (cond_stmt, ovf);
+		      gimple_cond_set_rhs (cond_stmt, build_int_cst (type, 0));
+		    }
+		  else
+		    {
+		      gcc_checking_assert (is_gimple_assign (use_stmt));
+		      if (gimple_assign_rhs_class (use_stmt)
+			  == GIMPLE_BINARY_RHS)
+			{
+			  gimple_assign_set_rhs1 (use_stmt, ovf);
+			  gimple_assign_set_rhs2 (use_stmt,
+						  build_int_cst (type, 0));
+			}
+		      else if (gimple_assign_cast_p (use_stmt))
+			gimple_assign_set_rhs1 (use_stmt, ovf);
+		      else
+			{
+			  tree_code sc = gimple_assign_rhs_code (use_stmt);
+			  gcc_checking_assert (sc == COND_EXPR);
+			  tree cond = gimple_assign_rhs1 (use_stmt);
+			  cond = build2 (TREE_CODE (cond),
+					 boolean_type_node, ovf,
+					 build_int_cst (type, 0));
+			  gimple_assign_set_rhs1 (use_stmt, cond);
+			}
+		    }
+		  update_stmt (use_stmt);
+		  gsi_remove (&gsiu, true);
+		  gsiu = gsi_for_stmt (g2);
+		  gsi_remove (&gsiu, true);
+		  continue;
+		}
+	      else
+		{
+		  gimple_assign_set_rhs1 (use_stmt, ovf);
+		  gimple_assign_set_rhs2 (use_stmt, build_int_cst (type, 0));
+		  gimple_assign_set_rhs_code (use_stmt,
+					      ovf_use == 1
+					      ? NE_EXPR : EQ_EXPR);
+		}
 	    }
 	  else
 	    {

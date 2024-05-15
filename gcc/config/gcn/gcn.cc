@@ -138,8 +138,11 @@ gcn_option_override (void)
       : gcn_arch == PROCESSOR_VEGA20 ? ISA_GCN5
       : gcn_arch == PROCESSOR_GFX908 ? ISA_CDNA1
       : gcn_arch == PROCESSOR_GFX90a ? ISA_CDNA2
+      : gcn_arch == PROCESSOR_GFX90c ? ISA_GCN5
       : gcn_arch == PROCESSOR_GFX1030 ? ISA_RDNA2
+      : gcn_arch == PROCESSOR_GFX1036 ? ISA_RDNA2
       : gcn_arch == PROCESSOR_GFX1100 ? ISA_RDNA3
+      : gcn_arch == PROCESSOR_GFX1103 ? ISA_RDNA3
       : ISA_UNKNOWN);
   gcc_assert (gcn_isa != ISA_UNKNOWN);
 
@@ -164,13 +167,17 @@ gcn_option_override (void)
   /* gfx803 "Fiji", gfx1030 and gfx1100 do not support XNACK.  */
   if (gcn_arch == PROCESSOR_FIJI
       || gcn_arch == PROCESSOR_GFX1030
-      || gcn_arch == PROCESSOR_GFX1100)
+      || gcn_arch == PROCESSOR_GFX1036
+      || gcn_arch == PROCESSOR_GFX1100
+      || gcn_arch == PROCESSOR_GFX1103)
     {
       if (flag_xnack == HSACO_ATTR_ON)
 	error ("%<-mxnack=on%> is incompatible with %<-march=%s%>",
 	       (gcn_arch == PROCESSOR_FIJI ? "fiji"
 		: gcn_arch == PROCESSOR_GFX1030 ? "gfx1030"
+		: gcn_arch == PROCESSOR_GFX1036 ? "gfx1036"
 		: gcn_arch == PROCESSOR_GFX1100 ? "gfx1100"
+		: gcn_arch == PROCESSOR_GFX1103 ? "gfx1103"
 		: NULL));
       /* Allow HSACO_ATTR_ANY silently because that's the default.  */
       flag_xnack = HSACO_ATTR_OFF;
@@ -190,6 +197,7 @@ gcn_option_override (void)
 	flag_xnack = HSACO_ATTR_OFF;
 	break;
       case PROCESSOR_GFX90a:
+      case PROCESSOR_GFX90c:
 	flag_xnack = HSACO_ATTR_ANY;
 	break;
       default:
@@ -1597,8 +1605,8 @@ gcn_global_address_p (rtx addr)
       rtx offset = XEXP (addr, 1);
       int offsetbits = (TARGET_RDNA2_PLUS ? 11 : 12);
       bool immediate_p = (CONST_INT_P (offset)
-			  && INTVAL (offset) >= -(1 << 12)
-			  && INTVAL (offset) < (1 << 12));
+			  && INTVAL (offset) >= -(1 << offsetbits)
+			  && INTVAL (offset) < (1 << offsetbits));
 
       if ((gcn_address_register_p (base, DImode, false)
 	   || gcn_vec_address_register_p (base, DImode, false))
@@ -3044,10 +3052,16 @@ gcn_omp_device_kind_arch_isa (enum omp_device_kind_arch_isa trait,
 	return gcn_arch == PROCESSOR_GFX908;
       if (strcmp (name, "gfx90a") == 0)
 	return gcn_arch == PROCESSOR_GFX90a;
+      if (strcmp (name, "gfx90c") == 0)
+	return gcn_arch == PROCESSOR_GFX90c;
       if (strcmp (name, "gfx1030") == 0)
 	return gcn_arch == PROCESSOR_GFX1030;
+      if (strcmp (name, "gfx1036") == 0)
+	return gcn_arch == PROCESSOR_GFX1036;
       if (strcmp (name, "gfx1100") == 0)
 	return gcn_arch == PROCESSOR_GFX1100;
+      if (strcmp (name, "gfx1103") == 0)
+	return gcn_arch == PROCESSOR_GFX1103;
       return 0;
     default:
       gcc_unreachable ();
@@ -4932,8 +4946,8 @@ gcn_expand_builtin_1 (tree exp, rtx target, rtx /*subtarget */ ,
       }
     case GCN_BUILTIN_FIRST_CALL_THIS_THREAD_P:
       {
-	/* Stash a marker in the unused upper 16 bits of s[0:1] to indicate
-	   whether it was the first call.  */
+	/* Stash a marker in the unused upper 16 bits of QUEUE_PTR_ARG to
+	   indicate whether it was the first call.  */
 	rtx result = gen_reg_rtx (BImode);
 	emit_move_insn (result, const0_rtx);
 	if (cfun->machine->args.reg[QUEUE_PTR_ARG] >= 0)
@@ -5110,18 +5124,23 @@ gcn_vectorize_vec_perm_const (machine_mode vmode, machine_mode op_mode,
   gcc_assert (nelt <= 64);
   gcc_assert (sel.length () == nelt);
 
-  if (!dst)
-    {
-      /* All vector permutations are possible on this architecture,
-         with varying degrees of efficiency depending on the permutation. */
-      return true;
-    }
-
   unsigned int perm[64];
   for (unsigned int i = 0; i < nelt; ++i)
     perm[i] = sel[i] & (2 * nelt - 1);
   for (unsigned int i = nelt; i < 64; ++i)
     perm[i] = 0;
+
+  /* RDNA devices can only do permutations within each group of 32-lanes.
+     Reject permutations that cross the boundary.  */
+  if (TARGET_RDNA2_PLUS)
+    for (unsigned int i = 0; i < nelt; i++)
+      if (i < 31 ? perm[i] > 31 : perm[i] < 32)
+	return false;
+
+  /* All vector permutations are possible on other architectures,
+     with varying degrees of efficiency depending on the permutation. */
+  if (!dst)
+    return true;
 
   src0 = force_reg (vmode, src0);
   src1 = force_reg (vmode, src1);
@@ -5216,6 +5235,44 @@ gcn_vector_mode_supported_p (machine_mode mode)
 static machine_mode
 gcn_vectorize_preferred_simd_mode (scalar_mode mode)
 {
+  bool v32;
+  if (gcn_preferred_vectorization_factor == 32)
+    v32 = true;
+  else if (gcn_preferred_vectorization_factor == 64)
+    v32 = false;
+  else if (gcn_preferred_vectorization_factor != -1)
+    gcc_unreachable ();
+  else if (TARGET_RDNA2_PLUS)
+  /* RDNA devices have 32-lane vectors with limited support for 64-bit vectors
+     (in particular, permute operations are only available for cases that don't
+     span the 32-lane boundary).
+
+     From the RDNA3 manual: "Hardware may choose to skip either half if the
+     EXEC mask for that half is all zeros...". This means that preferring
+     32-lanes is a good stop-gap until we have proper wave32 support.  */
+    v32 = true;
+  else
+    v32 = false;
+
+  if (v32)
+    switch (mode)
+      {
+      case E_QImode:
+	return V32QImode;
+      case E_HImode:
+	return V32HImode;
+      case E_SImode:
+	return V32SImode;
+      case E_DImode:
+	return V32DImode;
+      case E_SFmode:
+	return V32SFmode;
+      case E_DFmode:
+	return V32DFmode;
+      default:
+	return word_mode;
+      }
+
   switch (mode)
     {
     case E_QImode:
@@ -5443,6 +5500,8 @@ char *
 gcn_expand_dpp_shr_insn (machine_mode mode, const char *insn,
 			 int unspec, int shift)
 {
+  gcc_checking_assert (!TARGET_RDNA2_PLUS);
+
   static char buf[128];
   const char *dpp;
   const char *vcc_in = "";
@@ -5504,6 +5563,8 @@ gcn_expand_dpp_shr_insn (machine_mode mode, const char *insn,
 rtx
 gcn_expand_reduc_scalar (machine_mode mode, rtx src, int unspec)
 {
+  gcc_checking_assert (!TARGET_RDNA2_PLUS);
+
   machine_mode orig_mode = mode;
   machine_mode scalar_mode = GET_MODE_INNER (mode);
   int vf = GET_MODE_NUNITS (mode);
@@ -6539,13 +6600,27 @@ output_file_start (void)
     case PROCESSOR_GFX90a:
       cpu = "gfx90a";
       break;
+    case PROCESSOR_GFX90c:
+      cpu = "gfx90c";
+      sram_ecc = "";
+      break;
     case PROCESSOR_GFX1030:
       cpu = "gfx1030";
       xnack = "";
       sram_ecc = "";
       break;
+    case PROCESSOR_GFX1036:
+      cpu = "gfx1036";
+      xnack = "";
+      sram_ecc = "";
+      break;
     case PROCESSOR_GFX1100:
       cpu = "gfx1100";
+      xnack = "";
+      sram_ecc = "";
+      break;
+    case PROCESSOR_GFX1103:
+      cpu = "gfx1103";
       xnack = "";
       sram_ecc = "";
       break;
@@ -6565,7 +6640,8 @@ output_file_start (void)
    comments that pass information to mkoffload.  */
 
 void
-gcn_hsa_declare_function_name (FILE *file, const char *name, tree decl)
+gcn_hsa_declare_function_name (FILE *file, const char *name,
+			       tree decl ATTRIBUTE_UNUSED)
 {
   int sgpr, vgpr, avgpr;
   bool xnack_enabled = TARGET_XNACK;
@@ -6584,20 +6660,22 @@ gcn_hsa_declare_function_name (FILE *file, const char *name, tree decl)
 
   /* Determine count of sgpr/vgpr registers by looking for last
      one used.  */
-  for (sgpr = 101; sgpr >= 0; sgpr--)
+  for (sgpr = LAST_SGPR_REG - FIRST_SGPR_REG; sgpr >= 0; sgpr--)
     if (df_regs_ever_live_p (FIRST_SGPR_REG + sgpr))
       break;
   sgpr++;
-  for (vgpr = 255; vgpr >= 0; vgpr--)
+  for (vgpr = LAST_VGPR_REG - FIRST_VGPR_REG; vgpr >= 0; vgpr--)
     if (df_regs_ever_live_p (FIRST_VGPR_REG + vgpr))
       break;
   vgpr++;
-  for (avgpr = 255; avgpr >= 0; avgpr--)
+  for (avgpr = LAST_AVGPR_REG - FIRST_AVGPR_REG; avgpr >= 0; avgpr--)
     if (df_regs_ever_live_p (FIRST_AVGPR_REG + avgpr))
       break;
   avgpr++;
-  vgpr = (vgpr + 3) & ~3;
-  avgpr = (avgpr + 3) & ~3;
+
+  /* The main function epilogue uses v8, but df doesn't see that.  */
+  if (vgpr < 9)
+    vgpr = 9;
 
   if (!leaf_function_p ())
     {
@@ -6610,9 +6688,18 @@ gcn_hsa_declare_function_name (FILE *file, const char *name, tree decl)
 	avgpr = MAX_NORMAL_AVGPR_COUNT;
     }
 
-  /* The gfx90a accum_offset field can't represent 0 registers.  */
-  if (gcn_arch == PROCESSOR_GFX90a && vgpr < 4)
-    vgpr = 4;
+  /* SIMD32 devices count double in wavefront64 mode.  */
+  if (TARGET_RDNA2_PLUS)
+    vgpr *= 2;
+
+  /* Round up to the allocation block size.  */
+  int vgpr_block_size = (TARGET_RDNA3 ? 12
+			 : TARGET_RDNA2_PLUS || TARGET_CDNA2_PLUS ? 8
+			 : 4);
+  if (vgpr % vgpr_block_size)
+    vgpr += vgpr_block_size - (vgpr % vgpr_block_size);
+  if (avgpr % vgpr_block_size)
+    avgpr += vgpr_block_size - (avgpr % vgpr_block_size);
 
   fputs ("\t.rodata\n"
 	 "\t.p2align\t6\n"
@@ -6684,7 +6771,7 @@ gcn_hsa_declare_function_name (FILE *file, const char *name, tree decl)
 	   xnack_enabled,
 	   LDS_SIZE);
   /* Not supported with 'architected flat scratch'.  */
-  if (gcn_arch != PROCESSOR_GFX1100)
+  if (!TARGET_RDNA3)
     fprintf (file,
 	   "\t  .amdhsa_reserve_flat_scratch\t0\n");
   if (gcn_arch == PROCESSOR_GFX90a)
@@ -6713,12 +6800,14 @@ gcn_hsa_declare_function_name (FILE *file, const char *name, tree decl)
 	   "            .private_segment_fixed_size: 0\n"
 	   "            .wavefront_size: 64\n"
 	   "            .sgpr_count: %i\n"
-	   "            .vgpr_count: %i\n"
+	   "            .vgpr_count: %i%s\n"
 	   "            .max_flat_workgroup_size: 1024\n",
 	   cfun->machine->kernarg_segment_byte_size,
 	   cfun->machine->kernarg_segment_alignment,
 	   LDS_SIZE,
-	   sgpr, next_free_vgpr);
+	   sgpr, next_free_vgpr,
+	   (TARGET_RDNA2_PLUS ? " ; wavefrontsize64 counts double on SIMD32"
+	    : ""));
   if (gcn_arch == PROCESSOR_GFX90a || gcn_arch == PROCESSOR_GFX908)
     fprintf (file, "            .agpr_count: %i\n", avgpr);
   fputs ("        .end_amdgpu_metadata\n", file);

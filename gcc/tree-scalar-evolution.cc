@@ -3458,6 +3458,28 @@ bitcount_call:
 		  && (optab_handler (optab, word_mode)
 		      != CODE_FOR_nothing))
 		  break;
+	      /* If popcount is available for a wider mode, we emulate the
+		 operation for a narrow mode by first zero-extending the value
+		 and then computing popcount in the wider mode.  Analogue for
+		 ctz.  For clz we do the same except that we additionally have
+		 to subtract the difference of the mode precisions from the
+		 result.  */
+	      if (is_a <scalar_int_mode> (mode, &int_mode))
+		{
+		  machine_mode wider_mode_iter;
+		  FOR_EACH_WIDER_MODE (wider_mode_iter, mode)
+		    if (optab_handler (optab, wider_mode_iter)
+			!= CODE_FOR_nothing)
+		      goto check_call_args;
+		  /* Operation ctz may be emulated via clz in expand_ctz.  */
+		  if (optab == ctz_optab)
+		    {
+		      FOR_EACH_WIDER_MODE_FROM (wider_mode_iter, mode)
+			if (optab_handler (clz_optab, wider_mode_iter)
+			    != CODE_FOR_nothing)
+			  goto check_call_args;
+		    }
+		}
 	      return true;
 	    }
 	  break;
@@ -3469,6 +3491,7 @@ bitcount_call:
 	  break;
 	}
 
+check_call_args:
       FOR_EACH_CALL_EXPR_ARG (arg, iter, expr)
 	if (expression_expensive_p (arg, cond_overflow_p, cache, op_cost))
 	  return true;
@@ -3877,6 +3900,7 @@ final_value_replacement_loop (class loop *loop)
 	 to a GIMPLE sequence or to a statement list (keeping this a
 	 GENERIC interface).  */
       def = unshare_expr (def);
+      auto loc = gimple_phi_arg_location (phi, exit->dest_idx);
       remove_phi_node (&psi, false);
 
       /* Propagate constants immediately, but leave an unused initialization
@@ -3888,8 +3912,7 @@ final_value_replacement_loop (class loop *loop)
       gimple_seq stmts;
       def = force_gimple_operand (def, &stmts, false, NULL_TREE);
       gassign *ass = gimple_build_assign (rslt, def);
-      gimple_set_location (ass,
-			   gimple_phi_arg_location (phi, exit->dest_idx));
+      gimple_set_location (ass, loc);
       gimple_seq_add_stmt (&stmts, ass);
 
       /* If def's type has undefined overflow and there were folded
