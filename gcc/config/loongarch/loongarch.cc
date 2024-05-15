@@ -2945,7 +2945,7 @@ loongarch_call_tls_get_addr (rtx sym, enum loongarch_symbol_type type, rtx v0)
 
 		 if (HAVE_AS_SUPPORT_CALL36)
 		   call = gen_call_value_internal (v0, loongarch_tls_symbol,
-						   const0_rtx);
+						   const0_rtx, pcs);
 		 else
 		   {
 		     rtx reg = gen_reg_rtx (Pmode);
